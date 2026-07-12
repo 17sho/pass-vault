@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.16] - 2026-07-12
+
+- 长列表和详情独立滚动，同时保持页眉、分类导航和工具栏固定在应用视口内。
+- Keep long lists and details independently scrollable while app chrome remains viewport-bound.
+- Add Chromium and WebKit regression coverage at 320px, 390px, and desktop widths.
+
 ## [1.1.15] - 2026-07-12
 
 ### Added / 新增
