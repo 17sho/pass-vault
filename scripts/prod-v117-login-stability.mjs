@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { chromium, webkit, devices } from 'playwright';
+const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const base = process.argv[2];
 if (!base || !/^https:\/\/(pass|passkey)\.23cm\.me\/?$/.test(base)) throw new Error('usage: node scripts/prod-v117-login-stability.mjs https://pass.23cm.me|https://passkey.23cm.me');
@@ -27,7 +28,7 @@ async function seed() {
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
     await page.goto(base, { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: '创建新库' }).click();
+    await page.getByRole('button', { name: '创建新库' }).click(); await page.getByLabel('邀请码').fill(inviteCode);
     await page.getByLabel('用户名').fill(username);
     await page.getByLabel('主密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '创建并进入' }).click();

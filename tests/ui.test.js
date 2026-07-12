@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, webkit, devices } from 'playwright';
 import { spawn } from 'node:child_process';
+import { TEST_INVITE_CODE, withTestInviteEnv } from './fixtures.mjs';
 import { mkdir } from 'node:fs/promises';
 
 const port = 4317;
@@ -17,7 +18,7 @@ async function stopFixture() {
 }
 test.beforeEach(async () => {
   await mkdir('artifacts', { recursive: true });
-  server = spawn(process.execPath, ['apps/server/server.mjs'], { env: { ...process.env, PORT: String(port), DB_PATH: `/tmp/pass-vault-ui-${process.pid}.sqlite`, COOKIE_SECURE: 'false' } });
+  server = spawn(process.execPath, ['apps/server/server.mjs'], { env: { ...withTestInviteEnv(), PORT: String(port), DB_PATH: `/tmp/pass-vault-ui-${process.pid}.sqlite`, COOKIE_SECURE: 'false' } });
   await new Promise((resolve, reject) => { const deadline=Date.now()+5000; const ping=async()=>{try{const r=await fetch(base);if(r.ok)return resolve()}catch{} if(Date.now()>deadline)return reject(Error('server timeout'));setTimeout(ping,80)};ping() });
   browser = await chromium.launch({headless:true});
 });
@@ -25,7 +26,10 @@ test.afterEach(stopFixture);
 
 async function register(page) {
   await page.goto(base);
+  assert.equal(await page.getByLabel('邀请码').isHidden(),true);
   await page.getByRole('button',{name:'创建新库'}).click();
+  assert.equal(await page.getByLabel('邀请码').isVisible(),true);
+  await page.getByLabel('邀请码').fill(TEST_INVITE_CODE);
   await page.getByLabel('用户名').fill('tester'+Date.now());
   await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
   await page.getByRole('button',{name:'创建并进入'}).click();
@@ -73,7 +77,7 @@ test('旧版 iPhone Safari 无 crypto.randomUUID 仍可保存笔记', async()=>{
  const page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  try {
-  await page.goto(base);await page.getByRole('button',{name:'创建新库'}).click();
+  await page.goto(base);await page.getByRole('button',{name:'创建新库'}).click();await page.getByLabel('邀请码').fill(TEST_INVITE_CODE);
   await page.getByLabel('用户名').fill('iphone'+Date.now());await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
   await page.getByRole('button',{name:'创建并进入'}).click();await page.locator('#vault').waitFor({state:'visible'});
   await create(page,'笔记',{'标题':'测试','正文':'测试','标签（逗号分隔）':'测试'});

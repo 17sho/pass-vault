@@ -54,6 +54,18 @@ test('D1 0004 upgrades populated entries preserving rows and accepting settings'
  assert.equal(db.prepare("SELECT count(*) n FROM entries WHERE type='settings'").get().n,1);db.close();
 });
 
+test('D1 0005 incrementally creates durable invite attempts without changing login attempts',async()=>{
+ const db=new DatabaseSync(':memory:');
+ db.exec(await readFile(new URL('../apps/worker/migrations/0001.sql',import.meta.url),'utf8'));
+ db.prepare('INSERT INTO login_attempts VALUES(?,?)').run('existing-ip',123);
+ db.exec(await readFile(new URL('../apps/worker/migrations/0005_invite_attempts.sql',import.meta.url),'utf8'));
+ db.prepare('INSERT INTO invite_attempts VALUES(?,?)').run('invite-ip',456);
+ assert.equal(db.prepare('SELECT count(*) n FROM login_attempts').get().n,1);
+ assert.equal(db.prepare('SELECT count(*) n FROM invite_attempts').get().n,1);
+ assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_invite_attempts_key_time'").get());
+ db.close();
+});
+
 test('Linux startup migration upgrades populated legacy SQLite and is idempotent',()=>{
  const db=new DatabaseSync(':memory:');db.exec("PRAGMA foreign_keys=ON;CREATE TABLE users(id TEXT PRIMARY KEY);CREATE TABLE entries(user_id TEXT NOT NULL,id TEXT NOT NULL,type TEXT NOT NULL CHECK(type IN('account','website','note')),version INTEGER NOT NULL,iv TEXT NOT NULL,ciphertext TEXT NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(user_id,id),FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);INSERT INTO users VALUES('user_123');INSERT INTO entries VALUES('user_123','entry_123','note',1,'iv','cipher',1)");
  migrateEntriesForSettings(db);migrateEntriesForSettings(db);

@@ -4,7 +4,7 @@ import { join, extname, dirname, resolve } from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { migrateEntriesForSettings } from './migrations.mjs';
-import { validEnvelope, validKdf, validWrappedKey, validateUsername, validAttachmentId, validAttachmentEnvelope, MAX_ATTACHMENT_CIPHERTEXT } from '../../shared/contract.mjs';
+import { validEnvelope, validKdf, validWrappedKey, validateUsername, validAttachmentId, validAttachmentEnvelope, validInviteCode, MAX_ATTACHMENT_CIPHERTEXT } from '../../shared/contract.mjs';
 
 const HOST=process.env.HOST||'127.0.0.1',PORT=Number(process.env.PORT||3000);
 const DB_PATH=resolve(process.env.DB_PATH||join(process.cwd(),'data','pass-vault.sqlite'));
@@ -18,8 +18,9 @@ CREATE TABLE IF NOT EXISTS entries(user_id TEXT NOT NULL,id TEXT NOT NULL,type T
 CREATE INDEX IF NOT EXISTS idx_entries_user_type ON entries(user_id,type);
 CREATE TABLE IF NOT EXISTS attachments(user_id TEXT NOT NULL,id TEXT NOT NULL,metadata_iv TEXT NOT NULL,metadata_ciphertext TEXT NOT NULL,object_key TEXT NOT NULL,ciphertext_size INTEGER NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(user_id,id),FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS idx_attachments_user_updated ON attachments(user_id,updated_at);`);
+db.exec(`CREATE TABLE IF NOT EXISTS auth_attempts(key TEXT NOT NULL,attempted_at INTEGER NOT NULL);CREATE INDEX IF NOT EXISTS idx_auth_attempts_key_time ON auth_attempts(key,attempted_at);`);
 migrateEntriesForSettings(db);
-const attempts=new Map(),cookieName='pv_session',SESSION_MS=8*60*60*1000,MAX_BODY=2_000_000;
+const cookieName='pv_session',SESSION_MS=8*60*60*1000,MAX_BODY=2_000_000;
 const MAX_BACKUP_ATTACHMENTS=20*1024*1024,MAX_BACKUP_JSON=30*1024*1024;
 const digest=x=>createHash('sha256').update(x).digest('hex');
 const passwordHash=(p,s=randomBytes(16))=>({salt:s.toString('base64'),hash:scryptSync(p,s,32,{N:32768,maxmem:64*1024*1024}).toString('base64')});
@@ -34,7 +35,8 @@ const validPassword=x=>typeof x==='string'&&x.length>=12&&x.length<=1024;
 function requestOrigin(req){const proto=(req.headers['x-forwarded-proto']||'').split(',')[0].trim()||'http';return `${proto}://${req.headers.host}`}
 function csrf(req,s){const supplied=req.headers['x-csrf-token'];return typeof supplied==='string'&&digest(supplied)===s.csrf_hash&&req.headers.origin===requestOrigin(req)}
 function auth(req){db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(Date.now());const raw=(req.headers.cookie||'').split(';').map(v=>v.trim().split('=')).find(v=>v[0]===cookieName)?.[1];if(!raw)return null;return db.prepare('SELECT s.*,u.username FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>?').get(digest(raw),Date.now())||null}
-function limited(ip){const now=Date.now(),a=(attempts.get(ip)||[]).filter(t=>t>now-60_000);a.push(now);attempts.set(ip,a);return a.length>10}
+function limited(key,{record=true}={}){const now=Date.now();db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now-60_000);const count=db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key,now-60_000).count;if(record)db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key,now);return count>=10}
+function inviteMatches(value,secret){const a=createHash('sha256').update(value).digest(),b=createHash('sha256').update(secret).digest();return timingSafeEqual(a,b)}
 function cookie(raw,maxAge=28800){const secure=process.env.COOKIE_SECURE!=='false';return `${cookieName}=${raw}; HttpOnly; ${secure?'Secure; ':''}SameSite=Strict; Path=/; Max-Age=${maxAge}`}
 function envelope(row){return{id:row.id,type:row.type,version:row.version,iv:row.iv,ciphertext:row.ciphertext}}
 function attachment(row){return{id:row.id,metadata:{version:1,iv:row.metadata_iv,ciphertext:row.metadata_ciphertext},ciphertextSize:row.ciphertext_size,createdAt:row.created_at,updatedAt:row.updated_at}}
@@ -44,8 +46,8 @@ function userMaterial(userId){const u=db.prepare('SELECT kdf,wrapped_key FROM us
 
 const server=createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost'),p=url.pathname;if(p.startsWith('/api/')){
  if(req.method==='GET'&&p==='/api/health')return json(res,200,{ok:true,backend:'sqlite'});
- if(req.method==='POST'&&p==='/api/register'){const x=await body(req),name=validateUsername(x.username);if(!name.valid)return json(res,400,{error:'invalid_username'});if(!validPassword(x.password)||!validKdf(x.kdf)||!validWrapped(x.wrappedKey))return json(res,400,{error:'invalid'});const h=passwordHash(x.password);try{db.prepare('INSERT INTO users(id,username,password_hash,password_salt,kdf,wrapped_key,created_at) VALUES(?,?,?,?,?,?,?)').run(randomUUID(),name.value,h.hash,h.salt,JSON.stringify(x.kdf),JSON.stringify(x.wrappedKey),Date.now())}catch(e){if(String(e).includes('UNIQUE'))return json(res,409,{error:'username_taken'});throw e}return json(res,201,{ok:true})}
- if(req.method==='POST'&&p==='/api/login'){if(limited(req.socket.remoteAddress||'unknown'))return json(res,429,{error:'rate_limited'});const x=await body(req),name=validateUsername(x.username);if(!name.valid)return json(res,400,{error:'invalid_username'});const u=db.prepare('SELECT * FROM users WHERE username=?').get(name.value);if(!u||!validPassword(x.password)||!verify(x.password,u))return json(res,401,{error:'invalid_credentials'});const raw=randomBytes(32).toString('base64url'),token=randomBytes(24).toString('base64url');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(digest(raw),u.id,digest(token),Date.now()+SESSION_MS);return json(res,200,{csrf:token,...userMaterial(u.id)},{'set-cookie':cookie(raw)})}
+ if(req.method==='POST'&&p==='/api/register'){const x=await body(req),secret=process.env.INVITE_CODE,key=`register:${req.socket.remoteAddress||'unknown'}`;if(!validInviteCode(secret))return json(res,503,{error:'registration_unavailable'});if(limited(key,{record:false}))return json(res,429,{error:'rate_limited'});if(!validInviteCode(x.inviteCode)||!inviteMatches(x.inviteCode,secret)){limited(key);return json(res,403,{error:'invalid_invite'})}const name=validateUsername(x.username);if(!name.valid)return json(res,400,{error:'invalid_username'});if(!validPassword(x.password)||!validKdf(x.kdf)||!validWrapped(x.wrappedKey))return json(res,400,{error:'invalid'});const h=passwordHash(x.password);try{db.prepare('INSERT INTO users(id,username,password_hash,password_salt,kdf,wrapped_key,created_at) VALUES(?,?,?,?,?,?,?)').run(randomUUID(),name.value,h.hash,h.salt,JSON.stringify(x.kdf),JSON.stringify(x.wrappedKey),Date.now())}catch(e){if(String(e).includes('UNIQUE'))return json(res,409,{error:'username_taken'});throw e}return json(res,201,{ok:true})}
+ if(req.method==='POST'&&p==='/api/login'){const key=req.socket.remoteAddress||'unknown';if(limited(key,{record:false}))return json(res,429,{error:'rate_limited'});const x=await body(req),name=validateUsername(x.username);if(!name.valid)return json(res,400,{error:'invalid_username'});const u=db.prepare('SELECT * FROM users WHERE username=?').get(name.value);if(!u||!validPassword(x.password)||!verify(x.password,u)){limited(key);return json(res,401,{error:'invalid_credentials'})}db.prepare('DELETE FROM auth_attempts WHERE key=?').run(key);const raw=randomBytes(32).toString('base64url'),token=randomBytes(24).toString('base64url');db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(digest(raw),u.id,digest(token),Date.now()+SESSION_MS);return json(res,200,{csrf:token,...userMaterial(u.id)},{'set-cookie':cookie(raw)})}
  const s=auth(req);if(!s)return json(res,401,{error:'unauthorized'});if(req.method!=='GET'&&!csrf(req,s))return json(res,403,{error:'csrf'});
  if(req.method==='GET'&&p==='/api/session')return json(res,200,{username:s.username,...userMaterial(s.user_id)});
  if(req.method==='GET'&&p==='/api/entries'){const rows=db.prepare('SELECT id,type,version,iv,ciphertext FROM entries WHERE user_id=? ORDER BY id').all(s.user_id);return json(res,200,{items:rows.map(envelope)})}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { chromium, webkit } from 'playwright';
+const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const base = process.argv[2];
 const evidencePath = process.argv[3];
@@ -110,7 +111,7 @@ try {
   try {
     const page = await seedBrowser.newPage({ viewport: { width: 320, height: 720 } });
     await page.goto(base, { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: '创建新库' }).click();
+    await page.getByRole('button', { name: '创建新库' }).click(); await page.getByLabel('邀请码').fill(inviteCode);
     await page.getByLabel('用户名').fill(username);
     await page.getByLabel('主密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '创建并进入' }).click();

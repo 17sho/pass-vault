@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { chromium, webkit } from 'playwright';
+const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const VERSION = '1.1.12';
 const knownSites = ['https://pass.23cm.me', 'https://passkey.23cm.me'];
@@ -58,7 +59,7 @@ for (const base of sites) for (const [engineName, engine, width, height] of case
   page.on('console', m => { if (m.type() === 'error') errors.push(`console:${m.text()}`); });
   page.on('requestfailed', r => { if (!/abort|cancel/i.test(r.failure()?.errorText || '')) errors.push(`request:${r.url()}:${r.failure()?.errorText}`); });
   try {
-    await page.goto(base, { waitUntil: 'domcontentloaded' }); await page.getByRole('button', { name: '创建新库' }).click();
+    await page.goto(base, { waitUntil: 'domcontentloaded' }); await page.getByRole('button', { name: '创建新库' }).click(); await page.getByLabel('邀请码').fill(inviteCode);
     await page.getByLabel('用户名').fill(username); await page.getByLabel('主密码', { exact: true }).fill(password); await page.getByRole('button', { name: '创建并进入' }).click(); await page.locator('#vault').waitFor({ state: 'visible' });
     await page.locator('nav').getByRole('button', { name: '附件', exact: true }).click(); await page.locator('#attachment-filter').waitFor({ state: 'visible' });
     const geometry = await page.evaluate(rectSource => { const pick = (0, eval)(`(${rectSource})`); return { search:pick(document.querySelector('#search')), group:pick(document.querySelector('#groups')), filter:pick(document.querySelector('#attachment-filter')), toolbar:pick(document.querySelector('.toolbar')), viewport:innerWidth, docWidth:document.documentElement.scrollWidth }; }, rect.toString());

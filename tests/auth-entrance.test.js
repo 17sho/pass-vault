@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { chromium, webkit, devices } from 'playwright';
 import { spawn } from 'node:child_process';
 import { rm } from 'node:fs/promises';
+import { withTestInviteEnv } from './fixtures.mjs';
 
 const port=4333,base=`http://localhost:${port}`,db=`/tmp/pass-vault-auth-entrance-${process.pid}.sqlite`;
 let server;
-test.before(async()=>{server=spawn(process.execPath,['apps/server/server.mjs'],{env:{...process.env,PORT:String(port),DB_PATH:db,ATTACHMENTS_DIR:`/tmp/pass-vault-auth-entrance-${process.pid}-files`,COOKIE_SECURE:'false'}});for(let i=0;i<120;i++){try{if((await fetch(base)).ok)return}catch{}await new Promise(r=>setTimeout(r,50))}throw Error('server timeout')});
+test.before(async()=>{server=spawn(process.execPath,['apps/server/server.mjs'],{env:{...withTestInviteEnv(),PORT:String(port),DB_PATH:db,ATTACHMENTS_DIR:`/tmp/pass-vault-auth-entrance-${process.pid}-files`,COOKIE_SECURE:'false'}});for(let i=0;i<120;i++){try{if((await fetch(base)).ok)return}catch{}await new Promise(r=>setTimeout(r,50))}throw Error('server timeout')});
 test.after(async()=>{if(server?.exitCode===null){server.kill('SIGTERM');await new Promise(r=>server.once('exit',r))}await rm(db,{force:true});await rm(`${db}-shm`,{force:true});await rm(`${db}-wal`,{force:true});await rm(`/tmp/pass-vault-auth-entrance-${process.pid}-files`,{recursive:true,force:true})});
 
 const sample=()=>{const shell=document.querySelector('#auth'),el=document.querySelector('#auth-form'),style=getComputedStyle(el),box=shell.getBoundingClientRect();return{opacity:Number(style.opacity),transform:style.transform,animationName:style.animationName,box:[box.x,box.y,box.width,box.height],starts:window.__authStarts||0}};

@@ -5,8 +5,10 @@ const ID_RE=/^[a-zA-Z0-9_-]{8,80}$/;
 export const ATTACHMENT_CATEGORIES=['image','video','other'];
 export const ATTACHMENT_LIMITS=Object.freeze({image:10*1024*1024,video:100*1024*1024,other:25*1024*1024});
 export const MAX_ATTACHMENT_CIPHERTEXT=ATTACHMENT_LIMITS.video+16;
+export const INVITE_CODE_BOUNDS=Object.freeze({min:16,max:256});
 const plainObject=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
 export function validateUsername(x){if(typeof x!=='string')return{valid:false,value:''};const value=x.trim();if(!value||value.length>80||/[\p{Cc}\p{Cf}]/u.test(value))return{valid:false,value:''};return{valid:true,value}}
+export const validInviteCode=x=>typeof x==='string'&&x.length>=INVITE_CODE_BOUNDS.min&&x.length<=INVITE_CODE_BOUNDS.max;
 export function validKdf(x){return plainObject(x)&&Object.keys(x).every(k=>['salt','iterations','hash'].includes(k))&&typeof x.salt==='string'&&x.salt.length>0&&x.salt.length<1000&&x.iterations===310000&&(x.hash===undefined||x.hash==='SHA-256')}
 export function validWrappedKey(x){return plainObject(x)&&Object.keys(x).length===2&&typeof x.iv==='string'&&x.iv.length>0&&x.iv.length<1000&&typeof x.ciphertext==='string'&&x.ciphertext.length>0&&x.ciphertext.length<10000}
 export function validKeyMaterial(x){return plainObject(x)&&validKdf(x.kdf)&&validWrappedKey(x.wrappedKey)}

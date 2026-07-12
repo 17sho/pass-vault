@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium, webkit } from 'playwright';
 import { randomBytes } from 'node:crypto';
 import { buildMatrixCases } from './production-motion-matrix-cases.mjs';
+const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const exampleSites=[['cf','https://vault-worker.example.workers.dev'],['linux','https://vault.example.com']];
 const sites=process.env.MATRIX_SITES?JSON.parse(process.env.MATRIX_SITES):exampleSites;
@@ -16,7 +17,7 @@ const password=`Matrix-${randomBytes(16).toString('base64url')}!`;
 const identity={event:'identity',usernames:sites.map(([site,base])=>usernameFor({site,base}))};
 console.log(JSON.stringify(identity));
 
-async function register(page,caseDef){await page.goto(caseDef.base,{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'创建新库'}).click();await page.getByLabel('用户名').fill(usernameFor(caseDef));await page.getByLabel('主密码',{exact:true}).fill(password);await page.getByRole('button',{name:'创建并进入'}).click();await page.locator('#vault').waitFor({state:'visible'});}
+async function register(page,caseDef){await page.goto(caseDef.base,{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'创建新库'}).click();await page.getByLabel('邀请码').fill(inviteCode);await page.getByLabel('用户名').fill(usernameFor(caseDef));await page.getByLabel('主密码',{exact:true}).fill(password);await page.getByRole('button',{name:'创建并进入'}).click();await page.locator('#vault').waitFor({state:'visible'});}
 async function login(page,caseDef){await page.goto(caseDef.base,{waitUntil:'domcontentloaded'});await page.getByLabel('用户名').fill(usernameFor(caseDef));await page.getByLabel('主密码',{exact:true}).fill(password);await page.getByRole('button',{name:'登录并解锁'}).click();await page.locator('#vault').waitFor({state:'visible'});}
 async function create(page,label,values){await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:label,exact:true}).click();const editor=page.locator('#editor'),fields={...values};if(label==='账号'){await editor.locator('input[name=credentialUsername]').fill(fields['账号']??'');await editor.locator('input[name=credentialPassword]').fill(fields['密码']??'');delete fields['账号'];delete fields['密码']}for(const [name,value] of Object.entries(fields))await editor.getByLabel(name,{exact:true}).fill(value);await editor.getByRole('button',{name:'保存'}).click();}
 async function seed(page){await create(page,'账号',{'平台':'ACCOUNT-OLD','登录网址':'https://a.example','账号':'alice','密码':'secret','备注':'old detail','标签（逗号分隔）':''});await create(page,'网站',{'名称':'WEBSITE-ONLY','网址':'https://w.example','说明':'site','标签（逗号分隔）':''});await create(page,'笔记',{'标题':'NOTE-ONLY','正文':'note body','标签（逗号分隔）':''});await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();await page.locator('#attachment-upload input[type=file]').setInputFiles({name:'MATRIX-FIRST.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwD4WQAAAABJRU5ErkJggg==','base64')});await page.locator('#attachment-upload').getByRole('button',{name:'加密并上传'}).click();await page.getByText('附件已上传',{exact:true}).waitFor();}

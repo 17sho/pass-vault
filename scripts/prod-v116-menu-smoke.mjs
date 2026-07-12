@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { webkit, devices } from 'playwright';
 import { randomBytes } from 'node:crypto';
+const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const base = process.argv[2];
 if (!base) throw new Error('usage: node scripts/prod-v116-menu-smoke.mjs <base-url> [evidence.json]');
@@ -40,6 +41,7 @@ try{
    await toggle.click();
  }
  await assertEventually(async()=>assert.equal((await submit.textContent())?.trim(),'创建并进入'),'registration mode');
+  await page.getByLabel('邀请码').fill(inviteCode);
  await page.locator('#auth-form input[name=username]').fill(username);
  await page.locator('#auth-form input[name=password]').fill(password);
  await submit.click();

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { chromium, webkit } from 'playwright';
+const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const allSites = ['https://pass.23cm.me', 'https://passkey.23cm.me'];
 const allEngines = [['chromium', chromium], ['webkit', webkit]];
@@ -43,7 +44,7 @@ for (const base of sites) for (const [engineName, engine] of engines) {
   page.on('request', request => { if (['POST', 'PUT', 'PATCH'].includes(request.method())) requestBodies.push(`${request.postData() || ''}${request.headers()['x-attachment-metadata'] || ''}`); });
   try {
     await page.goto(base, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: '创建新库' }).click();
+    await page.getByRole('button', { name: '创建新库' }).click(); await page.getByLabel('邀请码').fill(inviteCode);
     await page.getByLabel('用户名').fill(username); await page.getByLabel('主密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '创建并进入' }).click(); await page.locator('#vault').waitFor({ state: 'visible' });
     await expectActive(page, '账号', '默认'); await createGroup(page, '账号', names.account, record); record.checkpoints.push('account-empty-group-created'); await save();

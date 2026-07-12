@@ -22,7 +22,7 @@ class Statement {
     if(s.startsWith('SELECT COALESCE(SUM(ciphertext_size),0) AS total FROM attachments'))return new Result([{total:d.attachments.reduce((n,x)=>n+x.ciphertext_size,0)}]);
     if(s.startsWith('SELECT 1 FROM attachments'))return new Result(d.attachments.filter(x=>x.user_id===a[0]&&x.id===a[1]));
     if(s.startsWith('SELECT * FROM attachments'))return new Result(d.attachments.filter(x=>x.user_id===a[0]&&x.id===a[1]));
-    if(s.startsWith('SELECT COUNT(*) AS count FROM login_attempts'))return new Result([{count:d.attempts.filter(x=>x.key===a[0]&&x.attempted_at>a[1]).length}]);
+    if(s.startsWith('SELECT COUNT(*) AS count FROM login_attempts')||s.startsWith('SELECT COUNT(*) AS count FROM invite_attempts'))return new Result([{count:d.attempts.filter(x=>x.key===a[0]&&x.attempted_at>a[1]).length}]);
     throw Error('Unhandled all SQL: '+s)
   }
   async run(){const[d,s,a]=[this.db,this.sql,this.args];
@@ -32,8 +32,8 @@ class Statement {
     if(s.startsWith('UPDATE r2_storage_usage')){if(d.storage+a[0]>=0&&d.storage+a[0]<=a[3]){d.storage+=a[0];return new Result([],{changes:1})}return new Result()}
     if(s.startsWith('INSERT INTO users')){d.users.push({id:a[0],username:a[1],password_hash:a[2],password_salt:a[3],kdf:a[4],wrapped_key:a[5],created_at:a[6]});return new Result([], {changes:1})}
     if(s.startsWith('INSERT INTO sessions')){d.sessions.push({id_hash:a[0],user_id:a[1],csrf_hash:a[2],expires_at:a[3]});return new Result([], {changes:1})}
-    if(s.startsWith('INSERT INTO login_attempts')){d.attempts.push({key:a[0],attempted_at:a[1]});return new Result([], {changes:1})}
-    if(s.startsWith('DELETE FROM login_attempts')){d.attempts=d.attempts.filter(x=>!(x.key===a[0]||x.attempted_at<a.at(-1)));return new Result([], {changes:1})}
+    if(s.startsWith('INSERT INTO login_attempts')||s.startsWith('INSERT INTO invite_attempts')){d.attempts.push({key:a[0],attempted_at:a[1]});return new Result([], {changes:1})}
+    if(s.startsWith('DELETE FROM login_attempts')||s.startsWith('DELETE FROM invite_attempts')){d.attempts=d.attempts.filter(x=>!(x.key===a[0]||x.attempted_at<a.at(-1)));return new Result([], {changes:1})}
     if(s.startsWith('DELETE FROM sessions WHERE id_hash')){const n=d.sessions.length;d.sessions=d.sessions.filter(x=>x.id_hash!==a[0]);return new Result([], {changes:n-d.sessions.length})}
     if(s.startsWith('DELETE FROM sessions WHERE user_id = ? AND id_hash')){d.sessions=d.sessions.filter(x=>!(x.user_id===a[0]&&x.id_hash!==a[1]));return new Result([], {changes:1})}
     if(s.startsWith('DELETE FROM sessions WHERE user_id')){d.sessions=d.sessions.filter(x=>x.user_id!==a[0]);return new Result([], {changes:1})}
@@ -50,10 +50,12 @@ class Statement {
   }
 }
 class R2 { objects=new Map(); failPut=false; failDelete=false; async put(k,v){if(this.failPut)throw Error('r2 put failed');this.objects.set(k,new Uint8Array(await new Response(v).arrayBuffer()))} async get(k){const v=this.objects.get(k);return v&&{body:v}} async delete(k){if(this.failDelete)throw Error('r2 delete failed');this.objects.delete(k)} }
-const env=()=>({DB:new DB(),ATTACHMENTS:new R2(),ASSETS:{fetch:()=>new Response('asset')}});
+const env=()=>({DB:new DB(),ATTACHMENTS:new R2(),ASSETS:{fetch:()=>new Response('asset')},INVITE_CODE:'test-invite-code-1234567890'});
 const call=(env,path,{method='GET',body,raw,headers={}}={})=>worker.fetch(new Request('https://vault.test'+path,{method,headers:{...(body?{'content-type':'application/json'}:{}),...headers},body:raw??(body&&JSON.stringify(body))}),env,{waitUntil(){}});
-const creds={username:'alice',password:'correct horse battery',kdf:{salt:'client-salt',iterations:310000},wrappedKey:{iv:'opaque-iv',ciphertext:'opaque-wrapped-vault-key'}};
+const creds={username:'alice',password:'correct horse battery',inviteCode:'test-invite-code-1234567890',kdf:{salt:'client-salt',iterations:310000},wrappedKey:{iv:'opaque-iv',ciphertext:'opaque-wrapped-vault-key'}};
 async function login(e){await call(e,'/api/register',{method:'POST',body:creds});const r=await call(e,'/api/login',{method:'POST',body:{username:creds.username,password:creds.password},headers:{'CF-Connecting-IP':'1.2.3.4'}});return {json:await r.json(),cookie:r.headers.get('set-cookie').split(';')[0]}}
+
+test('Worker 注册邀请码关闭、拒绝、持久限速与成功',async()=>{const missing=env();delete missing.INVITE_CODE;let r=await call(missing,'/api/register',{method:'POST',body:creds,headers:{'CF-Connecting-IP':'7.7.7.7'}});assert.equal(r.status,503);assert.deepEqual(await r.json(),{error:'registration_unavailable'});assert.equal(missing.DB.users.length,0);const e=env();for(let i=0;i<10;i++){r=await call(e,'/api/register',{method:'POST',body:{...creds,inviteCode:'wrong-invite-code-123456789'},headers:{'CF-Connecting-IP':'8.8.8.8'}});assert.equal(r.status,403)}r=await call(e,'/api/register',{method:'POST',body:creds,headers:{'CF-Connecting-IP':'8.8.8.8'}});assert.equal(r.status,429);assert.equal(e.DB.users.length,0);r=await call(env(),'/api/register',{method:'POST',body:creds,headers:{'CF-Connecting-IP':'9.9.9.9'}});assert.equal(r.status,201)});
 
 test('静态资源和 API 都返回生产安全头',async()=>{const e=env();for(const path of ['/', '/api/health']){const r=await call(e,path),csp=r.headers.get('content-security-policy');assert.match(csp,/frame-ancestors 'none'/);assert.match(csp,/script-src 'self'/);assert.match(csp,/img-src 'self' data: blob:/);assert.match(csp,/media-src 'self' blob:/);assert.doesNotMatch(csp,/script-src[^;]*(?:'unsafe-inline'|'unsafe-eval'|blob:)/);assert.equal(r.headers.get('strict-transport-security'),'max-age=63072000; includeSubDomains; preload');assert.equal(r.headers.get('x-content-type-options'),'nosniff');assert.equal(r.headers.get('x-frame-options'),'DENY');assert.equal(r.headers.get('referrer-policy'),'no-referrer')}});
 

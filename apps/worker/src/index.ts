@@ -1,6 +1,6 @@
-import { validEnvelope, validKeyMaterial, validateUsername, validAttachmentId, validAttachmentEnvelope, MAX_ATTACHMENT_CIPHERTEXT } from '../../../shared/contract.mjs';
+import { validEnvelope, validKeyMaterial, validateUsername, validAttachmentId, validAttachmentEnvelope, validInviteCode, MAX_ATTACHMENT_CIPHERTEXT } from '../../../shared/contract.mjs';
 
-interface Env { DB:D1Database; ASSETS:Fetcher; ATTACHMENTS:R2Bucket }
+interface Env { DB:D1Database; ASSETS:Fetcher; ATTACHMENTS:R2Bucket; INVITE_CODE?:string }
 type User={id:string;username:string;password_hash:string;password_salt:string;kdf:string;wrapped_key:string};
 type Session=User&{user_id:string;id_hash:string;csrf_hash:string;expires_at:number};
 type Envelope={id:string;type:'account'|'website'|'note';version:number;iv:string;ciphertext:string};
@@ -31,6 +31,7 @@ const bytesToB64=(value:ArrayBuffer)=>{let out='';for(const x of new Uint8Array(
 const b64ToBytes=(value:string)=>{try{return Uint8Array.from(atob(value),c=>c.charCodeAt(0))}catch{return null}};
 const passwordHash=async(password:string,salt:string)=>b64(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:enc.encode(salt),iterations:100_000},await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']),256));
 const equal=(a:string,b:string)=>{if(a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0};
+const inviteMatches=async(a:string,b:string)=>equal(await digest(a),await digest(b));
 async function body(req:Request){const length=Number(req.headers.get('content-length')||0);if(length>MAX_BODY)throw new RangeError();const text=await req.text();if(text.length>MAX_BODY)throw new RangeError();return JSON.parse(text||'{}') as Record<string,unknown>}
 async function limitedJson(req:Request,limit:number){const reader=req.body?.getReader();if(!reader)return {};const chunks:Uint8Array[]=[];let size=0;for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit){await reader.cancel();throw new RangeError()}chunks.push(value)}const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength}return JSON.parse(new TextDecoder().decode(bytes)||'{}') as any}
 const validPassword=(x:unknown)=>typeof x==='string'&&x.length>=12&&x.length<=1024;
@@ -48,7 +49,7 @@ export default {async fetch(req:Request,env:Env):Promise<Response>{
   if(!p.startsWith('/api/'))return asset(req,env);
   if(req.method==='GET'&&p==='/api/health')return json({ok:true,backend:'d1'});
   if(req.method==='POST'&&p==='/api/register'){
-   const x=await body(req),name=validateUsername(x.username);if(!name.valid)return error(400,'invalid_username');if(!validPassword(x.password)||!validKey(x))return error(400,'invalid');
+   const x=await body(req),key=req.headers.get('CF-Connecting-IP')||'unknown';if(!validInviteCode(env.INVITE_CODE))return error(503,'registration_unavailable');const now=Date.now();await env.DB.prepare('DELETE FROM invite_attempts WHERE attempted_at < ?').bind(now-60_000).run();const attempts=await env.DB.prepare('SELECT COUNT(*) AS count FROM invite_attempts WHERE key=? AND attempted_at>?').bind(key,now-60_000).first<{count:number}>();if((attempts?.count||0)>=10)return error(429,'rate_limited');if(!validInviteCode(x.inviteCode)||!await inviteMatches(x.inviteCode as string,env.INVITE_CODE as string)){await env.DB.prepare('INSERT INTO invite_attempts(key,attempted_at) VALUES(?,?)').bind(key,now).run();return error(403,'invalid_invite')}const name=validateUsername(x.username);if(!name.valid)return error(400,'invalid_username');if(!validPassword(x.password)||!validKey(x))return error(400,'invalid');
    if(await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(name.value).first())return error(409,'username_taken');
    const id=crypto.randomUUID(),salt=random(16),hash=await passwordHash(x.password as string,salt);
    await env.DB.prepare('INSERT INTO users(id,username,password_hash,password_salt,kdf,wrapped_key,created_at) VALUES(?,?,?,?,?,?,?)').bind(id,name.value,hash,salt,JSON.stringify(x.kdf),JSON.stringify(x.wrappedKey),Date.now()).run();return json({ok:true},201);
