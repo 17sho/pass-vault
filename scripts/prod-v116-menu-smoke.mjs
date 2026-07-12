@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { webkit, devices } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { randomBytes } from 'node:crypto';
 const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
@@ -11,9 +11,11 @@ const username = `e2e_v116_${suffix}`;
 const password = `V116-${randomBytes(18).toString('base64url')}`;
 const titles = Array.from({length:12},(_,i)=>`e2e-v116-${suffix}-site-${String(i).padStart(2,'0')}`);
 const errors=[];
-const evidence={base,username,titles,startedAt:new Date().toISOString(),menus:[],errors,checkpoints:[]};
-const browser=await webkit.launch({headless:true});
-const context=await browser.newContext({...devices['iPhone 13']});
+const engineName=process.argv[4]||'webkit';const width=Number(process.argv[5]||390);const height=Number(process.argv[6]||844);
+const browserType={chromium,webkit}[engineName];if(!browserType)throw new Error(`invalid engine ${engineName}`);
+const evidence={base,username,titles,engineName,width,height,startedAt:new Date().toISOString(),menus:[],errors,checkpoints:[]};
+const browser=await browserType.launch({headless:true});
+const context=await browser.newContext({viewport:{width,height}});
 const page=await context.newPage();
 page.on('pageerror',e=>errors.push({kind:'pageerror',text:e.message}));
 page.on('console',m=>{if(m.type()==='error')errors.push({kind:'console',text:m.text()})});
