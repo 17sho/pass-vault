@@ -239,11 +239,11 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
-### Upgrading from v1.1.16 or earlier to v1.1.19
+### Upgrading to v1.1.20
 
-v1.1.17–v1.1.19 add login-name changes and related frontend layout/focus fixes only. They add **no SQLite migration, attachment-storage change, environment variable, secret, or systemd setting**. Existing `INVITE_CODE` and data-directory settings remain valid; do not clear, import, or recreate SQLite, and existing vaults need no re-encryption. The Linux service still runs its existing idempotent schema initialization at startup. When upgrading from an older release, retain and run that initialization; this note does not permit skipping older schema changes.
+v1.1.20 performs an idempotent SQLite migration at service startup: when `entries.created_at` is absent it adds the column and backfills each row from `updated_at`. Make a consistent SQLite + attachments backup before switching and restarting. Do not manually clear, import, or recreate SQLite, and no vault re-encryption is needed. Attachment storage, environment variables, secrets, and systemd settings are unchanged; repeated starts do not repeat the migration.
 
-After switching the release and restarting, confirm that the home page references `app.mjs?v=1.1.19`, then verify existing-user login, a login-name change (which signs out every session), and that the Groups dialog focuses the current group.
+After switching and restarting, confirm there is no migration error and the home page references `app.mjs?v=1.1.20`; verify backfilled legacy timestamps, Beijing time on new entries, and preservation after editing.
 
 1. Record `readlink -f /opt/pass-vault-v2/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.

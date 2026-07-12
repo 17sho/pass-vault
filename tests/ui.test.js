@@ -152,6 +152,8 @@ test('详情可直接删除且失败显示中文反馈并保留条目',async()=>
  assert.equal(await page.getByRole('dialog',{name:'确认删除'}).isVisible(),true);assert.equal(await page.locator('.item-card',{hasText:'删除失败条目'}).count(),1);await page.close();
 });
 
+test('详情用北京时间显示四类创建时间，时间页脚是最后子元素且移动端不溢出',async()=>{const page=await browser.newPage({viewport:{width:320,height:800}});await register(page);await create(page,'笔记',{'标题':'时间笔记','正文':'正文','标签（逗号分隔）':''});await page.locator('.item-card',{hasText:'时间笔记'}).click();const footer=page.locator('#detail .detail-created');assert.equal(await footer.textContent(),await footer.evaluate(e=>'创建于 '+new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(e.dateTime))));assert.equal(await footer.evaluate(e=>e===e.parentElement.lastElementChild),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false);await page.close()});
+
 test('改密弹窗显隐状态复位、统一焦点环与响应式截图',async()=>{
  const page=await browser.newPage({viewport:{width:320,height:800}});await register(page);
  const open=async()=>{await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'修改密码'}).click()};

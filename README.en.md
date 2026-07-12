@@ -67,9 +67,9 @@ The deployment methods are independent. Choose the matching guide:
 
 - **Cloudflare deployment guide**: [中文](docs/cloudflare-deployment.zh-CN.md) · **[English](docs/cloudflare-deployment.en.md)** — Workers + Static Assets + D1 + R2, including Wrangler CLI and Dashboard. Attachments require R2 to be enabled first.
 - **Linux server deployment guide**: [中文](docs/server-deployment.zh-CN.md) · **[English](docs/server-deployment.en.md)** — VPS/dedicated-server Node.js + SQLite, systemd, Caddy/Nginx, backup and restore.
-- [Download the latest stable release packages (currently v1.1.19)](https://github.com/17sho/pass-vault-v2/releases/latest)
+- [Download the latest stable release packages (currently v1.1.20)](https://github.com/17sho/pass-vault-v2/releases/latest)
 
-> **Required before deployment:** both production targets need a securely configured `INVITE_CODE`. For a first Cloudflare deployment or an upgrade from before v1.1.13, apply every pending migration in order, including `0005_invite_attempts.sql`. Upgrading from v1.1.16–v1.1.18 to v1.1.19 adds no migration, binding, environment variable, or secret. Never put the real invitation in the repository, command arguments, screenshots, or logs; follow the target guide for generation, configuration, verification, and rotation.
+> **Required before deployment:** both production targets need a securely configured `INVITE_CODE`. When upgrading to v1.1.20, Cloudflare must apply migrations in order through `0006_entries_created_at.sql` before deploying code; Linux idempotently adds `created_at` at startup and backfills it from `updated_at`. Do not clear or recreate the database, and never expose the real invitation in the repository, arguments, screenshots, or logs.
 
 Workers, Static Assets, D1, R2 Standard, DNS, and SSL all have free tiers. The Cloudflare guide now documents D1/R2 allowances, conservative application R2 caps, account-wide shared-usage risk, Billing/Usage checks, and how to prevent Web Analytics auto-injection from conflicting with the vault CSP.
 

@@ -16,6 +16,7 @@ class Statement {
   async all(){const[d,s,a]=[this.db,this.sql,this.args];
     if(s.includes('FROM users WHERE username = ?'))return new Result(d.users.filter(x=>x.username===a[0]));
     if(s.includes('FROM sessions s JOIN users u'))return new Result(d.sessions.filter(x=>x.id_hash===a[0]&&x.expires_at>a[1]).map(x=>({...x,...d.users.find(u=>u.id===x.user_id)})));
+    if(s.startsWith('SELECT id,type,version,iv,ciphertext,created_at FROM entries'))return new Result(d.entries.filter(x=>x.user_id===a[0]).map(({id,type,version,iv,ciphertext,created_at})=>({id,type,version,iv,ciphertext,created_at})));
     if(s.startsWith('SELECT id,type,version,iv,ciphertext FROM entries'))return new Result(d.entries.filter(x=>x.user_id===a[0]).map(({id,type,version,iv,ciphertext})=>({id,type,version,iv,ciphertext})));
     if(s.startsWith('SELECT id,metadata_iv'))return new Result(d.attachments.filter(x=>x.user_id===a[0]).map(x=>({...x})));
     if(s.startsWith('SELECT COUNT(*) AS count, COALESCE(SUM(ciphertext_size),0) AS total'))return new Result([{count:d.attachments.filter(x=>x.user_id===a[0]).length,total:d.attachments.filter(x=>x.user_id===a[0]).reduce((n,x)=>n+x.ciphertext_size,0)}]);
@@ -40,7 +41,7 @@ class Statement {
     if(s.startsWith('UPDATE users SET kdf=')){const u=d.users.find(x=>x.id===a[2]);Object.assign(u,{kdf:a[0],wrapped_key:a[1]});return new Result([], {changes:1})}
     if(s.startsWith('UPDATE users SET username=')){if(d.users.some(x=>x.username===a[0]&&x.id!==a[1]))throw Error('UNIQUE constraint failed: users.username');d.users.find(x=>x.id===a[1]).username=a[0];return new Result([], {changes:1})}
     if(s.startsWith('UPDATE users SET')){const u=d.users.find(x=>x.id===a[4]);Object.assign(u,{password_hash:a[0],password_salt:a[1],kdf:a[2],wrapped_key:a[3]});return new Result([], {changes:1})}
-    if(s.startsWith('INSERT INTO entries')){const x={user_id:a[0],id:a[1],type:a[2],version:a[3],iv:a[4],ciphertext:a[5],updated_at:a[6]};d.entries=d.entries.filter(e=>!(e.user_id===x.user_id&&e.id===x.id));d.entries.push(x);return new Result([], {changes:1})}
+    if(s.startsWith('INSERT INTO entries')){const old=d.entries.find(e=>e.user_id===a[0]&&e.id===a[1]),x={user_id:a[0],id:a[1],type:a[2],version:a[3],iv:a[4],ciphertext:a[5],created_at:old?.created_at??a[6],updated_at:a[7]??a[6]};d.entries=d.entries.filter(e=>!(e.user_id===x.user_id&&e.id===x.id));d.entries.push(x);return new Result([], {changes:1})}
     if(s.startsWith('DELETE FROM entries WHERE user_id = ? AND id')){const n=d.entries.length;d.entries=d.entries.filter(x=>!(x.user_id===a[0]&&x.id===a[1]));return new Result([], {changes:n-d.entries.length})}
     if(s.startsWith('DELETE FROM entries WHERE user_id')){d.entries=d.entries.filter(x=>x.user_id!==a[0]);return new Result([], {changes:1})}
     if(s.startsWith('INSERT INTO attachments')){if(d.failInsertAttachment)throw Error('d1 failed');d.attachments.push({user_id:a[0],id:a[1],metadata_iv:a[2],metadata_ciphertext:a[3],object_key:a[4],ciphertext_size:a[5],created_at:a[6],updated_at:a[7]});return new Result([],{changes:1})}
@@ -64,12 +65,13 @@ test('完整认证、会话、CSRF、密文 CRUD、备份和改密流程',async(
   assert.deepEqual(a.json.kdf,creds.kdf);assert.deepEqual(a.json.wrappedKey,creds.wrappedKey);assert.equal(typeof e.DB.users[0].kdf,'string');assert.equal(typeof e.DB.users[0].wrapped_key,'string');
   const envelope={id:'entry_123',type:'account',version:1,iv:'opaque-iv',ciphertext:'opaque-ciphertext'};
   assert.equal((await call(e,'/api/entries/entry_123',{method:'PUT',body:envelope,headers:{cookie:a.cookie,origin:'https://vault.test','x-csrf-token':a.json.csrf}})).status,200);
-  const list=await (await call(e,'/api/entries',{headers:{cookie:a.cookie}})).json();assert.deepEqual(list.items,[envelope]);assert.equal(JSON.stringify(e.DB).includes(creds.password),false);
+  const list=await (await call(e,'/api/entries',{headers:{cookie:a.cookie}})).json();assert.deepEqual(list.items.map(({createdAt,...x})=>x),[envelope]);assert.ok(Number.isSafeInteger(list.items[0].createdAt));assert.equal(JSON.stringify(e.DB).includes(creds.password),false);
   const backup=await (await call(e,'/api/backup',{headers:{cookie:a.cookie}})).json();assert.deepEqual(backup,{version:1,kdf:creds.kdf,wrappedKey:creds.wrappedKey,envelopes:[envelope]});
   assert.equal((await call(e,'/api/backup',{method:'PUT',body:backup,headers:{cookie:a.cookie,origin:'https://vault.test','x-csrf-token':a.json.csrf}})).status,200);
   const changed=await call(e,'/api/change-password',{method:'POST',body:{currentPassword:creds.password,newPassword:'another secure password',kdf:{salt:'new-salt',iterations:310000,hash:'SHA-256'},wrappedKey:{iv:'new-iv',ciphertext:'new-wrap'}},headers:{cookie:a.cookie,origin:'https://vault.test','x-csrf-token':a.json.csrf}});assert.equal(changed.status,200);assert.match(changed.headers.get('set-cookie'),/Max-Age=0/);
   assert.equal((await call(e,'/api/entries/entry_123',{method:'DELETE',headers:{cookie:a.cookie,origin:'https://vault.test','x-csrf-token':a.json.csrf}})).status,401);
 });
+test('Worker 条目创建时间由后端生成、列表返回且编辑不可改变',async()=>{const e=env(),a=await login(e),headers={cookie:a.cookie,origin:'https://vault.test','x-csrf-token':a.json.csrf},entry={id:'created_123',type:'note',version:1,iv:'opaque-iv',ciphertext:'opaque-ciphertext'};let r=await call(e,'/api/entries/created_123',{method:'PUT',headers,body:{...entry,createdAt:1}});assert.equal(r.status,400);r=await call(e,'/api/entries/created_123',{method:'PUT',headers,body:entry});const createdAt=(await r.json()).createdAt;assert.ok(Number.isSafeInteger(createdAt));await new Promise(resolve=>setTimeout(resolve,2));r=await call(e,'/api/entries/created_123',{method:'PUT',headers,body:{...entry,ciphertext:'edited'}});assert.equal((await r.json()).createdAt,createdAt);assert.equal((await (await call(e,'/api/entries',{headers:{cookie:a.cookie}})).json()).items[0].createdAt,createdAt)});
 test('真实前端密钥对象可注册且旧字符串和畸形对象被拒绝',async()=>{for(const bad of [
   {...creds,kdf:JSON.stringify(creds.kdf)},
   {...creds,wrappedKey:JSON.stringify(creds.wrappedKey)},

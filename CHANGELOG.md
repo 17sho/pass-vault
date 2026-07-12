@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.20] - 2026-07-12
+
+### Added / 新增
+- 账号、网站、笔记和附件详情底部显示由服务端记录的创建时间，并统一按北京时间呈现。
+- Account, website, note, and attachment details now show server-recorded creation time in Beijing time.
+
+### Changed / 变更
+- D1 新增 `0006_entries_created_at.sql`；Linux 启动迁移幂等新增 `created_at`，并以 `updated_at` 回填旧条目。编辑不会改变创建时间。
+- D1 adds `0006_entries_created_at.sql`; Linux idempotently adds `created_at` at startup and backfills legacy entries from `updated_at`. Edits preserve creation time.
+
 ## [1.1.19] - 2026-07-12
 
 - 分组弹窗打开、选择后重绘及重新打开时聚焦当前分组；当前项具有唯一 `aria-pressed` 状态和可见焦点环，关闭后焦点返回分组触发按钮。
