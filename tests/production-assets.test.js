@@ -17,7 +17,7 @@ function refs(html) {
   ]);
 }
 
-test('production HTML references current v1.1.17 frontend assets', async () => {
+test('production HTML references current v1.1.18 frontend assets', async () => {
   for (const path of ['public/index.html', 'dist/index.html']) {
     const html = await readFile(path, 'utf8');
     assert.deepEqual(refs(html), expected, path);
