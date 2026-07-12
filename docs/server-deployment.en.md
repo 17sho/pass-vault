@@ -239,6 +239,12 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
+### Upgrading from v1.1.16 or earlier to v1.1.19
+
+v1.1.17–v1.1.19 add login-name changes and related frontend layout/focus fixes only. They add **no SQLite migration, attachment-storage change, environment variable, secret, or systemd setting**. Existing `INVITE_CODE` and data-directory settings remain valid; do not clear, import, or recreate SQLite, and existing vaults need no re-encryption. The Linux service still runs its existing idempotent schema initialization at startup. When upgrading from an older release, retain and run that initialization; this note does not permit skipping older schema changes.
+
+After switching the release and restarting, confirm that the home page references `app.mjs?v=1.1.19`, then verify existing-user login, a login-name change (which signs out every session), and that the Groups dialog focuses the current group.
+
 1. Record `readlink -f /opt/pass-vault-v2/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.
 3. Install the new version into a new release directory and run all tests/build before activation.

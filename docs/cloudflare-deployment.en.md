@@ -115,6 +115,12 @@ If registration breaks after rotation, check length, target Worker/environment, 
 
 ## 4. Upgrade, backup, restore, and rollback
 
+### Upgrading from v1.1.16 or earlier to v1.1.19
+
+v1.1.17–v1.1.19 add login-name changes and related frontend layout/focus fixes only. They add **no D1 migration, R2 change, binding, environment variable, or secret**. Existing `INVITE_CODE`, `DB`, and `ATTACHMENTS` settings remain valid; do not clear, import, or recreate the database, and existing vaults need no re-encryption. Still back up D1 + R2, run the existing migration command to confirm that nothing is pending, then build and deploy. When upgrading from an older release, apply every previously unapplied repository migration in filename order; this note does not permit skipping older migrations.
+
+After deployment, confirm that the home page references `app.mjs?v=1.1.19`, then verify existing-user login, a login-name change (which signs out every session), and that the Groups dialog focuses the current group.
+
 Before upgrading, stop writes and back up D1 and R2 at one logical point. Export D1 and use a controlled tool or Cloudflare API to copy all R2 objects to an independent versioned bucket, retaining keys, sizes, and checksums under the same timestamp. Never back up D1 alone.
 
 ```bash
