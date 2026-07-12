@@ -59,17 +59,17 @@ npm run lint && npm run typecheck && npm run build
 INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false HOST=127.0.0.1 PORT=3000 DB_PATH=./data/dev.sqlite npm start
 ```
 
-打开 `http://127.0.0.1:3000`。`INVITE_CODE` 是 **v1.1.13 起必填**的注册邀请码；缺失或格式无效时注册会安全关闭，但既有用户仍可登录。示例只用于本机预览，切勿复用到生产。`COOKIE_SECURE=false` **仅限本地 HTTP 开发**。
+打开 `http://127.0.0.1:3000`。当前版本中，`INVITE_CODE` 是**注册必填**的邀请码；缺失或格式无效时注册会安全关闭，但既有用户仍可登录。示例只用于本机预览，切勿复用到生产。`COOKIE_SECURE=false` **仅限本地 HTTP 开发**。
 
 ## 部署指南
 
 两种部署方式完全独立，请选择对应文档：
 
-- **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2；本项目不宣称 Cloudflare 生产环境已部署。
+- **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2。
 - **Linux 服务器部署指南**：**[中文](docs/server-deployment.zh-CN.md)** · [English](docs/server-deployment.en.md) — VPS/独立服务器 Node.js + SQLite、systemd、Caddy/Nginx、备份恢复。
-- [下载 v1.1.13 Release 包](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.13)
+- [下载最新稳定版 Release 包（当前 v1.1.19）](https://github.com/17sho/pass-vault-v2/releases/latest)
 
-> **部署前必做：** 两种生产部署都必须安全设置 `INVITE_CODE`。Cloudflare 还必须在发布新代码前应用 `0005_invite_attempts.sql`。不要把真实邀请码写入仓库、命令参数、截图或日志；请按目标指南完成生成、配置、验证和轮换。
+> **部署前必做：** 两种生产部署都必须安全设置 `INVITE_CODE`。Cloudflare 首次部署或从早于 v1.1.13 的版本升级时，必须按顺序应用包含 `0005_invite_attempts.sql` 在内的全部待执行 migration；从 v1.1.16–v1.1.18 升级到 v1.1.19 没有新增 migration、binding、环境变量或 Secret。不要把真实邀请码写入仓库、命令参数、截图或日志；请按目标指南完成生成、配置、验证和轮换。
 
 Cloudflare 版使用的 Workers、Static Assets、D1、R2 Standard、DNS/SSL 均有免费层；部署指南已列出 D1/R2 额度、项目 R2 保守硬限制、账户级共享风险、Billing/Usage 检查路径，以及避免 Web Analytics 自动注入破坏密码库 CSP 的设置方法。
 
