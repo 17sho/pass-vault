@@ -9,7 +9,7 @@ import { join } from 'node:path';
 const origin = 'http://127.0.0.1:19876';
 let child;
 async function start(db) {
-  child = spawn(process.execPath, ['apps/server/server.mjs'], { cwd: new URL('..', import.meta.url), env: {...process.env, INVITE_CODE:process.env.INVITE_CODE??'test-invite-code-1234567890', PORT:'19876', HOST:'127.0.0.1', DB_PATH:db, ATTACHMENTS_DIR:join(db,'..','attachments'), COOKIE_SECURE:'false'}, stdio:['ignore','pipe','pipe'] });
+  child = spawn(process.execPath, ['apps/server/server.mjs'], { cwd: new URL('..', import.meta.url), env: {...process.env, INVITE_CODE:'test-invite-code-1234567890', PORT:'19876', HOST:'127.0.0.1', DB_PATH:db, ATTACHMENTS_DIR:join(db,'..','attachments'), COOKIE_SECURE:'false'}, stdio:['ignore','pipe','pipe'] });
   let errors=''; child.stderr.on('data',c=>errors+=c);
   for(let i=0;i<80;i++){try{const r=await fetch(origin+'/api/health');if(r.ok)return;}catch{} await new Promise(r=>setTimeout(r,25));}
   throw new Error('server start failed '+errors);
