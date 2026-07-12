@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.17] - 2026-07-12
+
+### Added / 新增
+- 新增经认证、同源 CSRF 保护且要求当前主密码复核的登录用户名修改；成功后原子撤销全部会话并清除 Cookie。
+- Added authenticated, same-origin CSRF-protected login username changes with current-master-password reauthentication, atomic account update, and complete session revocation.
+
+### Security / 安全
+- 请求严格只接受新用户名和当前主密码；用户名沿用共享 Unicode 契约。该流程不修改密码、KDF、包装密钥或任何密文，因此不会重新加密密码库。
+- Requests strictly allow only the new username and current password and reuse the shared Unicode username contract. Passwords, KDF material, wrapped keys, and vault ciphertext remain untouched, so no vault re-encryption occurs.
+
 ## [1.1.16] - 2026-07-12
 
 - 长列表和详情独立滚动，同时保持页眉、分类导航和工具栏固定在应用视口内。

@@ -67,6 +67,9 @@ export default {async fetch(req:Request,env:Env):Promise<Response>{
   if(!['GET','HEAD'].includes(req.method)&&!await safe(req,s))return error(403,'csrf');
   if(req.method==='GET'&&p==='/api/session')return json({username:s.username,...material(s)});
   if(req.method==='POST'&&p==='/api/logout'){await env.DB.prepare('DELETE FROM sessions WHERE id_hash = ?').bind(s.id_hash).run();return json({ok:true},200,{'set-cookie':`${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`})}
+  if(req.method==='POST'&&p==='/api/change-username'){
+   const x=await body(req),keys=Object.keys(x);if(keys.length!==2||!keys.includes('newUsername')||!keys.includes('currentPassword'))return error(400,'invalid_request');const name=validateUsername(x.newUsername);if(!name.valid)return error(400,'invalid_username');if(!validPassword(x.currentPassword)||!equal(await passwordHash(x.currentPassword as string,s.password_salt),s.password_hash))return error(401,'invalid_current_password');try{await env.DB.batch([env.DB.prepare('UPDATE users SET username=? WHERE id=?').bind(name.value,s.user_id),env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(s.user_id)])}catch(e){if(String(e).includes('UNIQUE'))return error(409,'username_taken');throw e}return json({ok:true},200,{'set-cookie':`${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`});
+  }
   if(req.method==='POST'&&p==='/api/change-password'){
    const x=await body(req);
    if(typeof x.currentPassword!=='string'||!equal(await passwordHash(x.currentPassword,s.password_salt),s.password_hash))return error(401,'invalid_current_password');

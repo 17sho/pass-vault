@@ -5,6 +5,7 @@
 - `POST /api/login` → `{csrf,kdf,wrappedKey}`
 - `GET /api/session` → `{username,kdf,wrappedKey}`
 - `POST /api/logout`
+- `POST /api/change-username` `{newUsername,currentPassword}`。仅允许这两个字段；成功原子更新用户名、清除该用户全部会话并过期 Cookie，不修改密码、KDF、包装密钥或条目密文。当前密码错误返回 `401 {error:'invalid_current_password'}`，用户名无效返回 `400 {error:'invalid_username'}`，重复返回 `409 {error:'username_taken'}`。
 - `POST /api/change-password` `{currentPassword,newPassword,kdf,wrappedKey}`。成功清除全部会话并过期 Cookie；当前密码错误返回 `401 {error:'invalid_current_password'}`，新密码格式错误返回 `400 {error:'invalid_new_password'}`，KDF/包装密钥材料异常返回 `400 {error:'invalid_key_material'}`。
 - `GET /api/entries` → `{items}`
 - `PUT /api/entries/:id` 密文 envelope
