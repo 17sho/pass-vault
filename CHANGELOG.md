@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.19] - 2026-07-12
+
+- 分组弹窗打开、选择后重绘及重新打开时聚焦当前分组；当前项具有唯一 `aria-pressed` 状态和可见焦点环，关闭后焦点返回分组触发按钮。
+- Group dialogs now focus the current group on open, rerender, and reopen, with one `aria-pressed` current option, a visible focus ring, and focus restoration to the trigger on close.
+
 ## [1.1.18] - 2026-07-12
 
 - 修复修改登录名弹窗在窄屏及桌面上的字段重叠，统一为可访问的单列布局和 44px 触控目标。
