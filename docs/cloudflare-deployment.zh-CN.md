@@ -91,7 +91,7 @@ curl -fsS https://<APP_DOMAIN>/api/health
 curl -fsSI https://<APP_DOMAIN>/
 ```
 
-用可清理测试账户验证注册、登录/解锁、CSRF 拒绝、密文条目和附件上传/下载/删除、加密备份导入/导出与退出。R2 无需公开访问或公共域名，也无需 bucket CORS：浏览器只同源访问 Worker，由 binding 访问私有 R2。
+先用 `npx wrangler secret put INVITE_CODE` 配置共享注册邀请码（通过标准输入提供，绝不写入 Wrangler 配置或 shell 历史）。用可清理测试账户验证注册、登录/解锁、CSRF 拒绝、密文条目和附件上传/下载/删除、加密备份导入/导出与退出。R2 无需公开访问或公共域名，也无需 bucket CORS：浏览器只同源访问 Worker，由 binding 访问私有 R2。
 
 ## 4. 升级、备份、恢复与回滚
 

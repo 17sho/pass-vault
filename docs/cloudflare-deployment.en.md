@@ -91,7 +91,7 @@ curl -fsS https://<APP_DOMAIN>/api/health
 curl -fsSI https://<APP_DOMAIN>/
 ```
 
-Using a disposable account, test registration, sign-in/unlock, CSRF rejection, encrypted item and attachment upload/download/delete, encrypted backup import/export, and logout. R2 needs neither public access nor a public domain, and bucket CORS is unnecessary: the browser talks only to the same-origin Worker, which accesses private R2 through its binding.
+Set the shared registration invitation with `npx wrangler secret put INVITE_CODE` (enter it through stdin; never place it in Wrangler config or shell history). Using a disposable account, test registration, sign-in/unlock, CSRF rejection, encrypted item and attachment upload/download/delete, encrypted backup import/export, and logout. R2 needs neither public access nor a public domain, and bucket CORS is unnecessary: the browser talks only to the same-origin Worker, which accesses private R2 through its binding.
 
 ## 4. Upgrade, backup, restore, and rollback
 

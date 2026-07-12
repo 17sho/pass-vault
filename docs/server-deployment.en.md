@@ -88,6 +88,7 @@ sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION> /opt/pass
 | `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | Absolute persistent SQLite path |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | Persistent local directory for encrypted attachment objects |
 | `COOKIE_SECURE` | unset | Secure cookies are on by default; never set `false` in production |
+| `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root-owned `0600` environment file and never log it |
 
 Create `/etc/pass-vault-v2/server.env`:
 

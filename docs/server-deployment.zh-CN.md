@@ -91,6 +91,7 @@ sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION> /opt/pass
 | `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | 持久 SQLite 绝对路径 |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | 附件密文对象目录；必须是持久本地磁盘 |
 | `COOKIE_SECURE` | 不设置 | 默认启用 Secure Cookie；生产绝不能设为 `false` |
+| `INVITE_CODE` | 必填 | 共享注册邀请码（16–256 字符）；仅保存在 root 所有、`0600` 的环境文件中，绝不记录日志 |
 
 创建 `/etc/pass-vault-v2/server.env`：
 

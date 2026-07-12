@@ -4,6 +4,16 @@ All notable changes to this project will be documented here. This file follows [
 
 ## [Unreleased]
 
+## [1.1.13] - 2026-07-12
+
+### Security / 安全
+- 注册现在必须提供管理员配置的共享邀请码；缺失配置时关闭注册，错误邀请码按来源持久限速，既有账户登录不受影响。邀请码不会写入日志、仓库或构建产物。
+- Registration now requires an administrator-configured shared invitation code. Registration fails closed when it is absent, wrong codes are durably rate-limited by source, and existing-account sign-in is unaffected. The code is never written to logs, the repository, or build artifacts.
+
+### Tests / 测试
+- Linux、Worker 与浏览器测试覆盖缺失/错误/正确邀请码、可见邀请码字段、持久限速和登录兼容；所有维护中的生产注册 smoke 脚本均要求 `INVITE_CODE` 环境变量。
+- Linux, Worker, and browser tests cover missing/wrong/correct invitations, the visible invitation field, durable rate limiting, and sign-in compatibility; every maintained production registration smoke script now requires `INVITE_CODE` in its environment.
+
 ## [1.1.12] - 2026-07-12
 
 ### Fixed / 修复
