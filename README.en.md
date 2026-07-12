@@ -9,7 +9,7 @@ A mobile-first, self-hosted, zero-knowledge password vault. The shared frontend 
 ## Features
 
 - Account, website, and secure-note records with tags, category-scoped fuzzy search, editing, and deletion; Chinese fragments and Latin typos are matched entirely in the browser
-- Independent encrypted custom groups for accounts, websites, notes, and attachments, including empty-group persistence and combined group/fuzzy filtering
+- An implicit “All” view plus independent encrypted custom groups for accounts, websites, notes, and attachments, including empty-group persistence and combined group/fuzzy filtering
 - Note images and a standalone attachment library with category/group filtering, preview/playback, download, rename, group moves, and deletion
 - Responsive desktop/mobile UI with no native client required
 - Encrypted backup import/export and master-password changes

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.15] - 2026-07-12
+
+### Added / 新增
+- 账号、网站、笔记、附件各自新增隐式“全部”视图，可在当前菜单全部资料中组合搜索；该视图仅存在于浏览器 UI 状态，不进入加密注册表、API `groupId` 或移动目标。
+- Added an implicit per-menu “All” view that combines with search. Its sentinel remains UI-only and never enters the encrypted registry, API `groupId`, or move targets.
+
+### Fixed / 修复
+- 创建自定义分组后保留创建前的当前分组（全部、默认或自定义）。
+- Creating a custom group now preserves the previously active All, Default, or custom group.
+
 All notable changes to this project will be documented here. This file follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project intends to use [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
