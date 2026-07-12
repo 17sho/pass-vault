@@ -1,5 +1,7 @@
 # 生产部署与回滚
 
+> **旧版内部运维说明：** 公开部署请改用完整的 [Cloudflare 中文](cloudflare-deployment.zh-CN.md) / [English](cloudflare-deployment.en.md) 或 [Linux 中文](server-deployment.zh-CN.md) / [English](server-deployment.en.md) 指南。v1.1.13 起 `INVITE_CODE` 必填；缺失时注册安全关闭。Cloudflare 必须先执行 `0005_invite_attempts.sql`。本页不提供秘密配置快捷方式，避免把目标特定步骤混用。
+
 Pass Vault V2 同时运行两个独立生产版本：
 
 - Cloudflare Worker：部署者配置的域名，API 与静态资源由 Worker 提供，数据存于部署者创建的 D1。
@@ -29,7 +31,7 @@ cd apps/worker
 npx wrangler whoami
 npx wrangler d1 export "$D1_DATABASE_NAME" --remote --output "$BACKUP_DIR/d1-pre-$(date +%Y%m%d%H%M%S).sql"
 npx wrangler d1 migrations list "$D1_DATABASE_NAME" --remote
-npx wrangler d1 migrations apply "$D1_DATABASE_NAME" --remote
+npx wrangler d1 migrations apply "$D1_DATABASE_NAME" --remote # 确认包含 0005_invite_attempts.sql
 npx wrangler deploy
 npx wrangler versions list
 ```

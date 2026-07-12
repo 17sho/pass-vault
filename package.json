@@ -17,6 +17,7 @@
     "pretest": "node scripts/build.mjs",
     "test": "node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js",
     "lint": "node scripts/check.mjs",
+    "lint:docs": "node scripts/check-docs.mjs",
     "typecheck": "tsc --noEmit -p apps/worker/tsconfig.json",
     "build": "node scripts/build.mjs",
     "start": "node apps/server/server.mjs",

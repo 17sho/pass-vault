@@ -13,6 +13,8 @@
 
 升级前备份 Cloudflare D1/R2 或 Linux SQLite/附件目录。应用 D1 `0005_invite_attempts.sql`，并在两个运行环境安全配置 `INVITE_CODE`。下载对应平台压缩包与 `SHA256SUMS`，在同一目录运行 `sha256sum -c SHA256SUMS`。
 
+完整步骤：[Cloudflare 中文](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/cloudflare-deployment.zh-CN.md) / [English](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/cloudflare-deployment.en.md)；[Linux 中文](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/server-deployment.zh-CN.md) / [English](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/server-deployment.en.md)。
+
 > 安全提醒：邀请码是注册准入控制，不是身份验证因素，也不能替代强主密码。忘记主密码无法恢复库密钥。Cloudflare D1/R2 与服务器资源可能产生费用。
 
 如果这个项目对你有帮助，欢迎在 GitHub 点 Star。
@@ -29,6 +31,8 @@
 ### Upgrade and verification
 
 Back up Cloudflare D1/R2 or Linux SQLite/attachment storage first. Apply D1 `0005_invite_attempts.sql`, and securely configure `INVITE_CODE` in both runtimes. Download the matching platform archive and `SHA256SUMS`, then run `sha256sum -c SHA256SUMS` in the same directory.
+
+Full instructions: [Cloudflare 中文](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/cloudflare-deployment.zh-CN.md) / [English](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/cloudflare-deployment.en.md); [Linux 中文](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/server-deployment.zh-CN.md) / [English](https://github.com/17sho/pass-vault-v2/blob/v1.1.13/docs/server-deployment.en.md).
 
 > Security note: the invitation is admission control, not an authentication factor or replacement for a strong master password. A forgotten master password cannot recover the vault key. Cloudflare D1/R2 and server resources may incur charges.
 

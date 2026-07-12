@@ -8,6 +8,7 @@
 
 - Node.js 22+、npm、Git，以及启用 Workers/D1/R2 的 Cloudflare 账户。
 - CLI 路线需要 Wrangler 登录；Dashboard 路线需要 GitHub 仓库连接或上传/构建能力。
+- **v1.1.13 前置条件：** 准备一个 16–256 字符的强随机 `INVITE_CODE`，并确保 `apps/worker/migrations/0005_invite_attempts.sql` 在新代码发布前应用。缺少/无效配置会返回 `registration_unavailable`（HTTP 503），错误值返回 `invalid_invite`（HTTP 403）并计入持久限速；既有用户登录不受影响。
 
 ```text
 浏览器 ──HTTPS──> Cloudflare Worker
@@ -46,10 +47,21 @@ npx wrangler r2 bucket create <R2_BUCKET_NAME>
 
 ### 1.2 migration、构建、发布
 
+先在受控终端生成强随机值并直接送入 Wrangler。下面不会把值放进命令参数、环境变量或 shell 历史；不要开启 `set -x`，也不要把终端录屏/输出保存到工单：
+
+```bash
+# 仓库根目录；openssl rand 的 32 随机字节以 64 个十六进制字符表示
+openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc
+```
+
+Wrangler 应只确认 secret 名称/成功状态，不应回显值。若需人工保管同一个值，使用密码管理器自身的密码生成器（至少 128 bit 随机性、16–256 字符），再运行 `npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc` 并在隐藏提示中粘贴；不要使用 `echo '真实值' | ...`、命令行参数或提交的 `.dev.vars`。
+
 ```bash
 # apps/worker/
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote
+# 在输出中确认 0005_invite_attempts.sql 已 applied；未确认就停止，不要部署
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 cd ../..
 npm run build
 npx wrangler deploy --config apps/worker/wrangler.jsonc
@@ -79,10 +91,12 @@ Dashboard 菜单名称可能调整；以当前界面为准。
 4. 这不是纯静态 Pages：必须部署 Worker API 并附加 Workers Static Assets。若界面支持 deploy command，设为 `npx wrangler deploy --config apps/worker/wrangler.jsonc`；若导入流程不能识别 Worker main/Assets/D1，请使用 Cloudflare CI/GitHub Actions 调 Wrangler，而不是发布成纯 Pages。
 5. Worker **Settings → Bindings → Add → D1 database**：变量名必须为 `DB`，选择目标数据库。
 6. 在 **Storage & Databases → R2 → Create bucket** 创建私有 bucket；Worker **Settings → Bindings → Add → R2 bucket**，变量名必须为 `ATTACHMENTS`。
-7. 从受控终端运行 Wrangler migrations（必须包含 `0002_attachments.sql`）；若使用 D1 Console，按顺序执行尚未执行的 SQL。
-8. 确认 Assets 指向构建出的 `dist/`，且 API 请求先经过 Worker。
-9. **Settings → Domains & Routes** 添加 `<APP_DOMAIN>`，完成 DNS 和证书。
-10. CI 中把最小权限 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 存为加密 secrets；不得写进仓库或日志。
+7. 从受控终端运行 Wrangler migrations；**发布前必须确认 `0005_invite_attempts.sql` 已应用**。若使用 D1 Console，按文件名顺序执行所有尚未执行的 `apps/worker/migrations/*.sql`，再检查 `invite_attempts` 表；不要只上传新代码。
+8. 在目标 Worker 的 **Settings → Variables and Secrets**（当前界面也可能归在 **Bindings** 或类似设置页）新增变量，名称严格为 `INVITE_CODE`，类型选择加密的 **Secret**，值由密码管理器生成（至少 128 bit 随机性，16–256 字符）。保存并按界面要求部署新版本。不要选明文变量，也不要把值放在构建变量、仓库或截图中。
+9. 保存后回到变量/秘密列表，只核对名称 `INVITE_CODE`、Secret 类型和目标环境；Cloudflare 不应再次显示值。若界面没有 Secret 类型或目标环境不明确，停止并改用上面的 `wrangler secret put`，不要降级成明文。
+10. 确认 Assets 指向构建出的 `dist/`，且 API 请求先经过 Worker。
+11. **Settings → Domains & Routes**（或当前等价入口）添加 `<APP_DOMAIN>`，完成 DNS 和证书。
+12. CI 中把最小权限 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 存为加密 secrets；不得写进仓库或日志。
 
 ## 3. 发布后验证
 
@@ -91,7 +105,13 @@ curl -fsS https://<APP_DOMAIN>/api/health
 curl -fsSI https://<APP_DOMAIN>/
 ```
 
-先用 `npx wrangler secret put INVITE_CODE` 配置共享注册邀请码（通过标准输入提供，绝不写入 Wrangler 配置或 shell 历史）。用可清理测试账户验证注册、登录/解锁、CSRF 拒绝、密文条目和附件上传/下载/删除、加密备份导入/导出与退出。R2 无需公开访问或公共域名，也无需 bucket CORS：浏览器只同源访问 Worker，由 binding 访问私有 R2。
+在浏览器用可清理测试账户验证：正确邀请码可注册；明显错误的占位值被拒绝且不创建账户；随后登录/解锁成功。不要通过 API、日志或截图打印真实邀请码。缺少/无效 `INVITE_CODE` 时注册应为 HTTP 503 `registration_unavailable`，错误值应为 HTTP 403 `invalid_invite`（连续失败可能变为 429），但既有账户仍应能登录。再验证 CSRF 拒绝、密文条目和附件上传/下载/删除、加密备份导入/导出与退出。R2 无需公开访问或公共域名，也无需 bucket CORS。
+
+### 3.1 轮换与回退
+
+轮换只影响**轮换后的新注册**，不会注销既有会话、改变主密码或重新加密已有库。先在安全渠道通知仍需注册的人，再用 Dashboard Secret 保存新值，或重复安全的 `openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config ...`；随后仅核对 secret 名称，并以可清理账户验收。不要保留两个有效值。
+
+若轮换后注册异常，先确认值长度、目标 Worker/环境和当前部署版本。需要紧急回退时，从密码管理器取回前一个值，通过 Secret 输入界面或 Wrangler 隐藏提示重新写入；**不要**用 Worker 代码回滚代替 secret 回退。前值如果疑似泄露，不得回退，应生成新的强随机值。
 
 ## 4. 升级、备份、恢复与回滚
 
@@ -161,6 +181,8 @@ Cloudflare Web Analytics 的 zone 级 `auto_install` 可能把 `static.cloudflar
 | 症状 | 检查 |
 |---|---|
 | `DB` 未定义 | binding 名严格为 `DB`；当前环境/版本绑定到正确 D1 |
+| 注册返回 503 `registration_unavailable` | `INVITE_CODE` 缺失、长度不在 16–256 或设置到了错误 Worker/环境；只核对 Secret 名称/类型，重新安全写入 |
+| 正确值也返回 403/429 | 检查复制时的首尾空白/换行和目标环境；等待限速窗口后用可清理账户重试，勿在日志打印值 |
 | `no such table` | migration 是否对 `--remote` 目标完整执行 |
 | 静态 404/旧页面 | `npm run build`、Assets=`dist/`、部署版本和缓存 |
 | Dashboard 只有静态站 | 改用 Worker + Assets 的 Wrangler/CI，不要用纯 Pages 代替 API |

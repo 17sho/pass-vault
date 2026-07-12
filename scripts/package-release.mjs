@@ -7,7 +7,7 @@ const root = resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const out = join(root, 'release');
 const epoch = Number(process.env.SOURCE_DATE_EPOCH || 1783728000); // 2026-07-11 UTC
-const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md','public','shared','scripts/build.mjs','scripts/check.mjs','docs/API.md','docs/RELEASE.md'];
+const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md','release-notes-v1.1.13.md','public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md'];
 const variants = {
   cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','tests/attachment.test.js','tests/contract.test.js','tests/worker.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
   linux: ['apps/server','deploy/pass-vault-v2.service','tests/attachment.test.js','tests/contract.test.js','tests/server.integration.test.js','docs/server-deployment.zh-CN.md','docs/server-deployment.en.md'],
@@ -37,12 +37,12 @@ for (const [variant, extra] of Object.entries(variants)) {
     private: true,
     scripts: variant === 'cloudflare' ? {
       test: 'node --experimental-strip-types --test tests/*.test.js',
-      lint: 'node scripts/check.mjs',
+      lint: 'node scripts/check.mjs && node scripts/check-docs.mjs',
       typecheck: 'tsc --noEmit -p apps/worker/tsconfig.json',
       build: 'node scripts/build.mjs'
     } : {
       test: 'node --experimental-strip-types --test tests/*.test.js',
-      lint: 'node scripts/check.mjs',
+      lint: 'node scripts/check.mjs && node scripts/check-docs.mjs',
       typecheck: 'node --check apps/server/server.mjs',
       build: 'node scripts/build.mjs',
       start: 'node apps/server/server.mjs'

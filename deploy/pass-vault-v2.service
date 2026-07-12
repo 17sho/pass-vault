@@ -12,6 +12,7 @@ Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
 Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
+EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
 ExecStart=/usr/bin/env node apps/server/server.mjs
 Restart=on-failure
 NoNewPrivileges=true

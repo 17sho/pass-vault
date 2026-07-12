@@ -91,22 +91,25 @@ sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION> /opt/pass
 | `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | 持久 SQLite 绝对路径 |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | 附件密文对象目录；必须是持久本地磁盘 |
 | `COOKIE_SECURE` | 不设置 | 默认启用 Secure Cookie；生产绝不能设为 `false` |
-| `INVITE_CODE` | 必填 | 共享注册邀请码（16–256 字符）；仅保存在 root 所有、`0600` 的环境文件中，绝不记录日志 |
+| `INVITE_CODE` | 必填 | 共享注册邀请码（16–256 字符）；保存在 root:`pass-vault`、`0600` 的环境文件中，绝不记录日志 |
 
-创建 `/etc/pass-vault-v2/server.env`：
-
-```ini
-NODE_ENV=production
-HOST=127.0.0.1
-PORT=3000
-DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite
-ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments
-```
+创建 `/etc/pass-vault-v2/pass-vault-v2.env`。为避免邀请码出现在 shell 历史或进程参数中，使用 root-only 临时文件接收 `openssl` 标准输出并原子安装：
 
 ```bash
-sudo chown root:pass-vault /etc/pass-vault-v2/server.env
-sudo chmod 0640 /etc/pass-vault-v2/server.env
+umask 077
+tmp=$(mktemp)
+printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
+  'DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite' \
+  'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
+printf 'INVITE_CODE=' >>"$tmp"
+openssl rand -hex 32 >>"$tmp"
+sudo install -o root -g pass-vault -m 0600 "$tmp" /etc/pass-vault-v2/pass-vault-v2.env
+rm -f "$tmp"
+sudo stat -c '%U:%G %a %n' /etc/pass-vault-v2/pass-vault-v2.env
+sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVITE_CODE name present'
 ```
+
+预期只显示 `root:pass-vault 600` 和变量名确认，**不要**运行 `cat`、非静默 `grep INVITE_CODE` 或把值发到日志。systemd `EnvironmentFile` 不是 shell：推荐使用生成器得到的十六进制值。若必须使用人工值，请限制为不含空白、引号、反斜杠、`#`、`$`、`%`、控制字符或换行的可打印 ASCII；长度 16–256。不要依赖 shell 引号/展开来“转义”复杂值。
 
 ## 5. systemd
 
@@ -123,7 +126,7 @@ Type=simple
 User=pass-vault
 Group=pass-vault
 WorkingDirectory=/opt/pass-vault-v2/current
-EnvironmentFile=/etc/pass-vault-v2/server.env
+EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
 ExecStart=/usr/bin/node apps/server/server.mjs
 Restart=on-failure
 RestartSec=5
@@ -235,7 +238,13 @@ curl -fsSI https://<APP_DOMAIN>/
 sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 ```
 
-用全新测试账户完成：注册（密码至少 12 字符）→ 登录/解锁 → 新建一条无敏感信息的测试条目 → 刷新后读取 → 编辑/删除 → 导出加密备份 → 退出并确认会话失效。确认浏览器 Cookie 为 `Secure`、`HttpOnly`、`SameSite=Strict`，HTTP 会跳转 HTTPS，3000 不可从公网访问。不要用真实密码或条目做测试。
+用全新测试账户完成：使用正确邀请码注册（密码至少 12 字符）→ 登录/解锁 → 新建一条无敏感信息的测试条目 → 刷新后读取 → 编辑/删除 → 导出加密备份 → 退出并确认会话失效。再用明显错误的占位值确认注册被拒绝且未创建账户。缺失/无效配置应返回 503 `registration_unavailable`，错误值返回 403 `invalid_invite`（连续失败可能 429），但既有用户仍应能登录。确认浏览器 Cookie 为 `Secure`、`HttpOnly`、`SameSite=Strict`，HTTP 会跳转 HTTPS，3000 不可从公网访问。不要输出真实邀请码，也不要用真实密码或条目测试。
+
+### 8.1 轮换与回退
+
+轮换仅影响**之后的新注册**，不会注销既有用户、修改主密码或重新加密已有库。先用密码管理器保存当前值（用于有审批的紧急回退），再按第 4 节在 root-only 临时文件中生成新值、原子替换 env 文件，然后执行 `sudo systemctl restart pass-vault-v2`，检查服务状态和 HTTPS health。仅核对文件 owner/mode 和 `INVITE_CODE` 名称，再用可清理账户完成注册/登录。
+
+若异常，检查值长度、文件路径和 systemd 单元实际加载的 `EnvironmentFile`；需要回退时通过同样的 mode `0600` 原子安装流程恢复密码管理器中的前值并重启。疑似泄露的旧值不得回退，应生成另一个强随机值。
 
 ## 9. 升级与回滚
 
@@ -306,7 +315,7 @@ curl -fsS http://127.0.0.1:3000/api/health
 
 - 自动安装安全更新；订阅项目 Release/安全公告，及时升级 Node、代理与系统。
 - SSH 禁用密码/root 登录，使用密钥和最小 sudo；限制管理端来源。
-- 代码 root 所有且服务不可写；数据目录仅服务用户可读写；环境文件 0640、数据库/备份 0600。
+- 代码 root 所有且服务不可写；数据目录仅服务用户可读写；`/etc/pass-vault-v2/pass-vault-v2.env` 为 root:`pass-vault` 且 0600，数据库/备份 0600。
 - 只开放 80/443 与受限 SSH；启用 HTTPS/HSTS，监控证书续期、磁盘空间、服务和备份。
 - 容量规划至少覆盖 SQLite、附件密文、临时上传、一次本机备份和升级余量；监控容量与 inode，建议在 70%/85% 告警。
 - 不把 Node 暴露公网，不以 root 运行，不关闭 Secure Cookie，不记录/发送密码、vault key、条目明文、完整密文、Cookie。
@@ -316,7 +325,9 @@ curl -fsS http://127.0.0.1:3000/api/health
 
 | 症状 | 检查 |
 |---|---|
-| 服务启动失败 | `journalctl -u pass-vault-v2 -n 200`；Node 版本/路径、WorkingDirectory、env 文件 |
+| 服务启动失败 | `journalctl -u pass-vault-v2 -n 200`；Node 版本/路径、WorkingDirectory、`/etc/pass-vault-v2/pass-vault-v2.env` |
+| 注册返回 503 | env 文件缺少/无效 `INVITE_CODE`、路径错误或重启未生效；只核对名称与权限，不打印值 |
+| 正确值返回 403/429 | 检查不可见空白/换行与长度，等待限速窗口后用可清理账户重试 |
 | `SQLITE_CANTOPEN`/只读 | `DB_PATH`、父目录权限、服务用户、`ReadWritePaths`、磁盘空间 |
 | 502 | `curl 127.0.0.1:3000/api/health`、服务状态、代理 upstream、端口占用 |
 | 登录后立即退出 | 必须使用 HTTPS；系统时钟；代理保留 `Host`/`X-Forwarded-Proto`；Secure Cookie |

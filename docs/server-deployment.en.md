@@ -88,22 +88,25 @@ sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION> /opt/pass
 | `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | Absolute persistent SQLite path |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | Persistent local directory for encrypted attachment objects |
 | `COOKIE_SECURE` | unset | Secure cookies are on by default; never set `false` in production |
-| `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root-owned `0600` environment file and never log it |
+| `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root:`pass-vault`, `0600` environment file and never log it |
 
-Create `/etc/pass-vault-v2/server.env`:
-
-```ini
-NODE_ENV=production
-HOST=127.0.0.1
-PORT=3000
-DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite
-ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments
-```
+Create `/etc/pass-vault-v2/pass-vault-v2.env`. To keep the invitation out of shell history and process arguments, assemble a root-only temporary file, stream randomness from `openssl`, and install it atomically:
 
 ```bash
-sudo chown root:pass-vault /etc/pass-vault-v2/server.env
-sudo chmod 0640 /etc/pass-vault-v2/server.env
+umask 077
+tmp=$(mktemp)
+printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
+  'DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite' \
+  'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
+printf 'INVITE_CODE=' >>"$tmp"
+openssl rand -hex 32 >>"$tmp"
+sudo install -o root -g pass-vault -m 0600 "$tmp" /etc/pass-vault-v2/pass-vault-v2.env
+rm -f "$tmp"
+sudo stat -c '%U:%G %a %n' /etc/pass-vault-v2/pass-vault-v2.env
+sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVITE_CODE name present'
 ```
+
+Expected output contains only `root:pass-vault 600` and the name-presence confirmation. Do **not** use `cat`, non-quiet `grep INVITE_CODE`, or log the value. A systemd `EnvironmentFile` is not a shell; the generated hexadecimal value is safest. If an operator-supplied value is required, restrict it to printable ASCII without whitespace, quotes, backslashes, `#`, `$`, `%`, control characters, or newlines, and keep it 16–256 characters. Do not rely on shell quoting/expansion to encode a complex value.
 
 ## 5. systemd
 
@@ -119,7 +122,7 @@ Type=simple
 User=pass-vault
 Group=pass-vault
 WorkingDirectory=/opt/pass-vault-v2/current
-EnvironmentFile=/etc/pass-vault-v2/server.env
+EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
 ExecStart=/usr/bin/node apps/server/server.mjs
 Restart=on-failure
 RestartSec=5
@@ -226,7 +229,13 @@ curl -fsSI https://<APP_DOMAIN>/
 sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 ```
 
-With a new disposable account: register (12+ character password), sign in/unlock, create a nonsensitive test item, refresh/read it, edit/delete it, export an encrypted backup, log out, and confirm the session is invalid. Verify the cookie is `Secure`, `HttpOnly`, and `SameSite=Strict`; HTTP redirects to HTTPS; port 3000 is unreachable publicly. Never test with real secrets.
+With a new disposable account: register using the correct invitation (12+ character password), sign in/unlock, create a nonsensitive test item, refresh/read it, edit/delete it, export an encrypted backup, log out, and confirm the session is invalid. Then verify an obviously wrong placeholder is rejected without creating an account. Missing/invalid configuration should return 503 `registration_unavailable`; a wrong value returns 403 `invalid_invite` (or 429 after repeated failures), while existing users can still sign in. Verify the cookie is `Secure`, `HttpOnly`, and `SameSite=Strict`; HTTP redirects to HTTPS; port 3000 is unreachable publicly. Never print the real invitation or test with real vault secrets.
+
+### 8.1 Rotation and rollback
+
+Rotation affects only **new registrations after rotation**. It does not invalidate existing users, change master passwords, or re-encrypt existing vaults. Retain the current value in a password manager for approved emergency rollback, then use the root-only temporary-file procedure in section 4 to generate and atomically install a replacement. Run `sudo systemctl restart pass-vault-v2`, check service status and HTTPS health, verify only file ownership/mode and the `INVITE_CODE` name, then test registration and sign-in with a disposable account.
+
+If it fails, check value length, file path, and the unit's actual `EnvironmentFile`. For rollback, atomically reinstall the previous password-manager value with mode `0600` and restart. Never restore a value suspected of disclosure; generate another strong random value.
 
 ## 9. Upgrade and rollback
 
@@ -297,7 +306,7 @@ Then verify HTTPS, sign-in, and sample items. Retain the failed-state copy until
 
 - Apply automatic security updates and promptly upgrade Node, the proxy, the OS, and project releases.
 - Disable SSH password/root login, use keys and least-privilege sudo, and restrict management sources.
-- Keep code root-owned and service-read-only; data writable only by the service; env 0640 and database/backups 0600.
+- Keep code root-owned and service-read-only; data writable only by the service; `/etc/pass-vault-v2/pass-vault-v2.env` root:`pass-vault` mode 0600, and database/backups 0600.
 - Expose only 80/443 and restricted SSH; enforce HTTPS/HSTS and monitor certificates, disk, service health, and backups.
 - Size disk for SQLite, encrypted attachments, temporary uploads, one local backup, and upgrade headroom; monitor bytes and inodes, with suggested alerts at 70%/85%.
 - Never expose Node publicly, run it as root, disable Secure cookies, or log/share passwords, vault keys, plaintext, full ciphertext, or cookies.
@@ -307,7 +316,9 @@ Then verify HTTPS, sign-in, and sample items. Retain the failed-state copy until
 
 | Symptom | Check |
 |---|---|
-| Service fails to start | `journalctl -u pass-vault-v2 -n 200`; Node path/version, WorkingDirectory, env file |
+| Service fails to start | `journalctl -u pass-vault-v2 -n 200`; Node path/version, WorkingDirectory, `/etc/pass-vault-v2/pass-vault-v2.env` |
+| Registration returns 503 | Missing/invalid `INVITE_CODE`, wrong env path, or restart not applied; inspect only name and permissions, never the value |
+| Correct value returns 403/429 | Check hidden whitespace/newline and length; wait for the rate-limit window and retry with a disposable account |
 | `SQLITE_CANTOPEN`/readonly | `DB_PATH`, parent ownership, service user, `ReadWritePaths`, disk space |
 | 502 | local health endpoint, service state, proxy upstream, port conflict |
 | Session disappears | HTTPS, system clock, forwarded `Host`/`X-Forwarded-Proto`, Secure cookie |
