@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const VERSION = '1.1.17';
+const VERSION = '1.1.18';
 const expected = new Map([
   ['stylesheet', `/style.css?v=${VERSION}`],
   ['app-shell', `/app-shell.css?v=${VERSION}`],

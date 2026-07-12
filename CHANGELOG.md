@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.18] - 2026-07-12
+
+- 修复修改登录名弹窗在窄屏及桌面上的字段重叠，统一为可访问的单列布局和 44px 触控目标。
+- Fixed overlapping change-username fields with an accessible single-column layout and 44px touch targets.
+
 ## [1.1.17] - 2026-07-12
 
 ### Added / 新增
