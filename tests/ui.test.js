@@ -212,7 +212,7 @@ test('修改登录名弹窗在 Chromium/WebKit 手机宽度保持三组单列几
    assert.equal(geometry.labels.length,3);assert.equal(geometry.scrollWidth,geometry.viewport);
    for(const group of geometry.labels){assert.equal(group.associated,true);assert.ok(group.control.top>group.textTop);assert.ok(group.label.left<=group.control.left&&group.label.right>=group.control.right);assert.ok(group.control.left>=geometry.dialog.left&&group.control.right<=geometry.dialog.right)}
    for(let i=1;i<geometry.labels.length;i++)assert.ok(geometry.labels[i].label.top>=geometry.labels[i-1].label.bottom);
-   for(const input of geometry.inputs){assert.ok(input.height>=44);assert.ok(input.left>=geometry.dialog.left&&input.right<=geometry.dialog.right)}assert.ok(geometry.toggle.height>=44&&geometry.toggle.width>=44);
+   for(const input of geometry.inputs){assert.ok(input.height>=44);assert.ok(input.left>=geometry.dialog.left&&input.right<=geometry.dialog.right)}assert.ok(geometry.toggle.height>=44&&geometry.toggle.width>=44);assert.ok(geometry.toggle.left>=geometry.dialog.left&&geometry.toggle.right<=geometry.dialog.right);
    for(const action of geometry.actions){assert.ok(action.height>=44);assert.ok(action.left>=geometry.dialog.left&&action.right<=geometry.dialog.right)}
    for(const label of geometry.labels)for(const input of geometry.inputs)if(!(input.top>=label.control.top&&input.bottom<=label.control.bottom))assert.ok(input.top>=label.label.bottom||input.bottom<=label.label.top);
    await page.screenshot({path:`artifacts/change-username-${engine.name()}-${width}.png`,fullPage:true});
