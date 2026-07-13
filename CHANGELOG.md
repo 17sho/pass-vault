@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.27] - 2026-07-13
+
+### Fixed / 修复
+- 修复刷新或重新登录后，手机窄屏点击已有附件无法进入详情与图片预览。
+- Fixed reloaded attachments missing their client-side attachment type, which prevented narrow-screen detail opening.
+
 ## [1.1.26] - 2026-07-13
 
 ### Added / 新增

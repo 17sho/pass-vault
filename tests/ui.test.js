@@ -30,11 +30,13 @@ async function register(page) {
   await page.getByRole('button',{name:'创建新库'}).click();
   assert.equal(await page.getByLabel('邀请码').isVisible(),true);
   await page.getByLabel('邀请码').fill(TEST_INVITE_CODE);
-  await page.locator('#auth-form input[name="username"]').fill('tester'+Date.now());
+  const username='tester'+Date.now();
+  await page.locator('#auth-form input[name="username"]').fill(username);
   await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
   await page.getByRole('button',{name:'创建并进入'}).click();
   await page.waitForTimeout(1500);
   if (!(await page.locator('#vault').isVisible())) throw Error(`auth failed: ${await page.locator('#auth-error').textContent()} url=${page.url()}`);
+  return username;
 }
 async function create(page,type, values){
   await page.getByRole('button',{name:'+ 新建'}).click();
@@ -246,10 +248,10 @@ test('统一 motion：dialog 退场、reduced motion 与视口无溢出',async()
 
 test('附件库上传筛选预览改名删除，笔记可关联与移除图片',async()=>{
  const page=await browser.newPage({viewport:{width:320,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
- await page.addInitScript(()=>{window.__revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=value=>{window.__revoked.push(value);revoke(value)}});await register(page);
+ await page.addInitScript(()=>{window.__revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=value=>{window.__revoked.push(value);revoke(value)}});const user=await register(page);
  assert.equal(await page.locator('nav').getByRole('button',{name:'附件',exact:true}).count(),1);await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
  const upload=page.getByRole('dialog',{name:'上传附件'});await upload.locator('input[type=file]').setInputFiles({name:'tiny.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});await upload.getByRole('button',{name:'加密并上传'}).click();await page.getByText('附件已上传',{exact:true}).waitFor();
- await page.locator('nav').getByRole('button',{name:'附件',exact:true}).click();await page.getByLabel('附件分类').selectOption('image');await page.getByRole('button',{name:'tiny.png',exact:true}).click();await page.locator('#detail img[alt="tiny.png"]').waitFor();assert.equal(await page.locator('#detail img[alt="tiny.png"]').count(),1);
+ await page.locator('nav').getByRole('button',{name:'附件',exact:true}).click();await page.getByLabel('附件分类').selectOption('image');await page.reload();await page.getByLabel('用户名').fill(user);await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');await page.getByRole('button',{name:'登录并解锁'}).click();await page.locator('#vault').waitFor({state:'visible'});await page.locator('nav').getByRole('button',{name:'附件',exact:true}).click();await page.getByLabel('附件分类').selectOption('image');await page.getByRole('button',{name:'tiny.png',exact:true}).click();await page.locator('#detail img[alt="tiny.png"]').waitFor();assert.equal(await page.locator('#detail img[alt="tiny.png"]').count(),1);
  await page.locator('#detail').getByRole('button',{name:'重命名'}).click();const rename=page.getByRole('dialog',{name:'重命名附件'});await rename.getByLabel('文件名').fill('renamed.png');await rename.getByRole('button',{name:'保存'}).click();await page.locator('#detail').getByRole('heading',{name:'renamed.png',exact:true}).waitFor();await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();assert.ok((await page.evaluate(()=>window.__revoked.length))>0);
  await create(page,'笔记',{'标题':'图片笔记','正文':'正文','标签（逗号分隔）':''});await page.locator('.item-card',{hasText:'图片笔记'}).click();await page.locator('#detail').getByRole('button',{name:'编辑'}).click();const noteEditor=page.locator('#editor');await noteEditor.getByLabel('添加图片').setInputFiles({name:'note.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});await noteEditor.getByRole('button',{name:'保存'}).click();await page.locator('#detail img[alt="note.png"]').click();await page.getByRole('dialog',{name:'图片预览'}).getByRole('button',{name:'关闭'}).click();
  await page.locator('#detail').getByRole('button',{name:'编辑'}).click();await page.getByRole('button',{name:'移除 note.png'}).click();await noteEditor.getByRole('button',{name:'保存'}).click();assert.equal(await page.locator('#detail img[alt="note.png"]').count(),0);await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();await page.locator('#detail').waitFor({state:'hidden'});await page.locator('nav').getByRole('button',{name:'附件',exact:true}).click();assert.equal(await page.getByText('note.png',{exact:true}).count(),1);
