@@ -20,7 +20,7 @@
 @media(max-width:430px){#username-form{padding:17px 15px}#username-form .dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#username-form .dialog-actions button{width:100%;margin:0}}
 
 /* Motion system */
-.auth-initial .auth-card{animation:auth-in 420ms var(--ease-standard) both}@keyframes auth-in{from{opacity:0;transform:translateY(8px) scale(.985)}60%{opacity:1}to{opacity:1;transform:none}}
+.auth-initial .auth-card{animation:auth-in 760ms var(--ease-standard) both}@keyframes auth-in{from{opacity:0;transform:translateY(14px) scale(.97)}75%{opacity:1}to{opacity:1;transform:none}}
 button{transition:transform var(--motion-fast) var(--ease-standard),border-color var(--motion-fast) var(--ease-standard),background-color var(--motion-fast) var(--ease-standard)}button:active:not(:disabled){transform:scale(.98)}
 .view-enter{animation:view-in var(--motion-slow) var(--ease-standard) both}.view-leave{animation:view-out var(--motion-base) var(--ease-exit) both}@keyframes view-in{from{opacity:0;transform:translateY(8px)}}@keyframes view-out{to{opacity:0;transform:translateY(-5px)}}
 .vault-reveal{animation:vault-reveal var(--motion-base) var(--ease-standard)}@keyframes vault-reveal{from{opacity:.88}to{opacity:1}}
