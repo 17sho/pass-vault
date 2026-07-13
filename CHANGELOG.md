@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.21] - 2026-07-13
+
+### Fixed / 修复
+- 空的说明、标签及其他可选文本字段在详情中保持留白，不再显示破折号；留白最小高度 24px，标签后顶部间距 8px。
+- Empty descriptions, tags, and optional text fields now remain blank with a 24px minimum area and an 8px top gap instead of showing an em dash.
+- 删除条目后，剩余列表不再重复播放入场动画，避免列表抽搐。
+- Remaining rows no longer replay their entrance animation after deletion, preventing list jitter.
+
 ## [1.1.20] - 2026-07-12
 
 ### Added / 新增
