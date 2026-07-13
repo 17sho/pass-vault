@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.23] - 2026-07-13
+
+### Fixed / 修复
+- 完全移除“新建什么资料？”标题的蓝色焦点框，同时保留程序化焦点和键盘导航。
+- Removed the visible blue outline from the creation picker heading while preserving programmatic focus and keyboard navigation.
+- 前端资源缓存键提升至 `v1.1.23`，避免浏览器继续使用旧 CSS。
+
+### Verification / 验证
+- 完整自动化测试 116/116 通过；Lint、Typecheck 和 Build 通过。
+- Cloudflare Chromium 320px 与 Linux WebKit 390px 均确认标题无 outline/box-shadow 且无横向溢出。
+
 ## [1.1.22] - 2026-07-13
 
 ### Fixed / 修复
