@@ -167,6 +167,10 @@ test('改密弹窗显隐状态复位、统一焦点环与响应式截图',async(
  await page.keyboard.press('Escape');await open();assert.deepEqual(await dialog.locator('input').evaluateAll(xs=>xs.map(x=>x.type)),['password','password','password']);await page.close();
 });
 
+test('空说明详情留白且间距略大，不显示破折号',async()=>{
+ const page=await browser.newPage({viewport:{width:320,height:800}});await register(page);await create(page,'网站',{'名称':'空说明网站','网址':'https://empty.example','说明':'','标签（逗号分隔）':''});await page.locator('.item-card',{hasText:'空说明网站'}).click();const row=page.locator('[data-detail-field="description"]'),value=row.locator('.field-value');assert.equal(await value.textContent(),'');assert.equal(await row.getByText('—',{exact:true}).count(),0);const css=await value.evaluate(e=>({minHeight:parseFloat(getComputedStyle(e).minHeight),marginTop:parseFloat(getComputedStyle(e).marginTop),overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth}));assert.ok(css.minHeight>=24);assert.ok(css.marginTop>=7);assert.equal(css.overflow,false);await page.close();
+});
+
 test('详情字段快捷操作：复制、密码显隐复位、安全网址与 fallback',async()=>{
  const page=await browser.newPage({viewport:{width:320,height:800}});await page.addInitScript(()=>{
   window.__copied=[];window.__opened=[];
