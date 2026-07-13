@@ -137,12 +137,12 @@ test('列表更多操作不冒泡，可取消并支持外部点击与 Escape 关
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false);await page.close();
 });
 
-test('列表快速删除成功并显示进行中反馈',async()=>{
- const page=await browser.newPage();await register(page);await create(page,'笔记',{'标题':'快速删除成功','正文':'正文','标签（逗号分隔）':''});
+test('列表快速删除成功且剩余列表不重复入场',async()=>{
+ const page=await browser.newPage();await register(page);await create(page,'笔记',{'标题':'保留条目','正文':'正文','标签（逗号分隔）':''});await create(page,'笔记',{'标题':'快速删除成功','正文':'正文','标签（逗号分隔）':''});
  await page.getByRole('button',{name:'快速删除成功的更多操作',exact:true}).click();await page.getByRole('menuitem',{name:'删除'}).click();
  await page.route('**/api/entries/*',async route=>{if(route.request().method()==='DELETE'){await new Promise(r=>setTimeout(r,150));await route.continue()}else await route.continue()});
  const confirm=page.getByRole('button',{name:'确认删除'});await confirm.click();const deleting=page.getByRole('button',{name:'删除中…'});await deleting.waitFor();assert.equal(await deleting.isDisabled(),true);
- await page.getByText('已删除',{exact:true}).waitFor();assert.equal(await page.locator('.item-card',{hasText:'快速删除成功'}).count(),0);await page.close();
+ await page.getByText('已删除',{exact:true}).waitFor();assert.equal(await page.locator('.item-card',{hasText:'快速删除成功'}).count(),0);const remaining=page.locator('.item-card',{hasText:'保留条目'});assert.equal(await remaining.evaluate(e=>e.classList.contains('list-enter')),false);assert.equal(await remaining.evaluate(e=>getComputedStyle(e).animationName),'none');await page.close();
 });
 
 test('详情可直接删除且失败显示中文反馈并保留条目',async()=>{
