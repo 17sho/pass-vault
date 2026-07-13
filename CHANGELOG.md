@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.25] - 2026-07-13
+
+### Added / 新增
+- “更多”菜单新增“分组排序”，账号、网站、笔记和附件可分别调整自定义分组上下顺序；`全部` 与 `默认` 固定在顶部。
+- Added independently persisted custom-group ordering for all four menus, with All and Default pinned at the top.
+
 ## [1.1.24] - 2026-07-13
 
 ### Fixed / 修复
