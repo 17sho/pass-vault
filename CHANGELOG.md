@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.24] - 2026-07-13
+
+### Fixed / 修复
+- 修复新建不同类型资料后，实际列表已切换但顶部分类菜单仍停留在旧类型的问题；保存后菜单、列表、搜索与详情状态现在同步切换。
+- Fixed category desynchronization after creating an item of another type; navigation, list, search, and detail state now switch together after save.
+
 ## [1.1.23] - 2026-07-13
 
 ### Fixed / 修复
