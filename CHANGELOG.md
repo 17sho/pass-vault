@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.22] - 2026-07-13
+
+### Fixed / 修复
+- “新建什么资料？”弹窗打开后将初始焦点放在标题，不再让右上角关闭按钮自动显示绿色焦点框，同时保留 Tab、Escape 和焦点恢复行为。
+- The creation picker now focuses its heading instead of automatically showing a green focus ring on the close button, while preserving Tab, Escape, and focus restoration behavior.
+- 前端资源缓存键提升至 `v1.1.22`，避免浏览器继续使用旧资源。
+
+### Verification / 验证
+- 完整自动化测试 116/116 通过；Lint、Typecheck 和 Build 通过。
+- Cloudflare Chromium 320px 与 Linux WebKit 390px 生产验证通过，关闭按钮初始无焦点框且页面无横向溢出。
+
 ## [1.1.21] - 2026-07-13
 
 ### Fixed / 修复
