@@ -246,6 +246,15 @@ test('统一 motion：dialog 退场、reduced motion 与视口无溢出',async()
  for(const width of [320,768,1440]){await page.setViewportSize({width,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false)}assert.deepEqual(errors,[]);await page.close();
 });
 
+test('顶部更多菜单在打开条目菜单、资料详情、切换分类和点击外部后自动收起',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:844}});await register(page);await create(page,'网站',{'名称':'菜单互斥测试','网址':'https://example.com','说明':'','标签（逗号分隔）':''});
+ const top=page.locator('#menu-panel'),trigger=page.getByRole('button',{name:'更多',exact:true});
+ await trigger.click();assert.equal(await top.isVisible(),true);await page.getByRole('button',{name:'菜单互斥测试的更多操作',exact:true}).evaluate(button=>button.click());assert.equal(await top.isHidden(),true);assert.equal(await trigger.getAttribute('aria-expanded'),'false');assert.equal(await page.getByRole('menuitem',{name:'编辑',exact:true}).isVisible(),true);
+ await trigger.click();assert.equal(await page.getByRole('menuitem',{name:'编辑',exact:true}).isHidden(),true);assert.equal(await top.isVisible(),true);await page.locator('.item-card',{hasText:'菜单互斥测试'}).evaluate(card=>card.click());assert.equal(await top.isHidden(),true);assert.equal(await page.locator('#detail').isVisible(),true);
+ await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();await trigger.click();await page.locator('nav').getByRole('button',{name:'账号',exact:true}).click();assert.equal(await top.isHidden(),true);
+ await trigger.click();await page.locator('.toolbar').evaluate(toolbar=>toolbar.click());assert.equal(await top.isHidden(),true);assert.equal(await trigger.getAttribute('aria-expanded'),'false');await page.close();
+});
+
 test('附件库上传筛选预览改名删除，笔记可关联与移除图片',async()=>{
  const page=await browser.newPage({viewport:{width:320,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
  await page.addInitScript(()=>{window.__revoked=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=value=>{window.__revoked.push(value);revoke(value)}});const user=await register(page);

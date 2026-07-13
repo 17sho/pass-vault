@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.28] - 2026-07-13
+
+### Fixed / 修复
+- 顶部“更多”菜单会在打开条目菜单、进入详情、切换分类或点击外部时自动收起。
+- Top and per-record action menus are now mutually exclusive with synchronized `aria-expanded` state.
+
 ## [1.1.27] - 2026-07-13
 
 ### Fixed / 修复
