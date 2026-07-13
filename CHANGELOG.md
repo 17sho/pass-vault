@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.26] - 2026-07-13
+
+### Added / 新增
+- 账号、网站、笔记与附件支持置顶/取消置顶，并在菜单、分组、搜索和附件类别结果中优先显示。
+- Added encrypted per-record pinning for accounts, websites, notes, and attachments without exposing pin state to the server.
+
 ## [1.1.25] - 2026-07-13
 
 ### Added / 新增

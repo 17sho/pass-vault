@@ -35,6 +35,17 @@ test('groupId is optional but strict in plaintext records and attachment metadat
  for(const bad of ['', 'bad id', 'x'.repeat(81)]) assert.equal(validatePlain('note',{title:'n',body:'',tags:[],groupId:bad}),false);
 });
 
+test('pinned is optional and strictly boolean for every encrypted record type',()=>{
+ const records={
+  account:{platform:'p',loginUrl:'',credentials:[{username:'u',password:'p'}],notes:'',tags:[]},
+  website:{name:'n',url:'',description:'',tags:[]},
+  note:{title:'n',body:'',tags:[]}
+ };
+ for(const [type,plain] of Object.entries(records)){assert.equal(validatePlain(type,{...plain,pinned:true}),true);assert.equal(validatePlain(type,{...plain,pinned:false}),true);assert.equal(validatePlain(type,{...plain,pinned:'true'}),false)}
+ const attachment={name:'a',mime:'',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA'};
+ assert.equal(validateAttachmentMetadata({...attachment,pinned:true}),true);assert.equal(validateAttachmentMetadata({...attachment,pinned:'true'}),false);
+});
+
 test('settings envelope is accepted only at fixed id and old clients safely ignore it',()=>{
  const settings={id:SETTINGS_ID,type:'settings',version:1,iv:'iv',ciphertext:'cipher'};
  assert(validEnvelope(settings));
