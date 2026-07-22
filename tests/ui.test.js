@@ -202,6 +202,72 @@ test('详情字段快捷操作：复制、密码显隐复位、安全网址与 f
  for(const width of [320,768,1440]){await page.setViewportSize({width,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false)}await page.close();
 });
 
+test('笔记详情正文提供小按钮：复制全部与选择复制',async()=>{
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  await page.addInitScript(()=>{
+    window.__copied=[];
+    Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>window.__copied.push(value),readText:async()=>window.__copied.at(-1)||''}});
+  });
+  try{
+    await register(page);
+    const body='第一行配置说明\n第二行：https://example.com/api/health\n第三行收尾';
+    await create(page,'笔记',{'标题':'配置域名','正文':body,'标签（逗号分隔）':'运维'});
+    await page.locator('.item-card',{hasText:'配置域名'}).click();
+    const detail=page.locator('#detail');
+    const bodyRow=detail.locator('.detail-row[data-detail-field="body"]');
+    await bodyRow.waitFor();
+    const copyAll=bodyRow.getByRole('button',{name:'复制全部',exact:true});
+    const selectCopy=bodyRow.getByRole('button',{name:'选择复制',exact:true});
+    assert.equal(await copyAll.count(),1);
+    assert.equal(await selectCopy.count(),1);
+    // compact buttons, not oversized primary actions
+    const sizes=await bodyRow.locator('.field-actions.note-body-actions button').evaluateAll(nodes=>nodes.map(n=>{
+      const s=getComputedStyle(n);
+      return{h:n.getBoundingClientRect().height,minH:parseFloat(s.minHeight)||0,fw:s.fontWeight,pad:s.padding};
+    }));
+    assert.equal(sizes.length,2);
+    for(const s of sizes){
+      assert.ok(s.h<=40,JSON.stringify(s));
+      assert.ok(s.minH<=36,JSON.stringify(s));
+    }
+    await copyAll.click();
+    await page.getByText('正文已复制',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__copied.at(-1)),body);
+
+    // first 选择复制: select all body text
+    await selectCopy.click();
+    await page.getByText('已选中正文，可拖动手柄后再次点击复制',{exact:true}).waitFor();
+    const selected1=await page.evaluate(()=>{
+      const value=document.querySelector('#detail .detail-row[data-detail-field="body"] .field-value');
+      const sel=window.getSelection();
+      return{text:sel?.toString()||'',inBody:value?value.contains(sel.anchorNode):false};
+    });
+    assert.equal(selected1.inBody,true);
+    assert.equal(selected1.text,body);
+
+    // partial selection then 选择复制 copies only selection
+    await page.evaluate(()=>{
+      const value=document.querySelector('#detail .detail-row[data-detail-field="body"] .field-value');
+      const range=document.createRange();
+      const node=value.firstChild;
+      range.setStart(node,0);
+      range.setEnd(node,3); // 第一行
+      const sel=window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+    await selectCopy.click();
+    await page.getByText('已复制选中内容',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__copied.at(-1)),'第一行');
+
+    // title/tags should not show these two buttons
+    assert.equal(await detail.locator('.detail-row[data-detail-field="title"]').getByRole('button',{name:'复制全部'}).count(),0);
+    assert.equal(await detail.locator('.detail-row[data-detail-field="tags"]').getByRole('button',{name:'选择复制'}).count(),0);
+  }finally{
+    await page.close();
+  }
+});
+
 test('改密弹窗字段校验阻止请求，服务端错误就地显示，成功后回登录',async()=>{
  const page=await browser.newPage({viewport:{width:390,height:844}}),runtimeErrors=[];page.on('pageerror',e=>runtimeErrors.push(e.message));page.on('console',m=>{if(m.type()==='error')runtimeErrors.push(m.text())});await register(page);await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'修改密码'}).click();
  const dialog=page.getByRole('dialog',{name:'修改主密码'});assert.match(await dialog.textContent(),/至少 12 个字符/);assert.equal(await dialog.locator('input[name="confirm"]').count(),1);
