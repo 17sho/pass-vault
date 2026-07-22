@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.38] - 2026-07-22
+
+### Fixed / 修复
+- iPhone Safari 等 WebKit 浏览器打开 PDF 附件时不再显示空白框。
+- PDF 改为浏览器本地解密后用 PDF.js 渲染到 canvas，并支持上下页。
+
+### Changed / 变更
+- 构建产物增加 `dist/vendor/pdf.min.mjs` 与 `pdf.worker.min.mjs`。
+
 ## [1.1.37] - 2026-07-22
 
 ### Added / 新增

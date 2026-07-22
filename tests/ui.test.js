@@ -311,8 +311,29 @@ test('附件详情对 PDF/文本/音频提供内置预览，未知类型仍可�
       await page.getByText('附件已上传',{exact:true}).waitFor();
       await page.getByRole('button',{name,exact:true}).waitFor();
     };
-    // Minimal valid-enough PDF bytes for browser embed
-    const pdf=Buffer.from('%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n','utf8');
+    // Valid single-page PDF that PDF.js can render to canvas (iOS Safari cannot show blob: PDF iframes)
+    const pdf=Buffer.from(`%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 200] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R >> >> >>endobj
+4 0 obj<< /Length 68 >>stream
+BT /F1 28 Tf 72 100 Td (Hello PDF Preview) Tj ET
+endstream
+endobj
+5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000279 00000 n 
+0000000398 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+477
+%%EOF
+`);
     const text=Buffer.from('hello encrypted preview\n第二行文本','utf8');
     const audio=Buffer.from([
       // tiny WAV header + silence
@@ -327,21 +348,42 @@ test('附件详情对 PDF/文本/音频提供内置预览，未知类型仍可�
     await upload('tone.wav','audio/wav',audio);
     await upload('blob.bin','application/octet-stream',bin);
 
-    // PDF
+    // PDF — canvas-based built-in preview (not blank iframe)
     await page.getByRole('button',{name:'guide.pdf',exact:true}).click();
     await page.locator('#detail.open').waitFor();
-    const pdfPreview=page.locator('#detail .attachment-preview[data-preview=\"pdf\"]');
+    const pdfPreview=page.locator('#detail .attachment-preview[data-preview="pdf"]');
     await pdfPreview.waitFor();
+    await page.locator('#detail .attachment-preview[data-preview="pdf"] canvas').waitFor({timeout:15000});
     assert.equal(await page.locator('#detail').getByRole('button',{name:'下载文件',exact:true}).count(),1);
-    const pdfState=await pdfPreview.evaluate(el=>({tag:el.tagName,src:!!el.getAttribute('src'),title:el.getAttribute('title')||el.getAttribute('aria-label')||''}));
-    assert.equal(pdfState.tag,'IFRAME');
-    assert.equal(pdfState.src,true);
-    assert.match(pdfState.title,/guide\.pdf/);
+    const pdfState=await pdfPreview.evaluate(el=>{
+      const canvas=el.querySelector('canvas');
+      let nonWhite=0;
+      if(canvas){
+        const img=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+        for(let i=0;i<img.length;i+=4){if(img[i]<250||img[i+1]<250||img[i+2]<250)nonWhite++;}
+      }
+      return{
+        hasIframe:!!el.querySelector('iframe'),
+        canvas:!!canvas,
+        width:canvas?.width||0,
+        height:canvas?.height||0,
+        nonWhite,
+        label:el.getAttribute('aria-label')||'',
+        status:(el.querySelector('.pdf-page-label')?.textContent||'').trim()
+      };
+    });
+    assert.equal(pdfState.hasIframe,false);
+    assert.equal(pdfState.canvas,true);
+    assert.ok(pdfState.width>100,JSON.stringify(pdfState));
+    assert.ok(pdfState.height>40,JSON.stringify(pdfState));
+    assert.ok(pdfState.nonWhite>50,JSON.stringify(pdfState));
+    assert.match(pdfState.label,/guide\.pdf/);
+    assert.match(pdfState.status,/第\s*1\s*\/\s*1\s*页|1\s*\/\s*1/);
     await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();
 
     // Text
     await page.getByRole('button',{name:'notes.txt',exact:true}).click();
-    const textPreview=page.locator('#detail .attachment-preview[data-preview=\"text\"]');
+    const textPreview=page.locator('#detail .attachment-preview[data-preview="text"]');
     await textPreview.waitFor();
     assert.match(await textPreview.innerText(),/hello encrypted preview/);
     assert.match(await textPreview.innerText(),/第二行文本/);
@@ -350,7 +392,7 @@ test('附件详情对 PDF/文本/音频提供内置预览，未知类型仍可�
 
     // Audio
     await page.getByRole('button',{name:'tone.wav',exact:true}).click();
-    const audioPreview=page.locator('#detail .attachment-preview[data-preview=\"audio\"]');
+    const audioPreview=page.locator('#detail .attachment-preview[data-preview="audio"]');
     await audioPreview.waitFor();
     const audioState=await audioPreview.evaluate(el=>({tag:el.tagName,controls:el.controls,src:!!el.getAttribute('src')}));
     assert.equal(audioState.tag,'AUDIO');
@@ -365,6 +407,57 @@ test('附件详情对 PDF/文本/音频提供内置预览，未知类型仍可�
     assert.equal(await page.locator('#detail .attachment-preview').count(),0);
   }finally{
     await page.close();
+  }
+});
+
+test('WebKit 附件 PDF 详情使用 canvas 内置预览且内容非空白',async()=>{
+  const safari=await webkit.launch({headless:true});
+  const page=await safari.newPage({viewport:{width:390,height:844}});
+  try{
+    await register(page);
+    const pdf=Buffer.from(`%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 200] /Contents 4 0 R /Resources<< /Font<< /F1 5 0 R >> >> >>endobj
+4 0 obj<< /Length 68 >>stream
+BT /F1 28 Tf 72 100 Td (Hello PDF Preview) Tj ET
+endstream
+endobj
+5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000279 00000 n 
+0000000398 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+477
+%%EOF
+`);
+    await page.getByRole('button',{name:'+ 新建'}).click();
+    await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'上传附件'});
+    await dialog.getByLabel('选择文件').setInputFiles({name:'ios-guide.pdf',mimeType:'application/pdf',buffer:pdf});
+    await dialog.getByRole('button',{name:'加密并上传'}).click();
+    await page.getByText('附件已上传',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'ios-guide.pdf',exact:true}).click();
+    const box=page.locator('#detail .attachment-preview[data-preview="pdf"]');
+    await box.waitFor();
+    await page.locator('#detail .attachment-preview[data-preview="pdf"] canvas').waitFor({timeout:20000});
+    const evidence=await box.evaluate(el=>{
+      const canvas=el.querySelector('canvas');
+      const img=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+      let nonWhite=0; for(let i=0;i<img.length;i+=4){if(img[i]<250||img[i+1]<250||img[i+2]<250)nonWhite++;}
+      return{hasIframe:!!el.querySelector('iframe'),nonWhite,w:canvas.width,h:canvas.height};
+    });
+    assert.equal(evidence.hasIframe,false);
+    assert.ok(evidence.nonWhite>50,JSON.stringify(evidence));
+  }finally{
+    await page.close();
+    await safari.close();
   }
 });
 
