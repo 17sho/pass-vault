@@ -247,12 +247,53 @@ test('统一 motion：dialog 退场、reduced motion 与视口无溢出',async()
 });
 
 test('顶部更多菜单在打开条目菜单、资料详情、切换分类和点击外部后自动收起',async()=>{
- const page=await browser.newPage({viewport:{width:390,height:844}});await register(page);await create(page,'网站',{'名称':'菜单互斥测试','网址':'https://example.com','说明':'','标签（逗号分隔）':''});
- const top=page.locator('#menu-panel'),trigger=page.getByRole('button',{name:'更多',exact:true});
- await trigger.click();assert.equal(await top.isVisible(),true);await page.getByRole('button',{name:'菜单互斥测试的更多操作',exact:true}).evaluate(button=>button.click());assert.equal(await top.isHidden(),true);assert.equal(await trigger.getAttribute('aria-expanded'),'false');assert.equal(await page.getByRole('menuitem',{name:'编辑',exact:true}).isVisible(),true);
- await trigger.click();assert.equal(await page.getByRole('menuitem',{name:'编辑',exact:true}).isHidden(),true);assert.equal(await top.isVisible(),true);await page.locator('.item-card',{hasText:'菜单互斥测试'}).evaluate(card=>card.click());assert.equal(await top.isHidden(),true);assert.equal(await page.locator('#detail').isVisible(),true);
- await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();await trigger.click();await page.locator('nav').getByRole('button',{name:'账号',exact:true}).click();assert.equal(await top.isHidden(),true);
- await trigger.click();await page.locator('.toolbar').evaluate(toolbar=>toolbar.click());assert.equal(await top.isHidden(),true);assert.equal(await trigger.getAttribute('aria-expanded'),'false');await page.close();
+  const page=await browser.newPage({viewport:{width:390,height:844}});await register(page);await create(page,'网站',{'名称':'菜单互斥测试','网址':'https://example.com','说明':'','标签（逗号分隔）':''});
+  const top=page.locator('#menu-panel'),trigger=page.getByRole('button',{name:'更多',exact:true});
+  await trigger.click();assert.equal(await top.isVisible(),true);await page.getByRole('button',{name:'菜单互斥测试的更多操作',exact:true}).evaluate(button=>button.click());assert.equal(await top.isHidden(),true);assert.equal(await trigger.getAttribute('aria-expanded'),'false');assert.equal(await page.getByRole('menuitem',{name:'编辑',exact:true}).isVisible(),true);
+  await trigger.click();assert.equal(await page.getByRole('menuitem',{name:'编辑',exact:true}).isHidden(),true);assert.equal(await top.isVisible(),true);await page.locator('.item-card',{hasText:'菜单互斥测试'}).evaluate(card=>card.click());assert.equal(await top.isHidden(),true);assert.equal(await page.locator('#detail').isVisible(),true);
+  await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();await trigger.click();await page.locator('nav').getByRole('button',{name:'账号',exact:true}).click();assert.equal(await top.isHidden(),true);
+  await trigger.click();await page.locator('.toolbar').evaluate(toolbar=>toolbar.click());assert.equal(await top.isHidden(),true);assert.equal(await trigger.getAttribute('aria-expanded'),'false');await page.close();
+});
+
+test('手机详情打开时顶部更多菜单不被详情顶栏遮挡',async()=>{
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  try{
+    await register(page);
+    await create(page,'笔记',{'标题':'遮挡菜单测试','正文':'用于验证详情页上更多菜单层级','标签（逗号分隔）':''});
+    await page.locator('.item-card',{hasText:'遮挡菜单测试'}).click();
+    await page.locator('#detail.open').waitFor();
+    await page.getByRole('button',{name:'更多',exact:true}).click();
+    const menu=page.locator('#menu-panel');
+    await menu.waitFor({state:'visible'});
+    const evidence=await page.evaluate(()=>{
+      const menuEl=document.querySelector('#menu-panel');
+      const items=[...menuEl.querySelectorAll('[role=menuitem]')];
+      const detail=document.querySelector('#detail');
+      const head=document.querySelector('#detail .detail-head');
+      const sample=(el)=>{
+        const r=el.getBoundingClientRect();
+        const x=Math.min(Math.max(r.left+r.width/2,0),innerWidth-1);
+        const y=Math.min(Math.max(r.top+r.height/2,0),innerHeight-1);
+        return{text:el.textContent.trim(),rect:{top:r.top,left:r.left,bottom:r.bottom,right:r.right,width:r.width,height:r.height},center:{x,y},topElement:document.elementFromPoint(x,y)?.closest('[role=menuitem],#menu-panel,#detail,.detail-head,button')?.id||document.elementFromPoint(x,y)?.closest('[role=menuitem],#menu-panel,#detail,.detail-head,button')?.className||document.elementFromPoint(x,y)?.tagName||null,hit:!!document.elementFromPoint(x,y)?.closest('#menu-panel')};
+      };
+      return{
+        menuZ:getComputedStyle(menuEl).zIndex,
+        detailZ:getComputedStyle(detail).zIndex,
+        headerZ:getComputedStyle(document.querySelector('#vault>header')).zIndex,
+        headVisible:!!head&&getComputedStyle(head).display!=='none',
+        items:items.map(sample),
+      };
+    });
+    assert.ok(evidence.items.length>=2,JSON.stringify(evidence));
+    for(const item of evidence.items){
+      assert.ok(item.rect.width>0&&item.rect.height>0,JSON.stringify(item));
+      assert.equal(item.hit,true,JSON.stringify({item,evidence}));
+    }
+    await page.getByRole('menuitem',{name:'分组排序',exact:true}).click();
+    await page.getByRole('dialog',{name:'分组排序'}).waitFor();
+  }finally{
+    await page.close();
+  }
 });
 
 test('桌面附件详情正文使用统一内边距且图片不贴边',async()=>{const browser=await chromium.launch({headless:true}),page=await browser.newPage({viewport:{width:1440,height:900}});try{await register(page);await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();const upload=page.getByRole('dialog',{name:'上传附件'});await upload.getByLabel('选择文件').setInputFiles({name:'padding-proof.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});await upload.getByRole('button',{name:'加密并上传'}).click();await page.getByRole('button',{name:'padding-proof.png',exact:true}).click();const evidence=await page.locator('#detail').evaluate(detail=>{const box=detail.getBoundingClientRect(),meta=detail.querySelector('.attachment-meta').getBoundingClientRect(),image=detail.querySelector('.attachment-preview').getBoundingClientRect(),created=detail.querySelector('.detail-created').getBoundingClientRect();return{metaLeft:meta.left-box.left,imageLeft:image.left-box.left,createdLeft:created.left-box.left,imageRight:box.right-image.right,overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth}});for(const key of ['metaLeft','imageLeft','createdLeft'])assert.ok(evidence[key]>=23&&evidence[key]<=25,JSON.stringify(evidence));assert.ok(evidence.imageRight>=23,JSON.stringify(evidence));assert.equal(evidence.overflow,false)}finally{await browser.close()}});

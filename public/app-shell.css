@@ -7,4 +7,5 @@ html,body{max-width:100%;overflow-x:hidden}
 .collection{display:flex;flex-direction:column}
 #list{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 #detail{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#vault>header{position:relative;z-index:12}#menu-panel{z-index:13}
 @media(max-width:650px){#vault>main{display:grid;grid-template-columns:1fr}.collection,#detail{grid-area:1/1}#detail{z-index:8;background:#fff}}
