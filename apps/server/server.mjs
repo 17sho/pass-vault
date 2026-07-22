@@ -26,7 +26,7 @@ const MAX_BACKUP_ATTACHMENTS=20*1024*1024,MAX_BACKUP_JSON=30*1024*1024;
 const digest=x=>createHash('sha256').update(x).digest('hex');
 const passwordHash=(p,s=randomBytes(16))=>({salt:s.toString('base64'),hash:scryptSync(p,s,32,{N:32768,maxmem:64*1024*1024}).toString('base64')});
 function verify(p,u){try{const a=scryptSync(p,Buffer.from(u.password_salt,'base64'),32,{N:32768,maxmem:64*1024*1024}),b=Buffer.from(u.password_hash,'base64');return a.length===b.length&&timingSafeEqual(a,b)}catch{return false}}
-const CSP="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+const CSP="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const SECURITY_HEADERS={'x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':CSP};
 const json=(res,status,value,headers={})=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...SECURITY_HEADERS,...headers});res.end(status===204?'':JSON.stringify(value))};
 async function body(req){let size=0,chunks=[];for await(const c of req){size+=c.length;if(size>MAX_BODY)throw Object.assign(new Error('too_large'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}')}catch{throw Object.assign(new Error('invalid_json'),{status:400})}}

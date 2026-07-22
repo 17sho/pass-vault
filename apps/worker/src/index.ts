@@ -13,7 +13,7 @@ async function reserveOperation(env:Env,kind:'class_a'|'class_b',count=1){const 
 async function ensureStorageCounter(env:Env){const total=Number((await env.DB.prepare('SELECT COALESCE(SUM(ciphertext_size),0) AS total FROM attachments').first<{total:number}>())?.total||0);await env.DB.prepare('INSERT INTO r2_storage_usage(id,reserved_bytes) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET reserved_bytes=MAX(reserved_bytes,excluded.reserved_bytes)').bind(total).run()}
 async function reserveStorage(env:Env,delta:number){await ensureStorageCounter(env);const result=await env.DB.prepare('UPDATE r2_storage_usage SET reserved_bytes=reserved_bytes+? WHERE id=1 AND reserved_bytes+?>=0 AND reserved_bytes+?<=?').bind(delta,delta,delta,R2_QUOTAS.storageBytes).run();if(!result.meta.changes)throw new QuotaExceeded('storage')}
 const SECURITY_HEADERS={
- 'content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+ 'content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
  'permissions-policy':'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
  'referrer-policy':'no-referrer',
  'strict-transport-security':'max-age=63072000; includeSubDomains; preload',

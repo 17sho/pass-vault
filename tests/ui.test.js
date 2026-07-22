@@ -298,6 +298,76 @@ test('手机详情打开时顶部更多菜单不被详情顶栏遮挡',async()=>
 
 test('桌面附件详情正文使用统一内边距且图片不贴边',async()=>{const browser=await chromium.launch({headless:true}),page=await browser.newPage({viewport:{width:1440,height:900}});try{await register(page);await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();const upload=page.getByRole('dialog',{name:'上传附件'});await upload.getByLabel('选择文件').setInputFiles({name:'padding-proof.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});await upload.getByRole('button',{name:'加密并上传'}).click();await page.getByRole('button',{name:'padding-proof.png',exact:true}).click();const evidence=await page.locator('#detail').evaluate(detail=>{const box=detail.getBoundingClientRect(),meta=detail.querySelector('.attachment-meta').getBoundingClientRect(),image=detail.querySelector('.attachment-preview').getBoundingClientRect(),created=detail.querySelector('.detail-created').getBoundingClientRect();return{metaLeft:meta.left-box.left,imageLeft:image.left-box.left,createdLeft:created.left-box.left,imageRight:box.right-image.right,overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth}});for(const key of ['metaLeft','imageLeft','createdLeft'])assert.ok(evidence[key]>=23&&evidence[key]<=25,JSON.stringify(evidence));assert.ok(evidence.imageRight>=23,JSON.stringify(evidence));assert.equal(evidence.overflow,false)}finally{await browser.close()}});
 
+test('附件详情对 PDF/文本/音频提供内置预览，未知类型仍可下载',async()=>{
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  try{
+    await register(page);
+    const upload=async(name,mime,buffer)=>{
+      await page.getByRole('button',{name:'+ 新建'}).click();
+      await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
+      const dialog=page.getByRole('dialog',{name:'上传附件'});
+      await dialog.getByLabel('选择文件').setInputFiles({name,mimeType:mime,buffer});
+      await dialog.getByRole('button',{name:'加密并上传'}).click();
+      await page.getByText('附件已上传',{exact:true}).waitFor();
+      await page.getByRole('button',{name,exact:true}).waitFor();
+    };
+    // Minimal valid-enough PDF bytes for browser embed
+    const pdf=Buffer.from('%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n','utf8');
+    const text=Buffer.from('hello encrypted preview\n第二行文本','utf8');
+    const audio=Buffer.from([
+      // tiny WAV header + silence
+      0x52,0x49,0x46,0x46,0x24,0x00,0x00,0x00,0x57,0x41,0x56,0x45,0x66,0x6d,0x74,0x20,
+      0x10,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x44,0xac,0x00,0x00,0x88,0x58,0x01,0x00,
+      0x02,0x00,0x10,0x00,0x64,0x61,0x74,0x61,0x00,0x00,0x00,0x00
+    ]);
+    const bin=Buffer.from([0x00,0x01,0x02,0x03,0xff]);
+
+    await upload('guide.pdf','application/pdf',pdf);
+    await upload('notes.txt','text/plain',text);
+    await upload('tone.wav','audio/wav',audio);
+    await upload('blob.bin','application/octet-stream',bin);
+
+    // PDF
+    await page.getByRole('button',{name:'guide.pdf',exact:true}).click();
+    await page.locator('#detail.open').waitFor();
+    const pdfPreview=page.locator('#detail .attachment-preview[data-preview=\"pdf\"]');
+    await pdfPreview.waitFor();
+    assert.equal(await page.locator('#detail').getByRole('button',{name:'下载文件',exact:true}).count(),1);
+    const pdfState=await pdfPreview.evaluate(el=>({tag:el.tagName,src:!!el.getAttribute('src'),title:el.getAttribute('title')||el.getAttribute('aria-label')||''}));
+    assert.equal(pdfState.tag,'IFRAME');
+    assert.equal(pdfState.src,true);
+    assert.match(pdfState.title,/guide\.pdf/);
+    await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();
+
+    // Text
+    await page.getByRole('button',{name:'notes.txt',exact:true}).click();
+    const textPreview=page.locator('#detail .attachment-preview[data-preview=\"text\"]');
+    await textPreview.waitFor();
+    assert.match(await textPreview.innerText(),/hello encrypted preview/);
+    assert.match(await textPreview.innerText(),/第二行文本/);
+    assert.equal(await page.locator('#detail').getByRole('button',{name:'下载文件',exact:true}).count(),1);
+    await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();
+
+    // Audio
+    await page.getByRole('button',{name:'tone.wav',exact:true}).click();
+    const audioPreview=page.locator('#detail .attachment-preview[data-preview=\"audio\"]');
+    await audioPreview.waitFor();
+    const audioState=await audioPreview.evaluate(el=>({tag:el.tagName,controls:el.controls,src:!!el.getAttribute('src')}));
+    assert.equal(audioState.tag,'AUDIO');
+    assert.equal(audioState.controls,true);
+    assert.equal(audioState.src,true);
+    assert.equal(await page.locator('#detail').getByRole('button',{name:'下载文件',exact:true}).count(),1);
+    await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();
+
+    // Unknown binary still download only
+    await page.getByRole('button',{name:'blob.bin',exact:true}).click();
+    await page.locator('#detail').getByRole('button',{name:'下载文件',exact:true}).waitFor();
+    assert.equal(await page.locator('#detail .attachment-preview').count(),0);
+  }finally{
+    await page.close();
+  }
+});
+
 test('附件详情返回按钮仅在手机单栏显示',async()=>{const browser=await chromium.launch({headless:true}),page=await browser.newPage({viewport:{width:1440,height:900}});try{await register(page);await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();const upload=page.getByRole('dialog',{name:'上传附件'});await upload.getByLabel('选择文件').setInputFiles({name:'back-proof.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});await upload.getByRole('button',{name:'加密并上传'}).click();await page.getByRole('button',{name:'back-proof.png',exact:true}).click();const back=page.locator('#detail').getByRole('button',{name:'← 返回',exact:true});assert.equal(await back.isVisible(),false);await page.setViewportSize({width:390,height:844});assert.equal(await back.isVisible(),true);await back.click();await page.locator('#detail').waitFor({state:'hidden'});assert.equal(await page.locator('#detail').isVisible(),false)}finally{await browser.close()}});
 
 test('附件库上传筛选预览改名删除，笔记可关联与移除图片',async()=>{

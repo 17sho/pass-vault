@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.37] - 2026-07-22
+
+### Added / 新增
+- 附件详情内置预览：PDF iframe、文本内容、音频播放；未知类型仍可下载。
+
+### Security / 安全
+- CSP 增加 `frame-src 'self' blob:`，允许解密后的 PDF 本地预览。
+
 ## [1.1.36] - 2026-07-22
 
 ### Fixed / 修复
