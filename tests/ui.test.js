@@ -106,7 +106,7 @@ test('三类字段隔离、当前分类搜索、编辑锁类型、危险区删�
  await page.getByRole('button',{name:'取消'}).click();
  await page.locator('#editor').waitFor({state:'hidden'});assert.equal(await page.getByRole('button',{name:'删除此条目'}).isVisible(),false);
  await page.getByRole('button',{name:'更多',exact:true}).click();
- assert.equal(await page.getByRole('menuitem').count(),8);
+ assert.equal(await page.getByRole('menuitem').count(),9);
  await page.screenshot({path:'artifacts/desktop-1440.png',fullPage:true});assert.deepEqual(errors,[]);await page.close();
 });
 
@@ -759,6 +759,46 @@ test('功能2：有活动时不锁库（活动重置计时器）',async()=>{
   // 每 500ms 点击一次,持续 2.5s,保持活跃
   for(let i=0;i<5;i++){await page.mouse.click(10,10);await page.waitForTimeout(500)}
   assert.equal(await page.locator('#vault').isVisible(),true,'持续活动不应锁库');
+  assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
+
+test('设置：自动锁定时间可在菜单中选择并持久化，"从不"则不自动锁',async()=>{
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
+ page.on('pageerror',e=>errors.push(String(e)));
+ try{
+  await register(page);
+  // 打开菜单，点“自动锁定时间”
+  await page.getByRole('button',{name:'更多'}).click();
+  const setBtn=page.locator('#idle-lock-setting');
+  await setBtn.waitFor({state:'visible'});
+  // 默认标签应含 5 分钟
+  assert.match(await setBtn.textContent(),/5 分钟/,'默认应为 5 分钟');
+  await setBtn.click();
+  // 对话框出现，选“1 分钟”
+  const dlg=page.locator('#idle-lock');
+  await dlg.waitFor({state:'visible'});
+  // 当前项应高亮为 5 分钟
+  const current5=await dlg.locator('.idle-lock-option.is-current').textContent();
+  assert.match(current5,/5 分钟/,'当前高亮应为 5 分钟');
+  await dlg.getByRole('radio',{name:'1 分钟'}).click();
+  // 持久化到 localStorage（毫秒）
+  const stored=await page.evaluate(()=>localStorage.getItem('pass-vault-idle-lock-ms'));
+  assert.equal(stored,'60000','应持久化 1 分钟=60000ms');
+  // 菜单标签更新
+  await page.getByRole('button',{name:'更多'}).click();
+  assert.match(await page.locator('#idle-lock-setting').textContent(),/1 分钟/,'标签应更新为 1 分钟');
+  // 选“从不”：设为 0，且计时器不应锁库
+  await page.locator('#idle-lock-setting').click();
+  await dlg.waitFor({state:'visible'});
+  await dlg.getByRole('radio',{name:'从不'}).click();
+  const never=await page.evaluate(()=>localStorage.getItem('pass-vault-idle-lock-ms'));
+  assert.equal(never,'0','从不应持久化为 0');
+  // 用测试钩子把“从不”语义验证：设 0 后即使等待也不锁（这里短等，确认 vaultKey 仍在）
+  await page.evaluate(()=>{ if(typeof resetIdleTimer==='function') resetIdleTimer(); });
+  await page.waitForTimeout(800);
+  assert.equal(await page.evaluate(()=>window.__vaultKeyPresent()),true,'“从不”时不应自动锁库');
+  assert.equal(await page.locator('#vault').isVisible(),true,'仍应停留在密码库');
   assert.deepEqual(errors,[]);
  }finally{await page.close()}
 });
