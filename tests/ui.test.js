@@ -704,3 +704,61 @@ test('功能7：打开条目后"最近查看"出现并在重新登录后仍保�
   assert.deepEqual(errors,[]);
  }finally{await page.close()}
 });
+
+test('功能4：账号编辑器点"生成"填入强密码，长度可调',async()=>{
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ try{
+  await register(page);
+  await page.getByRole('button',{name:'+ 新建'}).click();
+  await page.locator('#picker').getByRole('button',{name:'账号',exact:true}).click();
+  const editor=page.locator('#editor');
+  // 点击第一组密码的"生成"按钮
+  await editor.getByRole('button',{name:'生成密码 1'}).click();
+  const genPanel=page.locator('.pw-gen-panel');
+  await genPanel.waitFor();
+  // 调整长度到 24
+  await genPanel.getByLabel(/长度/).fill('24');
+  await genPanel.getByRole('button',{name:'生成',exact:true}).click();
+  await genPanel.getByRole('button',{name:'填入',exact:true}).click();
+  const pw=await editor.locator('input[name=credentialPassword]').first().inputValue();
+  assert.equal(pw.length,24,`应生成24位,实际${pw.length}`);
+  assert.match(pw,/[A-Z]/,'含大写');assert.match(pw,/[a-z]/,'含小写');assert.match(pw,/[0-9]/,'含数字');
+  // 保存后可用
+  await editor.locator('input[name=credentialUsername]').first().fill('genuser');
+  await editor.getByLabel('平台',{exact:true}).fill('GenSite');
+  await editor.getByLabel('登录网址',{exact:true}).fill('https://gen.example');
+  await editor.getByRole('button',{name:'保存'}).click();
+  await page.getByText('已保存',{exact:true}).waitFor();
+  assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
+
+test('功能2：空闲超时自动锁库，清 vaultKey 并回到解锁界面',async()=>{
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ try{
+  // 用测试钩子把空闲超时压到 1.2 秒
+  await page.addInitScript(()=>{window.__IDLE_LOCK_MS=1200});
+  await register(page);
+  assert.equal(await page.locator('#vault').isVisible(),true);
+  // 静置超过阈值,不产生任何活动
+  await page.waitForTimeout(2200);
+  // 应已锁库:auth 可见、vault 隐藏
+  await page.locator('#auth').waitFor({state:'visible'});
+  assert.equal(await page.locator('#vault').isVisible(),false,'超时后应锁库');
+  // vaultKey 已清空(内存)
+  assert.equal(await page.evaluate(()=>window.__vaultKeyPresent?.()??'nohook'),false);
+  assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
+
+test('功能2：有活动时不锁库（活动重置计时器）',async()=>{
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ try{
+  await page.addInitScript(()=>{window.__IDLE_LOCK_MS=1200});
+  await register(page);
+  // 每 500ms 点击一次,持续 2.5s,保持活跃
+  for(let i=0;i<5;i++){await page.mouse.click(10,10);await page.waitForTimeout(500)}
+  assert.equal(await page.locator('#vault').isVisible(),true,'持续活动不应锁库');
+  assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
