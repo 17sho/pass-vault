@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.48] - 2026-07-26
+
+### Fixed / 修复
+- **自动锁定时间对话框布局修复**:`#idle-lock` 对话框此前缺少表单内边距(命中不到 `#editor/#attachment-upload/#rename-dialog form` 的 padding 规则,实际 padding 为 0),导致选项贴到对话框四周、底部圆角被内容顶掉、呈现平截贴边。现为其补齐 `padding:24px` 与选项区间距,底部圆角与四周留白恢复正常。
+- 修复 iOS Safari 下打开对话框时标题聚焦产生的蓝色 outline:为 `#idle-lock-title:focus` 补上与 `#picker-title` 一致的 `outline:none;box-shadow:none`。
+- 将 `#idle-lock` 表单由 `<form method="dialog">` 改为普通 `<form>`,与其它选择类对话框(如新建类型选择器)结构保持一致。
+
 ## [1.1.47] - 2026-07-26
 
 ### Added / 新增
