@@ -822,3 +822,26 @@ test('手机详情返回动画完整播放到 animationend 再替换 DOM，不�
  assert.equal(await page.locator('#detail .empty').count(),1,'返回后应回到空详情占位');
  assert.deepEqual(errors,[]);await page.close();
 });
+
+test('分组管理中删除按钮为危险红色以区分重命名，且触控区不小于 44px',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await register(page);
+ await page.locator('#groups').click();await page.locator('#groups-dialog[open]').waitFor();
+ await page.locator('#groups-form [name="newGroup"]').fill('测试分组');
+ await page.locator('#groups-form').evaluate(f=>f.requestSubmit());
+ await page.locator('.group-row',{hasText:'测试分组'}).waitFor();
+ const m=await page.evaluate(()=>{
+  const row=[...document.querySelectorAll('.group-row')].find(r=>r.textContent.includes('测试分组')&&r.children.length===3);
+  const rename=row.children[1],del=row.children[2];const cs=getComputedStyle;
+  const danger=cs(document.documentElement).getPropertyValue('--danger').trim();
+  return {delColor:cs(del).color,renameColor:cs(rename).color,delH:Math.round(del.getBoundingClientRect().height),renameH:Math.round(rename.getBoundingClientRect().height),delClass:del.classList.contains('group-remove'),danger};
+ });
+ // --danger 解析为 rgb 供比较
+ const dangerRgb=await page.evaluate(hex=>{const d=document.createElement('div');d.style.color=hex;document.body.append(d);const c=getComputedStyle(d).color;d.remove();return c},m.danger);
+ assert.equal(m.delClass,true,'删除按钮应带 group-remove 类');
+ assert.equal(m.delColor,dangerRgb,'删除按钮文字应为危险色');
+ assert.notEqual(m.renameColor,dangerRgb,'重命名按钮不应为危险色（保持普通色以区分）');
+ assert.ok(m.delH>=44,`删除按钮触控高度应≥44px，实际 ${m.delH}`);
+ assert.ok(m.renameH>=44,`重命名按钮触控高度应≥44px，实际 ${m.renameH}`);
+ assert.deepEqual(errors,[]);await page.close();
+});
