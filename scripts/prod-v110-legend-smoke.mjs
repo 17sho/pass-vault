@@ -6,10 +6,10 @@ const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_
 
 const base = process.argv[2];
 const evidencePath = process.argv[3];
-const productionBase = /^https:\/\/(pass|passkey)\.23cm\.me\/?$/.test(base || '');
+const productionBase = /^https:\/\/\S+$/.test(base || '');
 const localBase = process.env.V110_SMOKE_ALLOW_LOCAL === '1' && /^http:\/\/127\.0\.0\.1:\d+\/?$/.test(base || '');
 if (!base || (!productionBase && !localBase)) {
-  throw new Error('usage: node scripts/prod-v110-legend-smoke.mjs https://pass.23cm.me|https://passkey.23cm.me [evidence.json]');
+  throw new Error('usage: node scripts/prod-v110-legend-smoke.mjs https://<prod-host> [evidence.json]');
 }
 const site = new URL(base).hostname.replaceAll('.', '_');
 const run = `${Date.now()}_${randomBytes(4).toString('hex')}`;

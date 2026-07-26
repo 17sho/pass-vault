@@ -22,7 +22,7 @@
 
 - 新增自动化：PDF / 文本 / 音频预览 + 未知类型下载
 - 全量测试 127/127
-- 双站部署：pass.23cm.me / passkey.23cm.me
+- 双站部署：Cloudflare Worker 与 Linux
 
 ## English
 

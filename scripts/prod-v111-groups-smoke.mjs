@@ -4,7 +4,8 @@ import { writeFile } from 'node:fs/promises';
 import { chromium, webkit } from 'playwright';
 const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
-const allSites = ['https://pass.23cm.me', 'https://passkey.23cm.me'];
+const allSites = (process.env.PROD_SITES || '').split(',').map(s => s.trim()).filter(Boolean);
+assert.ok(allSites.length, 'PROD_SITES env is required (comma-separated https URLs)');
 const allEngines = [['chromium', chromium], ['webkit', webkit]];
 const requestedSites = (process.env.SITES || '').split(',').map(value => value.trim()).filter(Boolean);
 const requestedEngines = (process.env.ENGINES || '').split(',').map(value => value.trim()).filter(Boolean);
