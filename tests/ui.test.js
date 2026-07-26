@@ -645,3 +645,62 @@ test('附件库上传筛选预览改名删除，笔记可关联与移除图片',
  await page.locator('#detail').getByRole('button',{name:'编辑'}).click();await page.getByRole('button',{name:'移除 note.png'}).click();await noteEditor.getByRole('button',{name:'保存'}).click();assert.equal(await page.locator('#detail img[alt="note.png"]').count(),0);await page.locator('#detail').getByRole('button',{name:'← 返回'}).click();await page.locator('#detail').waitFor({state:'hidden'});await page.locator('nav').getByRole('button',{name:'附件',exact:true}).click();assert.equal(await page.getByText('note.png',{exact:true}).count(),1);
  for(const width of [320,768,1440]){await page.setViewportSize({width,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false)}assert.deepEqual(errors,[]);await page.close();
 });
+
+test('功能6：编辑账号改密码后详情显示更新时间且旧密码进入密码历史',async()=>{
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ try{
+  await register(page);
+  await create(page,'账号',{'平台':'GitHub','登录网址':'https://github.com','账号':'octocat','密码':'old-pass-111','备注':'','标签（逗号分隔）':''});
+  await page.getByText('已保存',{exact:true}).waitFor();
+  await page.locator('.item-card',{hasText:'GitHub'}).click();
+  await page.locator('#detail .detail-head').waitFor();
+  // 编辑：改密码
+  await page.locator('#detail').getByRole('button',{name:'编辑'}).click();
+  const editor=page.locator('#editor');
+  await editor.locator('input[name=credentialPassword]').fill('new-pass-222');
+  await editor.getByRole('button',{name:'保存'}).click();
+  await page.getByText('已保存',{exact:true}).waitFor();
+  await page.locator('.item-card',{hasText:'GitHub'}).click();
+  await page.locator('#detail .detail-head').waitFor();
+  // 断言1：显示"更新于"
+  assert.equal(await page.locator('#detail .detail-updated').count(),1,'应显示更新时间');
+  assert.match(await page.locator('#detail .detail-updated').textContent(),/更新于/);
+  // 断言2：密码历史存在且含旧密码
+  const history=page.locator('#detail .password-history');
+  assert.equal(await history.count(),1,'应显示密码历史');
+  await history.locator('summary').click();
+  await history.getByRole('button',{name:/显示历史密码/}).first().click();
+  assert.match(await history.locator('.history-row .field-value').first().textContent(),/old-pass-111/,'历史应含旧密码');
+  assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
+
+test('功能7：打开条目后"最近查看"出现并在重新登录后仍保留（加密同步）',async()=>{
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ try{
+  const user=await register(page);
+  await create(page,'账号',{'平台':'AlphaSite','登录网址':'https://a.example','账号':'a','密码':'pa','备注':'','标签（逗号分隔）':''});
+  await page.getByText('已保存',{exact:true}).waitFor();
+  await create(page,'账号',{'平台':'BetaSite','登录网址':'https://b.example','账号':'b','密码':'pb','备注':'','标签（逗号分隔）':''});
+  await page.getByText('已保存',{exact:true}).waitFor();
+  // 打开 BetaSite
+  await page.locator('.item-card',{hasText:'BetaSite'}).click();
+  await page.locator('#detail .detail-head').waitFor();
+  await page.locator('#detail').getByRole('button',{name:'← 返回'}).click().catch(()=>{});
+  await page.waitForTimeout(400);
+  // 断言：最近查看区出现，含 BetaSite
+  const recents=page.locator('.recents');
+  await recents.waitFor();
+  assert.equal(await recents.count(),1,'应显示最近查看区');
+  assert.equal(await recents.getByRole('button',{name:/打开 BetaSite/}).count(),1,'最近查看应含 BetaSite');
+  // 重新登录，验证加密持久化（B 方案跨设备同步）
+  await page.reload();
+  await page.getByLabel('用户名').fill(user);
+  await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
+  await page.getByRole('button',{name:'登录并解锁'}).click();
+  await page.locator('#vault').waitFor({state:'visible'});
+  await page.waitForTimeout(400);
+  assert.equal(await page.locator('.recents').getByRole('button',{name:/打开 BetaSite/}).count(),1,'重新登录后最近查看应保留');
+  assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
