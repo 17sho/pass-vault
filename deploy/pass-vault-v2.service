@@ -11,6 +11,10 @@ WorkingDirectory=@APP_DIR@
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
+# 反向代理（Cloudflare→Caddy/nginx）后必须设置真实客户端 IP 头，否则限流会退化为全局单桶。
+# Cloudflare 橙云用 cf-connecting-ip；纯 nginx/Caddy 用 x-forwarded-for（并在代理侧强制覆盖该头）。
+# 留空则安全回退为 socket 直连 IP（仅适用于无反代的直连部署）。
+Environment=CLIENT_IP_HEADER=cf-connecting-ip
 Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
 EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
 ExecStart=/usr/bin/env node apps/server/server.mjs
