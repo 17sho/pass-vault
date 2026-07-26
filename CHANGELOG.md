@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.45] - 2026-07-26
+
+### Added / 新增
+- **密码历史与修改时间（功能6）**：账号类型每次保存时记录 `updatedAt`，编辑改动密码时把旧密码压入加密的 `passwordHistory`（每行 `{username,password,changedAt}`，最多保留 10 条）。详情页显示「更新于」时间，并提供可展开的密码历史（逐条按需显示/复制旧密码）。所有历史仍在客户端加密，永不进入服务端可见字段，零知识边界不变。
+- **最近查看（功能7）**：打开任一条目（账号/网站/笔记/附件）时在浏览器内记录 `{type,id,at}`，去重后按时间倒序、最多 20 条，加密持久化于保留的 `recents_registry` settings envelope。当前分类无搜索词时，列表顶部以胶囊形式展示「最近查看」，可一键打开。采用跨设备同步方案（B）：换设备重新登录后仍保留；服务端仅可见该 settings envelope 的写入时间，看不到条目身份。
+
+### 契约 / Contract
+- `SETTINGS_ID` 扩展为 `SETTINGS_IDS`（`settings_registry` + `recents_registry`），`validEnvelope` 放宽为允许这两个固定 settings id；新增 `normalizeRecents` 校验（结构、上限、时间戳边界、去重保留最新）。
+- account 明文白名单纳入 `updatedAt`/`passwordHistory` 并加结构校验；旧版顶层 `username/password` 结构仍兼容。
+
 ## [1.1.44] - 2026-07-26
 
 ### Fixed / 修复
