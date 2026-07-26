@@ -312,6 +312,32 @@ test('统一 motion：dialog 退场、reduced motion 与视口无溢出',async()
  for(const width of [320,768,1440]){await page.setViewportSize({width,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false)}assert.deepEqual(errors,[]);await page.close();
 });
 
+test('夜晚模式下附件分类筛选下拉使用深色输入表面而非白底浅字',async()=>{
+  const page=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});
+  try{
+    await register(page);
+    await page.getByRole('button',{name:'+ 新建'}).click();
+    await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'上传附件'});
+    await dialog.getByLabel('选择文件').setInputFiles({name:'dark-filter.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});
+    await dialog.getByRole('button',{name:'加密并上传'}).click();
+    await page.getByText('附件已上传',{exact:true}).waitFor();
+    await page.locator('#attachment-filter').waitFor({state:'visible'});
+    const c=await page.evaluate(()=>{
+      const s=document.querySelector('#attachment-filter'),search=document.querySelector('#search');
+      const cs=getComputedStyle(s);
+      return{
+        filterBg:cs.backgroundColor,
+        filterBorder:cs.borderTopColor,
+        searchBg:getComputedStyle(search).backgroundColor,
+        filterWhite:cs.backgroundColor==='rgb(255, 255, 255)',
+      };
+    });
+    assert.equal(c.filterWhite,false,`附件筛选下拉不应白底: ${JSON.stringify(c)}`);
+    assert.equal(c.filterBg,c.searchBg,`附件筛选下拉背景应与搜索框一致(深色 input 表面): ${JSON.stringify(c)}`);
+  }finally{await page.close()}
+});
+
 test('夜晚模式下条目详情顶部工具栏与移动端 sticky 头部使用深色表面而非白底',async()=>{
   const page=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});
   try{
