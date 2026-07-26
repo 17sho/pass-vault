@@ -8,18 +8,35 @@ import { join } from 'node:path';
 
 const origin = 'http://127.0.0.1:19876';
 let child;
-async function start(db) {
-  child = spawn(process.execPath, ['apps/server/server.mjs'], { cwd: new URL('..', import.meta.url), env: {...process.env, INVITE_CODE:'test-invite-code-1234567890', PORT:'19876', HOST:'127.0.0.1', DB_PATH:db, ATTACHMENTS_DIR:join(db,'..','attachments'), COOKIE_SECURE:'false'}, stdio:['ignore','pipe','pipe'] });
+async function start(db, extraEnv={}) {
+  child = spawn(process.execPath, ['apps/server/server.mjs'], { cwd: new URL('..', import.meta.url), env: {...process.env, INVITE_CODE:'test-invite-code-1234567890', PORT:'19876', HOST:'127.0.0.1', DB_PATH:db, ATTACHMENTS_DIR:join(db,'..','attachments'), COOKIE_SECURE:'false', ...extraEnv}, stdio:['ignore','pipe','pipe'] });
   let errors=''; child.stderr.on('data',c=>errors+=c);
   for(let i=0;i<80;i++){try{const r=await fetch(origin+'/api/health');if(r.ok)return;}catch{} await new Promise(r=>setTimeout(r,25));}
   throw new Error('server start failed '+errors);
 }
 async function stop(){if(!child)return; child.kill('SIGTERM'); await new Promise(r=>child.once('exit',r)); child=null;}
-async function api(path,{method='GET',body,cookie,csrf,requestOrigin=origin}={}){const headers={origin:requestOrigin};if(body!==undefined)headers['content-type']='application/json';if(cookie)headers.cookie=cookie;if(csrf)headers['x-csrf-token']=csrf;return fetch(origin+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});}
+async function api(path,{method='GET',body,cookie,csrf,requestOrigin=origin,headers:extraHeaders={}}={}){const headers={origin:requestOrigin,...extraHeaders};if(body!==undefined)headers['content-type']='application/json';if(cookie)headers.cookie=cookie;if(csrf)headers['x-csrf-token']=csrf;return fetch(origin+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});}
 function session(r){return r.headers.get('set-cookie').split(';',1)[0]}
 const kdf={salt:'c2FsdHNhbHRzYWx0c2FsdA==',iterations:310000,hash:'SHA-256'};
 const wrappedKey={iv:'dGVzdGl2MTIzNDU2',ciphertext:'ZW5jcnlwdGVk'};
 const inviteCode='test-invite-code-1234567890';
+
+test('Linux 反代后按可信 CLIENT_IP_HEADER 隔离限流，攻击者刷满不连坐其他真实用户，且伪造头无效',async()=>{const dir=await mkdtemp(join(tmpdir(),'pv2-clientip-')),db=join(dir,'vault.sqlite');try{
+  // 生产拓扑：Cloudflare → Caddy → Node，真实 IP 来自 CF-Connecting-IP
+  await start(db,{CLIENT_IP_HEADER:'cf-connecting-ip'});
+  await api('/api/register',{method:'POST',body:{username:'victim',password:'correct horse battery',inviteCode,kdf,wrappedKey}});
+  // 攻击者从 IP-A 刷满 10 次失败登录
+  let r;for(let i=0;i<10;i++)r=await api('/api/login',{method:'POST',headers:{'cf-connecting-ip':'203.0.113.7'},body:{username:'victim',password:'bad bad bad bad'}});
+  r=await api('/api/login',{method:'POST',headers:{'cf-connecting-ip':'203.0.113.7'},body:{username:'victim',password:'bad bad bad bad'}});assert.equal(r.status,429);
+  // 受害者从 IP-B 用正确密码登录：不应被攻击者连坐
+  r=await api('/api/login',{method:'POST',headers:{'cf-connecting-ip':'198.51.100.23'},body:{username:'victim',password:'correct horse battery'}});assert.equal(r.status,200,'其他真实 IP 不应被连坐锁定');
+  await stop();
+  // 未配置可信头时安全回退到 socket，且伪造的 cf-connecting-ip 被忽略（仍按同一 socket 单桶计数）
+  await start(join(dir,'fresh.sqlite'));
+  await api('/api/register',{method:'POST',body:{username:'victim2',password:'correct horse battery',inviteCode,kdf,wrappedKey}});
+  for(let i=0;i<10;i++)r=await api('/api/login',{method:'POST',headers:{'cf-connecting-ip':`10.0.0.${i}`},body:{username:'victim2',password:'bad bad bad bad'}});
+  r=await api('/api/login',{method:'POST',headers:{'cf-connecting-ip':'10.9.9.9'},body:{username:'victim2',password:'bad bad bad bad'}});assert.equal(r.status,429,'未配置可信头时伪造 IP 头不得绕过限流');
+}finally{await stop();await rm(dir,{recursive:true,force:true})}});
 
 test('Linux 注册邀请码缺失配置关闭、错误持久限速、正确放行且登录不受影响',async()=>{const dir=await mkdtemp(join(tmpdir(),'pv2-invite-')),db=join(dir,'vault.sqlite');try{await start(db);let r=await api('/api/register',{method:'POST',body:{username:'invite-user',password:'correct horse battery',inviteCode:'wrong-invite-code-123456789',kdf,wrappedKey}});assert.equal(r.status,403);for(let i=1;i<10;i++)await api('/api/register',{method:'POST',body:{username:'invite-user',password:'correct horse battery',inviteCode:'wrong-invite-code-123456789',kdf,wrappedKey}});r=await api('/api/register',{method:'POST',body:{username:'invite-user',password:'correct horse battery',inviteCode,kdf,wrappedKey}});assert.equal(r.status,429);await stop();await start(join(dir,'fresh.sqlite'));r=await api('/api/register',{method:'POST',body:{username:'invite-user',password:'correct horse battery',inviteCode,kdf,wrappedKey}});assert.equal(r.status,201);r=await api('/api/login',{method:'POST',body:{username:'invite-user',password:'correct horse battery'}});assert.equal(r.status,200)}finally{await stop();await rm(dir,{recursive:true,force:true})}});
 
