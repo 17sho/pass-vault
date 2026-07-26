@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.44] - 2026-07-26
+
+### Fixed / 修复
+- 修复夜晚模式下附件页「全部附件」分类筛选下拉（`#attachment-filter`）仍为白底浅字、几乎不可读的问题：该 `<select>` 的 ID 规则硬编码 `background:#fff` + 浅色边框，其特异性高于深色主题的 `select` 元素规则，导致深色覆盖不生效。现已将 `#attachment-filter` 显式纳入深色输入表面清单（`var(--input-bg)` + `var(--input-line)`），与搜索框一致。
+
 ## [1.1.43] - 2026-07-26
 
 ### Fixed / 修复
