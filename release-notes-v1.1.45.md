@@ -23,4 +23,4 @@
 ## ✅ 质量
 - 新增契约单测与 UI 集成 E2E（功能6 改密码留历史 + 显示更新时间；功能7 记录 + 重新登录后保留）。
 - 全量回归、lint、lint:docs、typecheck、build 全部通过。
-- 双端部署：`pass.23cm.me`（Cloudflare Worker / D1）与 `passkey.23cm.me`（Linux / SQLite）。
+- 双端部署：Cloudflare Worker（D1）与 Linux（SQLite）两套后端。

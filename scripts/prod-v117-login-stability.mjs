@@ -4,7 +4,7 @@ import { chromium, webkit, devices } from 'playwright';
 const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const base = process.argv[2];
-if (!base || !/^https:\/\/(pass|passkey)\.23cm\.me\/?$/.test(base)) throw new Error('usage: node scripts/prod-v117-login-stability.mjs https://pass.23cm.me|https://passkey.23cm.me');
+if (!base || !/^https:\/\/\S+$/.test(base)) throw new Error('usage: node scripts/prod-v117-login-stability.mjs https://<prod-host>');
 const suffix = `${Date.now()}_${randomBytes(4).toString('hex')}`;
 const username = `e2e_v117_final_${suffix}`;
 const password = `V117-${randomBytes(24).toString('base64url')}`;

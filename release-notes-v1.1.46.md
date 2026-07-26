@@ -19,4 +19,4 @@
 ## ✅ 质量
 - 新增 UI 集成 E2E:密码生成器长度 / 字符集 / 填入 / 保存;自动锁定超时锁库 + 持续活动不锁库。
 - 全量回归、lint、lint:docs、typecheck、build 全部通过。
-- 双端部署:`pass.23cm.me`(Cloudflare Worker / D1)与 `passkey.23cm.me`(Linux / SQLite)。
+- 双端部署:Cloudflare Worker(D1)与 Linux(SQLite)两套后端。

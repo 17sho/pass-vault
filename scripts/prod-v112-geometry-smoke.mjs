@@ -5,7 +5,8 @@ import { chromium, webkit } from 'playwright';
 const inviteCode=process.env.INVITE_CODE;if(!inviteCode)throw new Error('INVITE_CODE is required');
 
 const VERSION = '1.1.12';
-const knownSites = ['https://pass.23cm.me', 'https://passkey.23cm.me'];
+const knownSites = (process.env.PROD_SITES || '').split(',').map(s => s.trim()).filter(Boolean);
+assert.ok(knownSites.length, 'PROD_SITES env is required (comma-separated https URLs)');
 const requested = (process.env.SITES || '').split(',').map(x => x.trim()).filter(Boolean);
 const sites = requested.length ? knownSites.filter(x => requested.includes(x) || requested.includes(new URL(x).hostname)) : knownSites;
 assert.ok(sites.length, 'SITES matched no production target');
