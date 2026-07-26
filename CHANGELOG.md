@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.52] - 2026-07-26
+
+### Fixed / 修复
+- **修复分组管理中「当前选中项」青绿色边框在 iOS Safari 被右边缘裁切**:选中态此前用 `outline` + `outline-offset:2px` 绘制,outline 画在元素框**外侧**;在「全部/默认」这类占满整行宽度、右侧无按钮的选中项上,outline 向右外扩约 5px 溢出到 `#groups-list`(`overflow:auto` 滚动容器,右内边距仅 3px)之外,被容器右边缘/滚动条 gutter 裁切,导致绿框右边显示不完整(iOS Safari 尤其明显)。改用 `inset box-shadow`(绘制在元素框**内侧**)+ 同色 `border-color` 表示选中,边框永不溢出容器,四条边始终完整;键盘 `:focus-visible` 仍保留常规聚焦轮廓(改为 `outline-offset:-4px` 内置,避免同样溢出)。
+- 新增回归测试:在列表可滚动状态下选中全宽项,断言选中框使用 inset box-shadow、不再用 outline,且右边界不溢出滚动容器。
+
 ## [1.1.51] - 2026-07-26
 
 ### Changed / 优化

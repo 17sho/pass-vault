@@ -845,3 +845,30 @@ test('分组管理中删除按钮为危险红色以区分重命名，且触控�
  assert.ok(m.renameH>=44,`重命名按钮触控高度应≥44px，实际 ${m.renameH}`);
  assert.deepEqual(errors,[]);await page.close();
 });
+
+test('分组管理选中项边框用 inset 阴影绘制在项内，不溢出滚动容器右边缘',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await register(page);
+ await page.locator('#groups').click();await page.locator('#groups-dialog[open]').waitFor();
+ // 建足够多分组撑出滚动条
+ for(const n of ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸']){
+   await page.locator('#groups-form [name="newGroup"]').fill(n);
+   await page.locator('#groups-form').evaluate(f=>f.requestSubmit());
+   await page.locator('.group-row',{hasText:n}).waitFor();
+ }
+ // 选中「默认」(全宽行,无按钮,最易溢出)
+ await page.locator('.group-row [data-group-choice]',{hasText:'默认'}).first().click();
+ await page.waitForTimeout(120);
+ const m=await page.evaluate(()=>{
+   const list=document.querySelector('#groups-list');
+   const sel=list.querySelector('[data-group-choice][aria-pressed="true"]');
+   const cs=getComputedStyle(sel);
+   const r=sel.getBoundingClientRect(),lr=list.getBoundingClientRect();
+   return {boxShadow:cs.boxShadow,outline:cs.outlineStyle,selRight:r.right,listRight:lr.right,scrollable:list.scrollHeight>list.clientHeight};
+ });
+ assert.match(m.boxShadow,/inset/,'选中框应用 inset box-shadow 绘制在项内');
+ assert.equal(m.outline,'none','选中态不应再用会外溢的 outline');
+ assert.ok(m.selRight<=m.listRight+0.5,`选中项右边 ${m.selRight} 不得溢出容器右边 ${m.listRight}`);
+ assert.equal(m.scrollable,true,'列表应处于可滚动状态以复现原始裁切场景');
+ assert.deepEqual(errors,[]);await page.close();
+});
