@@ -312,6 +312,30 @@ test('统一 motion：dialog 退场、reduced motion 与视口无溢出',async()
  for(const width of [320,768,1440]){await page.setViewportSize({width,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false)}assert.deepEqual(errors,[]);await page.close();
 });
 
+test('夜晚模式下条目详情顶部工具栏与移动端 sticky 头部使用深色表面而非白底',async()=>{
+  const page=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});
+  try{
+    await register(page);
+    await create(page,'笔记',{'标题':'服务器','正文':'root 密码已更新','标签（逗号分隔）':''});
+    await page.getByText('已保存',{exact:true}).waitFor();
+    await page.locator('.item-card',{hasText:'服务器'}).click();
+    await page.locator('#detail.open .detail-head').waitFor();
+    const c=await page.evaluate(()=>{
+      const white=v=>v==='rgb(255, 255, 255)'||v==='rgba(0, 0, 0, 0)'&&false;
+      const head=document.querySelector('#detail .detail-head');
+      const collection=document.querySelector('.collection');
+      return{
+        head:getComputedStyle(head).backgroundColor,
+        detail:getComputedStyle(document.querySelector('#detail')).backgroundColor,
+        collection:getComputedStyle(collection).backgroundColor,
+        headWhite:getComputedStyle(head).backgroundColor==='rgb(255, 255, 255)',
+      };
+    });
+    assert.equal(c.headWhite,false,`详情头部不应为白底: ${JSON.stringify(c)}`);
+    assert.equal(c.head,c.detail,`详情头部背景应与详情面板一致(深色 surface): ${JSON.stringify(c)}`);
+  }finally{await page.close()}
+});
+
 test('白天夜晚模式丝滑切换、无闪烁初始化并本机持久化',async()=>{
   const page=await browser.newPage({viewport:{width:390,height:844},colorScheme:'light'});
   try{
