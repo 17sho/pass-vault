@@ -12,6 +12,12 @@ function busy(button,on,label){if(!button)return;button.disabled=on;if(on){butto
 function api(path,options={}){return fetch(path,{...options,headers:{'content-type':'application/json',...(csrf?{'x-csrf-token':csrf}:{}),...options.headers}}).then(async r=>{let x={};if(r.status!==204){try{x=await r.json()}catch{throw Error('服务器响应格式无效，请稍后重试')}}if(!r.ok)throw Error(errorMessage(x.error));return x})}
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 const motionWait=(ms=180)=>reducedMotion()?Promise.resolve():new Promise(resolve=>setTimeout(resolve,ms));
+const THEME_KEY='pass-vault-theme';let themeTimer;
+function currentTheme(){if(document.documentElement.dataset.theme==='dark')return'dark';if(document.documentElement.dataset.theme==='light')return'light';try{const saved=localStorage.getItem(THEME_KEY);if(saved==='dark'||saved==='light')return saved}catch{}return matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+function updateThemeControl(){const button=$('#theme-toggle');if(!button)return;const dark=currentTheme()==='dark';button.textContent=dark?'切换到白天模式':'切换到夜晚模式';button.setAttribute('aria-label',button.textContent);button.setAttribute('aria-pressed',String(dark))}
+function applyTheme(theme,{persist=false,animate=false}={}){const next=theme==='dark'?'dark':'light',root=document.documentElement;if(animate&&!reducedMotion()){clearTimeout(themeTimer);root.classList.add('theme-transition');themeTimer=setTimeout(()=>root.classList.remove('theme-transition'),420)}else root.classList.remove('theme-transition');root.dataset.theme=next;if(persist)try{localStorage.setItem(THEME_KEY,next)}catch{}updateThemeControl()}
+applyTheme(currentTheme());
+$('#theme-toggle').onclick=()=>{applyTheme(currentTheme()==='dark'?'light':'dark',{persist:true,animate:true});closeHeaderMenu();toast(currentTheme()==='dark'?'已切换到夜晚模式':'已切换到白天模式')};
 $('#auth-form').addEventListener('animationend',event=>{if(event.animationName==='auth-in')$('#auth').classList.remove('auth-initial')},{once:true});
 function openDialog(dialog,initialFocus){dialog.dataset.motion='open';dialog.showModal();syncDialogScrollLock();initialFocus?.focus({preventScroll:true})}
 async function closeDialog(dialog){if(!dialog?.open)return;dialog.dataset.motion='closing';await motionWait();dialog.close();delete dialog.dataset.motion;syncDialogScrollLock()}
