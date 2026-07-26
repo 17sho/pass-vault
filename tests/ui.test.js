@@ -802,3 +802,23 @@ test('设置：自动锁定时间可在菜单中选择并持久化，"从不"则
   assert.deepEqual(errors,[]);
  }finally{await page.close()}
 });
+
+test('手机详情返回动画完整播放到 animationend 再替换 DOM，不被中途取消',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await register(page);await create(page,'网站',{'名称':'返回动画网站','网址':'https://example.com','说明':'','标签（逗号分隔）':''});
+ await page.locator('.item-card',{hasText:'返回动画网站'}).click();await page.locator('#detail.open').waitFor();
+ await page.evaluate(()=>{window.__m={start:0,end:0,cancel:0,domAfterEnd:null};const d=document.querySelector('#detail');
+  d.addEventListener('animationstart',e=>{if(e.animationName==='mobile-detail-out')window.__m.start++});
+  d.addEventListener('animationend',e=>{if(e.animationName==='mobile-detail-out'){window.__m.end++;window.__m.endAt=performance.now()}});
+  d.addEventListener('animationcancel',e=>{if(e.animationName==='mobile-detail-out')window.__m.cancel++});
+  new MutationObserver(muts=>{for(const mu of muts)if(mu.type==='childList'&&mu.removedNodes.length){window.__m.domReplacedAt=performance.now();if(window.__m.end>0&&window.__m.domAfterEnd===null)window.__m.domAfterEnd=true;else if(window.__m.end===0)window.__m.domAfterEnd=false}}).observe(d,{childList:true});});
+ await page.locator('#detail .mobile-back').click();
+ await page.waitForFunction(()=>window.__m&&window.__m.domReplacedAt!==undefined,{timeout:3000});
+ const m=await page.evaluate(()=>window.__m);
+ assert.equal(m.start,1,'应恰好触发一次入场退场动画');
+ assert.equal(m.end,1,'退场动画必须播放到 animationend（修复前因固定 180ms 定时器提前替换 DOM 导致从不触发）');
+ assert.equal(m.cancel,0,'退场动画不得被 animationcancel 中途取消');
+ assert.equal(m.domAfterEnd,true,'DOM 必须在 animationend 之后才替换，避免截断动画尾部');
+ assert.equal(await page.locator('#detail .empty').count(),1,'返回后应回到空详情占位');
+ assert.deepEqual(errors,[]);await page.close();
+});
