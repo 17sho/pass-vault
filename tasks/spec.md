@@ -18,6 +18,8 @@
 - 最近访问：打开任一条目（账号/网站/笔记/附件）详情时在浏览器内记录 `{type,id,at}`，去重后按时间倒序，最多保留 20 条，持久化于保留的 `recents_registry` 加密 settings envelope（独立于分组注册表 `settings_registry`）。列表当前无搜索词时于顶部展示「最近查看」区，点击即打开对应条目；被删除或失效的条目自动从记录剔除。服务端及网络/存储不得出现条目身份或类型明文，仅该 envelope 的更新时间对服务端可见（已接受的元数据权衡）。旧客户端与旧备份无该 envelope 时按空记录安全兼容；`validEnvelope` 对 settings 类型放行 `settings_registry` 与 `recents_registry` 两个保留 ID。
 - 发布门禁：以 RED→GREEN 覆盖注册表契约、加密持久化、旧备份导入导出、四类型独立、空组、创建/改名/重分配/删除回默认、模糊搜索组合过滤、Chromium/WebKit 320px、网络与存储无分组明文；移动端附件工具栏须在 Chromium/WebKit 320/390px 保持搜索宽度至少 150px、完整显示默认分组、附件分类筛选至少 44px 高且独立成行，并且无重叠或横向溢出；仅在完整 `npm test`、lint、typecheck、build、双目标生产冒烟与清理全部通过后发布。任一门禁失败不得发布。
 - 菜单：导入/导出、修改密码、退出。
+- 密码生成器：账号编辑器每组密码可展开生成器，长度 12–64（默认 20）、字符集大写/小写/数字/符号可选（默认全选），基于 `crypto.getRandomValues` 无偏拒绝采样，保证每个所选字符集至少一位并随机洗牌，纯浏览器内生成、无网络请求；生成后由用户确认填入对应密码框。
+- 空闲自动锁定：解锁后启动空闲计时（默认 5 分钟，可经 `window.__IDLE_LOCK_MS` 覆盖用于测试），超时清空内存中的 vault key 与解密数据并回到解锁界面；用户交互与页面重新可见重置计时；与退出登录共用清理逻辑，自动锁定不主动注销服务端会话。
 - WebCrypto PBKDF2-SHA-256(310000)+AES-GCM；随机 vault key 被 KEK 包装；修改密码只重包密钥。
 - 注册、登录/会话、改密与备份中的 `kdf` 为 `{salt,iterations:310000,hash?:'SHA-256'}`，`wrappedKey` 为 `{iv,ciphertext}`；数据库文本列只存 JSON 文本，API 始终输出对象。
 - 会话 Cookie HttpOnly/Secure/SameSite=Strict、CSRF、限速、同源检查。
