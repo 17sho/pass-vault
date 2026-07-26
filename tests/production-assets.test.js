@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const VERSION = '1.1.40';
+const VERSION = '1.1.41';
 const expected = new Map([
+  ['theme-init', `/theme-init.js?v=${VERSION}`],
   ['stylesheet', `/style.css?v=${VERSION}`],
   ['app-shell', `/app-shell.css?v=${VERSION}`],
   ['module', `/app.mjs?v=${VERSION}`],
@@ -11,13 +12,14 @@ const expected = new Map([
 
 function refs(html) {
   return new Map([
+    ['theme-init', html.match(/<script\b[^>]*src="([^"]*theme-init\.js[^"]*)"/i)?.[1]],
     ['stylesheet', html.match(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"/i)?.[1]],
     ['app-shell', html.match(/<link\b[^>]*href="([^"]*app-shell\.css[^"]*)"/i)?.[1]],
     ['module', html.match(/<script\b[^>]*type="module"[^>]*src="([^"]+)"/i)?.[1]],
   ]);
 }
 
-test('production HTML references current v1.1.40 frontend assets', async () => {
+test('production HTML references current v1.1.41 frontend assets', async () => {
   for (const path of ['public/index.html', 'dist/index.html']) {
     const html = await readFile(path, 'utf8');
     assert.deepEqual(refs(html), expected, path);

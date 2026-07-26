@@ -106,7 +106,7 @@ test('三类字段隔离、当前分类搜索、编辑锁类型、危险区删�
  await page.getByRole('button',{name:'取消'}).click();
  await page.locator('#editor').waitFor({state:'hidden'});assert.equal(await page.getByRole('button',{name:'删除此条目'}).isVisible(),false);
  await page.getByRole('button',{name:'更多',exact:true}).click();
- assert.equal(await page.getByRole('menuitem').count(),7);
+ assert.equal(await page.getByRole('menuitem').count(),8);
  await page.screenshot({path:'artifacts/desktop-1440.png',fullPage:true});assert.deepEqual(errors,[]);await page.close();
 });
 
@@ -310,6 +310,61 @@ test('统一 motion：dialog 退场、reduced motion 与视口无溢出',async()
  await page.getByRole('button',{name:'+ 新建'}).click();const picker=page.locator('#picker');assert.equal(await picker.getAttribute('data-motion'),'open');await picker.getByRole('button',{name:'关闭'}).click();assert.equal(await picker.getAttribute('data-motion'),'closing');await picker.waitFor({state:'hidden'});assert.equal(await picker.evaluate(e=>e.open),false);
  await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:'+ 新建'}).click();await picker.getByRole('button',{name:'关闭'}).click();assert.equal(await picker.evaluate(e=>e.open),false);
  for(const width of [320,768,1440]){await page.setViewportSize({width,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false)}assert.deepEqual(errors,[]);await page.close();
+});
+
+test('白天夜晚模式丝滑切换、无闪烁初始化并本机持久化',async()=>{
+  const page=await browser.newPage({viewport:{width:390,height:844},colorScheme:'light'});
+  try{
+    const username=await register(page);
+    const menu=page.getByRole('button',{name:'更多',exact:true});
+    await menu.click();
+    const theme=page.getByRole('menuitem',{name:'切换到夜晚模式',exact:true});
+    await theme.waitFor();
+    const light=await page.evaluate(()=>({
+      theme:document.documentElement.dataset.theme,
+      scheme:getComputedStyle(document.documentElement).colorScheme,
+      stored:localStorage.getItem('pass-vault-theme'),
+      bg:getComputedStyle(document.body).backgroundColor,
+      surface:getComputedStyle(document.querySelector('.collection')).backgroundColor,
+      transition:getComputedStyle(document.body).transitionDuration,
+    }));
+    assert.equal(light.theme,'light',JSON.stringify(light));
+    assert.match(light.scheme,/light/);
+    await theme.click();
+    await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');
+    const motion=await page.evaluate(()=>({transitioning:document.documentElement.classList.contains('theme-transition'),transition:getComputedStyle(document.body).transitionDuration}));
+    assert.ok(motion.transitioning&&motion.transition.split(',').some(v=>parseFloat(v)>0),JSON.stringify(motion));
+    await page.waitForFunction(()=>!document.documentElement.classList.contains('theme-transition'));
+    const dark=await page.evaluate(()=>({
+      theme:document.documentElement.dataset.theme,
+      scheme:getComputedStyle(document.documentElement).colorScheme,
+      stored:localStorage.getItem('pass-vault-theme'),
+      bg:getComputedStyle(document.body).backgroundColor,
+      surface:getComputedStyle(document.querySelector('.collection')).backgroundColor,
+      meta:document.querySelector('meta[name="color-scheme"]')?.content,
+    }));
+    assert.equal(dark.theme,'dark',JSON.stringify(dark));
+    assert.equal(dark.stored,'dark');
+    assert.match(dark.scheme,/dark/);
+    assert.notEqual(dark.bg,light.bg);
+    assert.notEqual(dark.surface,light.surface);
+    assert.match(dark.meta,/dark/);
+    await page.reload({waitUntil:'domcontentloaded'});
+    const restored=await page.evaluate(()=>({theme:document.documentElement.dataset.theme,stored:localStorage.getItem('pass-vault-theme'),bg:getComputedStyle(document.body).backgroundColor}));
+    assert.equal(restored.theme,'dark',JSON.stringify(restored));
+    assert.equal(restored.stored,'dark');
+    assert.equal(restored.bg,dark.bg);
+    assert.equal(await page.locator('#auth').isVisible(),true);
+    await page.locator('#auth-form input[name="username"]').fill(username);
+    await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
+    await page.getByRole('button',{name:'登录并解锁',exact:true}).click();
+    await page.locator('#vault').waitFor({state:'visible'});
+    await page.getByRole('button',{name:'更多',exact:true}).click();
+    const toLight=page.getByRole('menuitem',{name:'切换到白天模式',exact:true});
+    await toLight.click();
+    assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('pass-vault-theme')),'light');
+  }finally{await page.close()}
 });
 
 test('顶部更多菜单在打开条目菜单、资料详情、切换分类和点击外部后自动收起',async()=>{
