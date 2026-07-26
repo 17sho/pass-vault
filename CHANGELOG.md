@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.50] - 2026-07-26
+
+### Fixed / 修复
+- **修复手机端详情页返回动画的卡顿感**:返回时的退场动画(`mobile-detail-out`,180ms)此前用固定 `setTimeout(180)` 等待后即替换 DOM,但动画实际启动有约 40–55ms 的浏览器延迟,导致定时器到点时动画尚未播完(约剩 25ms 未归位),DOM 被 `replaceChildren` 提前替换、动画被 `animationcancel` 强制中断 —— 视觉上表现为返回时"跳一下/卡顿"。改为监听真实 `animationend`/`animationcancel` 事件(新增 `animationDone()` 辅助,带兜底超时与 reduced-motion 直通)后再替换 DOM,动画完整播放到结束。
+  - 客观帧率实测(Playwright + rAF 采样):修复前 6× CPU 节流下有掉帧且动画被取消;修复后桌面与 6× 节流下均 0 掉帧、`start→end` 完整。
+  - 新增回归测试断言退场动画恰好触发一次 `animationstart`+`animationend`、零 `animationcancel`,且 DOM 在 `animationend` 之后才替换。
+
 ## [1.1.49] - 2026-07-26
 
 ### Fixed / 修复
