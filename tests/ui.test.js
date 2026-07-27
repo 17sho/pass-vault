@@ -34,8 +34,7 @@ async function register(page) {
   await page.locator('#auth-form input[name="username"]').fill(username);
   await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
   await page.getByRole('button',{name:'创建并进入'}).click();
-  await page.waitForTimeout(1500);
-  if (!(await page.locator('#vault').isVisible())) throw Error(`auth failed: ${await page.locator('#auth-error').textContent()} url=${page.url()}`);
+  try{await page.locator('#vault').waitFor({state:'visible',timeout:10000})}catch{throw Error(`auth failed: ${await page.locator('#auth-error').textContent()} url=${page.url()}`)}
   return username;
 }
 async function create(page,type, values){
@@ -844,6 +843,48 @@ test('分组管理中删除按钮为危险红色以区分重命名，且触控�
  assert.ok(m.delH>=44,`删除按钮触控高度应≥44px，实际 ${m.delH}`);
  assert.ok(m.renameH>=44,`重命名按钮触控高度应≥44px，实际 ${m.renameH}`);
  assert.deepEqual(errors,[]);await page.close();
+});
+
+test('同一账户多标签页同步资料更新，并在任一标签页退出时全部清除内存密钥',async()=>{
+ const context=await browser.newContext({viewport:{width:390,height:844}}),first=await context.newPage(),second=await context.newPage(),errors=[];
+ for(const page of [first,second])page.on('pageerror',e=>errors.push(e.message));
+ try{
+  const user=await register(first);await first.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();await second.goto(base);await second.locator('#auth-form input[name="username"]').fill(user);await second.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');await second.getByRole('button',{name:'登录并解锁'}).click();await second.locator('#vault').waitFor({state:'visible'});
+  await create(second,'笔记',{'标题':'跨标签同步验证','正文':'本地解密后显示','标签（逗号分隔）':''});await first.getByText('跨标签同步验证',{exact:true}).waitFor({timeout:10000});
+  await second.getByRole('button',{name:'更多',exact:true}).click();await second.getByRole('menuitem',{name:'退出并锁定'}).click();await first.waitForFunction(()=>window.__vaultKeyPresent()===false);await first.locator('#auth').waitFor({state:'visible'});assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+
+test('完整加密备份包含附件，导入预览显示数量且恢复保留当前主密码材料',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],requests=[];
+ page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method()==='PUT'&&r.url().endsWith('/api/backup'))requests.push(JSON.parse(r.postData()||'{}'))});
+ try{
+  const user=await register(page);await create(page,'笔记',{'标题':'备份验证笔记','正文':'只存在于密文','标签（逗号分隔）':''});
+  await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
+  const upload=page.locator('#attachment-upload');await upload.locator('input[type=file]').setInputFiles({name:'backup-proof.txt',mimeType:'text/plain',buffer:Buffer.from('encrypted attachment proof')});await upload.getByRole('button',{name:'加密并上传'}).click();await page.getByText('附件已上传',{exact:true}).waitFor();
+  const backup=await page.evaluate(()=>fetch('/api/backup?attachments=1').then(r=>r.json()));assert.equal(backup.version,2);assert.equal(backup.attachments.length,1);assert.ok(backup.entries.length>=1);
+  backup.kdf={salt:'tampered',iterations:310000,hash:'SHA-256'};backup.wrappedKey={iv:'tampered',ciphertext:'tampered'};
+  await page.getByRole('button',{name:'更多'}).click();await page.getByRole('menuitem',{name:'导入加密备份'}).click();
+  await page.locator('#import-file').setInputFiles({name:'complete.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
+  const dialog=page.locator('#backup-import');await dialog.waitFor({state:'visible'});assert.match(await page.locator('#backup-import-summary').textContent(),/\d+ 条资料和 1 个附件/);
+  await page.locator('#backup-import-confirm').click();await page.getByText('加密备份已恢复，当前主密码保持不变',{exact:true}).waitFor();assert.equal(requests.length,1);assert.notEqual(requests[0].kdf.salt,'tampered');assert.notEqual(requests[0].wrappedKey.iv,'tampered');
+  await page.getByRole('button',{name:'更多'}).click();await page.getByRole('menuitem',{name:'退出并锁定'}).click();await page.locator('#auth').waitFor({state:'visible'});await page.locator('#auth-form input[name="username"]').fill(user);await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');await page.getByRole('button',{name:'登录并解锁'}).click();await page.locator('#vault').waitFor({state:'visible'});assert.deepEqual(errors,[]);
+ }finally{await page.close()}
+});
+
+for(const [engine,launcher] of [['Chromium',chromium],['WebKit',webkit]])test(`${engine} 后台冻结超过自动锁定时长后恢复会立即锁库，不重新获得完整周期`,async()=>{
+ const b=await launcher.launch({headless:true}),page=await b.newPage({viewport:{width:390,height:844}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.addInitScript(()=>{window.__IDLE_LOCK_MS=1200});
+  await register(page);
+  await page.locator('#vault').waitFor({state:'visible'});
+  assert.equal(await page.evaluate(()=>window.__vaultKeyPresent()),true);
+  await page.evaluate(()=>{window.__lastActivityAt(Date.now()-2000);dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))});
+  await page.waitForFunction(()=>window.__vaultKeyPresent()===false);
+  await page.locator('#auth').waitFor({state:'visible'});
+  assert.deepEqual(errors,[]);
+ }finally{await page.close();await b.close()}
 });
 
 test('分组管理选中项边框用 inset 阴影绘制在项内，不溢出滚动容器右边缘',async()=>{
