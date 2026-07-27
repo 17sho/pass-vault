@@ -50,6 +50,50 @@ async function create(page,type, values){
   await editor.getByRole('button',{name:'保存'}).click();
 }
 
+test('更多里的全站搜索跨四类本地匹配、排除密码并打开对应详情',async()=>{
+ for(const engine of [chromium,webkit]){
+  const ownBrowser=await engine.launch({headless:true}),page=await ownBrowser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'}),requests=[];
+  page.on('request',request=>requests.push(request.url()));
+  try{
+   await register(page);
+   await create(page,'账号',{'平台':'搜索账号 Alpha','登录网址':'https://alpha.example','账号':'alpha-user','密码':'never-global-secret','备注':'账号备注','标签（逗号分隔）':''});
+   await page.getByText('已保存',{exact:true}).waitFor();
+   await create(page,'网站',{'名称':'搜索网站 Beta','网址':'https://beta.example','说明':'网站说明','标签（逗号分隔）':''});
+   await page.getByText('已保存',{exact:true}).waitFor();
+   await create(page,'笔记',{'标题':'搜索笔记 Gamma','正文':'正文检索词 delta-body','标签（逗号分隔）':''});
+   await page.getByText('已保存',{exact:true}).waitFor();
+   await page.getByRole('button',{name:'+ 新建'}).click();
+   await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
+   const upload=page.getByRole('dialog',{name:'上传附件'});
+   await upload.getByLabel('选择文件').setInputFiles({name:'search-document-epsilon.txt',mimeType:'text/plain',buffer:Buffer.from('attachment body must not be searched')});
+   await upload.getByRole('button',{name:'加密并上传'}).click();
+   await page.getByText('附件已上传',{exact:true}).waitFor();
+   await page.getByRole('button',{name:'更多',exact:true}).click();
+   await page.getByRole('menuitem',{name:'全站搜索'}).click();
+   const dialog=page.getByRole('dialog',{name:'全站搜索'}),input=dialog.getByRole('searchbox',{name:'搜索全部资料'}),results=dialog.locator('#global-search-results');
+   await input.fill('delta-body');
+   await results.getByRole('button',{name:/搜索笔记 Gamma/}).click();
+   await page.locator('#detail').getByRole('heading',{name:'搜索笔记 Gamma'}).waitFor();
+   await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'全站搜索'}).click();
+   await input.fill('epsilon');
+   await results.getByRole('button',{name:/search-document-epsilon.txt/}).click();
+   await page.locator('#detail').getByRole('heading',{name:'search-document-epsilon.txt'}).waitFor();
+   await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'全站搜索'}).click();
+   const before=requests.length;await input.fill('never-global-secret');
+   await dialog.getByText('没有找到匹配资料',{exact:true}).waitFor();
+   assert.equal(requests.length,before,'输入查询词不得发起网络请求');
+   const geometry=await dialog.evaluate(el=>{const r=el.getBoundingClientRect(),list=el.querySelector('#global-search-results').getBoundingClientRect();return{overflow:document.documentElement.scrollWidth-innerWidth,left:r.left,right:innerWidth-r.right,listHeight:list.height,inputHeight:el.querySelector('input').getBoundingClientRect().height}});
+   assert.ok(geometry.left>=0&&geometry.right>=0);assert.ok(geometry.overflow<=1);assert.ok(geometry.listHeight>0);assert.ok(geometry.inputHeight>=44);
+   await input.fill('alpha');await results.getByRole('button',{name:/搜索账号 Alpha/}).waitFor();
+   await dialog.getByRole('button',{name:'关闭'}).click();await dialog.waitFor({state:'hidden'});
+   await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'退出并锁定'}).click();
+   await page.locator('#auth').waitFor({state:'visible'});
+   const cleared=await page.evaluate(()=>({key:window.__vaultKeyPresent(),query:document.querySelector('#global-search-input').value,text:document.querySelector('#global-search-results').textContent}));
+   assert.deepEqual(cleared,{key:false,query:'',text:'输入关键词开始搜索'});
+  }finally{await ownBrowser.close()}
+ }
+});
+
 test('WebKit 网站新建与列表菜单编辑保存不把 null 当作当前详情', async()=>{
  const safari=await webkit.launch({headless:true});
  const context=await safari.newContext({...devices['iPhone 13']});
@@ -105,7 +149,7 @@ test('三类字段隔离、当前分类搜索、编辑锁类型、危险区删�
  await page.getByRole('button',{name:'取消'}).click();
  await page.locator('#editor').waitFor({state:'hidden'});assert.equal(await page.getByRole('button',{name:'删除此条目'}).isVisible(),false);
  await page.getByRole('button',{name:'更多',exact:true}).click();
- assert.equal(await page.getByRole('menuitem').count(),9);
+ assert.equal(await page.getByRole('menuitem').count(),10);assert.equal(await page.getByRole('menuitem',{name:'全站搜索'}).count(),1);
  await page.screenshot({path:'artifacts/desktop-1440.png',fullPage:true});assert.deepEqual(errors,[]);await page.close();
 });
 
