@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const VERSION = '1.1.53';
+const VERSION = '1.1.54';
 const expected = new Map([
   ['theme-init', `/theme-init.js?v=${VERSION}`],
   ['stylesheet', `/style.css?v=${VERSION}`],
@@ -19,7 +19,7 @@ function refs(html) {
   ]);
 }
 
-test('production HTML references current v1.1.53 frontend assets', async () => {
+test('production HTML references current v1.1.54 frontend assets', async () => {
   for (const path of ['public/index.html', 'dist/index.html']) {
     const html = await readFile(path, 'utf8');
     assert.deepEqual(refs(html), expected, path);
