@@ -7,10 +7,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { GROUP_TYPES, SETTINGS_ID, normalizeGroupRegistry, validEnvelope, validatePlain, validateAttachmentMetadata, legacyVisibleEnvelopes } from '../shared/contract.mjs';
 import { migrateEntriesForSettings } from '../apps/server/migrations.mjs';
 
-const empty=()=>({account:[],website:[],note:[],attachment:[]});
+const empty=()=>({account:[],website:[],note:[],totp:[],attachment:[]});
 test('group registry normalizes trimmed names and enforces exact bounded schema',()=>{
  const input=empty();input.account=[{id:'group_123',name:'  Work  '}];
- assert.deepEqual(normalizeGroupRegistry(input),{account:[{id:'group_123',name:'Work'}],website:[],note:[],attachment:[]});
+ assert.deepEqual(normalizeGroupRegistry(input),{account:[{id:'group_123',name:'Work'}],website:[],note:[],totp:[],attachment:[]});
  for(const bad of [
   {...empty(),extra:[]},
   {...empty(),account:[{id:'bad id',name:'Work'}]},
@@ -21,7 +21,7 @@ test('group registry normalizes trimmed names and enforces exact bounded schema'
   {...empty(),account:[{id:'group_123',name:'Work'},{id:'group_456',name:' Work '}]},
   {...empty(),account:Array.from({length:51},(_,i)=>({id:`group_${String(i).padStart(3,'0')}`,name:`G${i}`}))},
  ]) assert.equal(normalizeGroupRegistry(bad),null);
- assert.deepEqual(GROUP_TYPES,['account','website','note','attachment']);
+ assert.deepEqual(GROUP_TYPES,['account','website','note','totp','attachment']);
  assert.match(SETTINGS_ID,/^[A-Za-z0-9_-]{8,80}$/);
  assert.deepEqual(normalizeGroupRegistry({...empty(),account:[{id:'group_123',name:'Work'},{id:'group_456',name:'work'}]}).account.map(x=>x.name),['Work','work']);
 });
@@ -31,6 +31,7 @@ test('groupId is optional but strict in plaintext records and attachment metadat
  assert(validatePlain('account',{platform:'p',loginUrl:'',credentials:[{username:'u',password:'p'}],notes:'',tags:[],groupId:id}));
  assert(validatePlain('website',{name:'n',url:'',description:'',tags:[],groupId:id}));
  assert(validatePlain('note',{title:'n',body:'',tags:[],groupId:id}));
+ assert(validatePlain('totp',{account:'n',secret:'JBSWY3DPEHPK3PXP',tags:[],groupId:id}));
  assert(validateAttachmentMetadata({name:'a',mime:'',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA',groupId:id}));
  for(const bad of ['', 'bad id', 'x'.repeat(81)]) assert.equal(validatePlain('note',{title:'n',body:'',tags:[],groupId:bad}),false);
 });
@@ -39,7 +40,8 @@ test('pinned is optional and strictly boolean for every encrypted record type',(
  const records={
   account:{platform:'p',loginUrl:'',credentials:[{username:'u',password:'p'}],notes:'',tags:[]},
   website:{name:'n',url:'',description:'',tags:[]},
-  note:{title:'n',body:'',tags:[]}
+  note:{title:'n',body:'',tags:[]},
+  totp:{account:'n',secret:'JBSWY3DPEHPK3PXP',tags:[]}
  };
  for(const [type,plain] of Object.entries(records)){assert.equal(validatePlain(type,{...plain,pinned:true}),true);assert.equal(validatePlain(type,{...plain,pinned:false}),true);assert.equal(validatePlain(type,{...plain,pinned:'true'}),false)}
  const attachment={name:'a',mime:'',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA'};

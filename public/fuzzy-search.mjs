@@ -2,6 +2,7 @@ export const searchableFields={
  account:['platform','loginUrl','credentials','notes','tags'],
  website:['name','url','description','tags'],
  note:['title','body','tags'],
+ totp:['account','tags'],
  attachment:['name','mime','category','size'],
 };
 

@@ -45,10 +45,10 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 下载 GitHub Release（推荐）
 
-当前稳定版为v1.1.58。在Release页面下载Linux包与`SHA256SUMS`：
+当前稳定版为v1.1.59。在Release页面下载Linux包与`SHA256SUMS`：
 
 ```bash
-VERSION=1.1.58
+VERSION=1.1.59
 cd /tmp
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
@@ -265,11 +265,11 @@ sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 
 ## 9. 升级与回滚
 
-### 升级到 v1.1.58
+### 升级到 v1.1.59
 
-从旧版本升级到v1.1.58前，先做SQLite与附件目录的一致性备份，再安装到新的不可变版本目录并原子切换。若旧数据库尚无`entries.created_at`，服务启动时会幂等新增该列并从`updated_at`回填；不要手工清空、导入或重建SQLite，也无需重新加密密码库。附件存储、环境变量、Secret和systemd配置不因本次升级改变。
+从旧版本升级到v1.1.59前，先做SQLite与附件目录的一致性备份，再安装到新的不可变版本目录并原子切换。服务启动时会幂等扩展`entries.type`约束以允许TOTP密文条目，并按命名列保留既有密文与`created_at`；不要手工清空、导入或重建SQLite，也无需重新加密密码库。
 
-切换版本并重启后，确认日志无迁移错误且首页引用`app.mjs?v=1.1.58`；验证旧条目显示回填时间、新条目显示北京时间、编辑后创建时间不变，并在320–430px手机视口检查回收站“彻底删除”和“清空回收站”确认框无贴边或横向溢出。
+切换版本并重启后，确认日志无迁移错误且首页引用`app.mjs?v=1.1.59`；新建一条测试TOTP，确认6位验证码和倒计时自动刷新，且网络请求中不出现账号或密钥明文；同时验证旧条目和创建时间仍完整。
 
 1. 记录当前目标：`readlink -f /opt/pass-vault-v2/current`。
 2. 按第 10 节做 SQLite + 附件一致性备份并通过完整性检查；确认新版本磁盘空间足够。
