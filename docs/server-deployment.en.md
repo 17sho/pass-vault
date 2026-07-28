@@ -66,7 +66,7 @@ sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases/pass-v
 sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURITY.md public shared scripts apps/server deploy docs /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>/
 ```
 
-Run the gates in the source/extracted directory, then use the single atomic deployment entry point. It creates a read-only release, normalizes directories to `0755` and files to `0644`, switches a temporary symlink with `mv -T`, automatically restores the old `current` if service restart or health fails, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
+Run the gates in the source/extracted directory, then use the single atomic deployment entry point. It creates a read-only release, normalizes directories to `0755` and files to `0644`, switches a temporary symlink with `mv -T`, automatically restores the old `current` if service restart fails or if health remains unavailable after 30 checks at one-second intervals, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
 
 ```bash
 npm ci
@@ -174,7 +174,12 @@ Install Caddy from its official repository and set `/etc/caddy/Caddyfile`:
 <APP_DOMAIN> {
   encode zstd gzip
   reverse_proxy 127.0.0.1:3000
-  header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Referrer-Policy "no-referrer"
+    X-Content-Type-Options "nosniff"
+  }
 }
 ```
 
@@ -196,7 +201,10 @@ server {
   server_name <APP_DOMAIN>;
   ssl_certificate /etc/letsencrypt/live/<APP_DOMAIN>/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/<APP_DOMAIN>/privkey.pem;
-  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Content-Type-Options "nosniff" always;
   client_max_body_size 110m;
   location / {
     proxy_pass http://127.0.0.1:3000;
