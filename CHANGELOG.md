@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.60] - 2026-07-28
+
+### Security
+
+- Fix TOTP secret and code retention in hidden DOM after logout, idle lock, cross-tab lock, and successful credential changes. Locking now clears decrypted editor/list/detail DOM before awaiting server logout.
+- Invalidate in-flight TOTP HMAC work on lock so a completed asynchronous calculation cannot write a code into an old connected node.
+- Add browser regression coverage for immediate cleanup during delayed logout, credential changes, and in-flight TOTP calculation.
+
+### Upgrade notice
+
+- v1.1.59 was withdrawn because its lock paths could retain decrypted TOTP content in hidden DOM. Upgrade directly to v1.1.60. Cloudflare installations upgrading from v1.1.58 must apply `0007_totp_entries.sql`; installations that already applied it need no additional migration, and Linux performs the equivalent migration idempotently at startup. No vault re-encryption is required.
+
 ## [1.1.59] - 2026-07-28
 
 ### Added / 新增

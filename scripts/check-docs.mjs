@@ -2,13 +2,14 @@ import { access, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
+const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const guides = [
   'README.md', 'README.en.md',
   'docs/cloudflare-deployment.zh-CN.md', 'docs/cloudflare-deployment.en.md',
   'docs/server-deployment.zh-CN.md', 'docs/server-deployment.en.md',
   'docs/deployment.zh-CN.md', 'docs/deployment.en.md', 'docs/DEPLOYMENT.md',
 ];
-const markdown = [...guides, 'release-notes-v1.1.59.md'];
+const markdown = [...guides, 'release-notes-v1.1.60.md'];
 const contents = new Map();
 for (const file of markdown) {
   const text = await readFile(resolve(root, file), 'utf8');
@@ -28,15 +29,24 @@ for (const [file, text] of contents) {
     try { await access(target); } catch { throw new Error(`${file}: broken internal link ${href}`); }
   }
 }
+for (const file of ['README.md', 'README.en.md']) {
+  const text = contents.get(file);
+  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, `pass-vault-v2-linux-${pkg.version}.tar.gz`]) {
+    if (!text.includes(required)) throw new Error(`${file}: missing current release reference ${required}`);
+  }
+  if (text.includes('latest stable release (v1.1.59)') || text.includes('最新稳定版（v1.1.59）')) {
+    throw new Error(`${file}: withdrawn v1.1.59 marked as latest stable release`);
+  }
+}
 for (const file of ['docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md']) {
   const text = contents.get(file);
-  for (const required of ['v1.1.59','SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0005_invite_attempts.sql','0006_entries_created_at.sql','0007_totp_entries.sql','registration_unavailable','invalid_invite']) {
+  for (const required of ['v1.1.60','SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0005_invite_attempts.sql','0006_entries_created_at.sql','0007_totp_entries.sql','registration_unavailable','invalid_invite']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
 }
 for (const file of ['docs/server-deployment.zh-CN.md','docs/server-deployment.en.md']) {
   const text = contents.get(file);
-  for (const required of ['v1.1.59','SHA256SUMS','/etc/pass-vault-v2/pass-vault-v2.env','0600','systemctl restart pass-vault-v2','registration_unavailable']) {
+  for (const required of ['v1.1.60','SHA256SUMS','/etc/pass-vault-v2/pass-vault-v2.env','0600','systemctl restart pass-vault-v2','registration_unavailable']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
 }
