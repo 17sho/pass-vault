@@ -45,14 +45,15 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 下载 GitHub Release（推荐）
 
-在 Release 页面选择 `pass-vault-v2-linux-<VERSION>.tar.gz`，同时下载 `SHA256SUMS`：
+当前稳定版为v1.1.58。在Release页面下载Linux包与`SHA256SUMS`：
 
 ```bash
+VERSION=1.1.58
 cd /tmp
-curl -fLO https://github.com/17sho/pass-vault-v2/releases/download/v<VERSION>/pass-vault-v2-linux-<VERSION>.tar.gz
-curl -fLO https://github.com/17sho/pass-vault-v2/releases/download/v<VERSION>/SHA256SUMS
-grep 'pass-vault-v2-linux-<VERSION>.tar.gz' SHA256SUMS | sha256sum -c -
-sudo tar -xzf pass-vault-v2-linux-<VERSION>.tar.gz -C /opt/pass-vault-v2/releases
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
+grep "pass-vault-v2-linux-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
+sudo tar -xzf "pass-vault-v2-linux-$VERSION.tar.gz" -C /opt/pass-vault-v2/releases
 ```
 
 ### 3.2 从源码安装
@@ -71,8 +72,9 @@ sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURIT
 
 ```bash
 npm ci
+npm run build
 npm test
-npm run lint && npm run lint:docs && npm run typecheck && npm run build
+npm run lint && npm run typecheck
 sudo env \
   PV_SOURCE="$PWD" \
   PV_APP_ROOT=/opt/pass-vault-v2 \
@@ -263,11 +265,11 @@ sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 
 ## 9. 升级与回滚
 
-### 升级到 v1.1.20
+### 升级到 v1.1.58
 
-v1.1.20 在服务启动时执行幂等 SQLite 迁移：若 `entries.created_at` 不存在则新增该列，并从每行 `updated_at` 回填。升级前先做 SQLite + 附件一致性备份，再切换版本并重启；不要手工清空、导入或重建 SQLite，也无需重新加密密码库。附件存储、环境变量、Secret 和 systemd 配置均无变化；重复启动不会重复迁移。
+从旧版本升级到v1.1.58前，先做SQLite与附件目录的一致性备份，再安装到新的不可变版本目录并原子切换。若旧数据库尚无`entries.created_at`，服务启动时会幂等新增该列并从`updated_at`回填；不要手工清空、导入或重建SQLite，也无需重新加密密码库。附件存储、环境变量、Secret和systemd配置不因本次升级改变。
 
-切换版本并重启后，确认日志无迁移错误且首页引用 `app.mjs?v=1.1.20`；验证旧条目显示回填时间、新条目显示北京时间，且编辑后创建时间不变。
+切换版本并重启后，确认日志无迁移错误且首页引用`app.mjs?v=1.1.58`；验证旧条目显示回填时间、新条目显示北京时间、编辑后创建时间不变，并在320–430px手机视口检查回收站“彻底删除”和“清空回收站”确认框无贴边或横向溢出。
 
 1. 记录当前目标：`readlink -f /opt/pass-vault-v2/current`。
 2. 按第 10 节做 SQLite + 附件一致性备份并通过完整性检查；确认新版本磁盘空间足够。

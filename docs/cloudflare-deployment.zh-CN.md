@@ -4,11 +4,28 @@
 
 本指南仅讲 Cloudflare 部署。请把 `<...>` 替换成实际值；真实账户 ID、D1 ID、token 和域名不要提交到公开仓库。
 
+## 0. 下载并校验 v1.1.58（推荐）
+
+从 [GitHub Release v1.1.58](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.58) 下载Cloudflare平台包与校验文件：
+
+```bash
+VERSION=1.1.58
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
+grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
+tar -xzf "pass-vault-v2-cloudflare-$VERSION.tar.gz"
+cd "pass-vault-v2-cloudflare-$VERSION"
+npm ci
+npm run build && npm test && npm run lint && npm run typecheck
+```
+
+校验必须显示`OK`。压缩包内`apps/worker/wrangler.jsonc`只含全零D1 ID和示例R2名称；部署前必须替换为自己的资源，不能把真实配置提交到公开仓库。也可下载`.zip`，但仍应使用同一`SHA256SUMS`校验。
+
 ## 要求与架构
 
-- Node.js 22+、npm、Git，以及启用 Workers/D1/R2 的 Cloudflare 账户。
+- Node.js 22+、npm，以及启用 Workers/D1/R2 的 Cloudflare 账户；从源码安装时另需Git。
 - CLI 路线需要 Wrangler 登录；Dashboard 路线需要 GitHub 仓库连接或上传/构建能力。
-- **v1.1.13 前置条件：** 准备一个 16–256 字符的强随机 `INVITE_CODE`，并确保 `apps/worker/migrations/0005_invite_attempts.sql` 在新代码发布前应用。缺少/无效配置会返回 `registration_unavailable`（HTTP 503），错误值返回 `invalid_invite`（HTTP 403）并计入持久限速；既有用户登录不受影响。
+- **当前版本前置条件：** 准备一个16–256字符的强随机`INVITE_CODE`，并在部署代码前按文件名顺序应用`apps/worker/migrations/`中的全部待执行迁移。缺少/无效配置会返回`registration_unavailable`（HTTP 503），错误值返回`invalid_invite`（HTTP 403）并计入持久限速；既有用户登录不受影响。
 
 ```text
 浏览器 ──HTTPS──> Cloudflare Worker
@@ -21,7 +38,7 @@
 
 ```bash
 npm ci
-npm test && npm run lint && npm run typecheck && npm run build
+npm run build && npm test && npm run lint && npm run typecheck
 ```
 
 ## 1. Wrangler CLI 部署
@@ -60,7 +77,7 @@ Wrangler 应只确认 secret 名称/成功状态，不应回显值。若需人�
 # apps/worker/
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote
-# 在输出中确认 0005_invite_attempts.sql 已 applied；未确认就停止，不要部署
+# 确认列表中没有待执行迁移；未确认就停止，不要部署
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 cd ../..
 npm run build
@@ -91,7 +108,7 @@ Dashboard 菜单名称可能调整；以当前界面为准。
 4. 这不是纯静态 Pages：必须部署 Worker API 并附加 Workers Static Assets。若界面支持 deploy command，设为 `npx wrangler deploy --config apps/worker/wrangler.jsonc`；若导入流程不能识别 Worker main/Assets/D1，请使用 Cloudflare CI/GitHub Actions 调 Wrangler，而不是发布成纯 Pages。
 5. Worker **Settings → Bindings → Add → D1 database**：变量名必须为 `DB`，选择目标数据库。
 6. 在 **Storage & Databases → R2 → Create bucket** 创建私有 bucket；Worker **Settings → Bindings → Add → R2 bucket**，变量名必须为 `ATTACHMENTS`。
-7. 从受控终端运行 Wrangler migrations；**发布前必须确认 `0005_invite_attempts.sql` 已应用**。若使用 D1 Console，按文件名顺序执行所有尚未执行的 `apps/worker/migrations/*.sql`，再检查 `invite_attempts` 表；不要只上传新代码。
+7. 从受控终端运行Wrangler migrations；**发布前必须确认全部待执行迁移已应用**。若使用D1 Console，按文件名顺序执行所有尚未执行的`apps/worker/migrations/*.sql`；不要只上传新代码。
 8. 在目标 Worker 的 **Settings → Variables and Secrets**（当前界面也可能归在 **Bindings** 或类似设置页）新增变量，名称严格为 `INVITE_CODE`，类型选择加密的 **Secret**，值由密码管理器生成（至少 128 bit 随机性，16–256 字符）。保存并按界面要求部署新版本。不要选明文变量，也不要把值放在构建变量、仓库或截图中。
 9. 保存后回到变量/秘密列表，只核对名称 `INVITE_CODE`、Secret 类型和目标环境；Cloudflare 不应再次显示值。若界面没有 Secret 类型或目标环境不明确，停止并改用上面的 `wrangler secret put`，不要降级成明文。
 10. 确认 Assets 指向构建出的 `dist/`，且 API 请求先经过 Worker。
@@ -115,11 +132,11 @@ curl -fsSI https://<APP_DOMAIN>/
 
 ## 4. 升级、备份、恢复与回滚
 
-### 升级到 v1.1.20
+### 升级到 v1.1.58
 
-v1.1.20 新增 D1 migration `0006_entries_created_at.sql`。先备份 D1 + R2，再按文件名顺序应用全部待执行 migration（必须包含 `0006`），确认成功后才部署 Worker 与静态资源。该迁移以 `updated_at` 回填旧条目的 `created_at`；不要清空、导入或重建数据库，也无需重新加密密码库。R2、binding、环境变量和 Secret 均无变化。
+从旧版本升级到v1.1.58时，先在同一逻辑时间点备份D1与R2，再按文件名顺序应用全部待执行迁移，确认成功后才部署Worker与静态资源。较旧环境可能仍待执行`0005_invite_attempts.sql`和`0006_entries_created_at.sql`；前者创建持久邀请码限速表，后者以`updated_at`回填旧条目的`created_at`。不要清空、导入或重建数据库，也无需重新加密密码库。R2 binding、环境变量和Secret不因本次升级改变。
 
-部署后确认首页引用 `app.mjs?v=1.1.20`，再验证旧条目显示创建时间、新建条目显示北京时间，且编辑后创建时间不变。
+部署后确认首页引用`app.mjs?v=1.1.58`，再验证旧条目显示创建时间、新建条目显示北京时间、编辑后创建时间不变，并在320–430px手机视口检查回收站“彻底删除”和“清空回收站”确认框无贴边或横向溢出。
 
 升级前停止写入，并在同一逻辑时间点备份 D1 与 R2。导出 D1，同时用受控工具或 Cloudflare API 将 R2 全量复制到独立的版本化 bucket，保留对象键、大小和校验信息；不要只备份 D1。
 
@@ -128,7 +145,7 @@ cd apps/worker
 npx wrangler d1 export <D1_DATABASE_NAME> --remote --output=<SAFE_BACKUP_PATH>/d1-<TIMESTAMP>.sql
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 cd ../..
-npm ci && npm test && npm run lint && npm run typecheck && npm run build
+npm ci && npm run build && npm test && npm run lint && npm run typecheck
 npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote --config apps/worker/wrangler.jsonc
 npx wrangler deploy --config apps/worker/wrangler.jsonc
 ```

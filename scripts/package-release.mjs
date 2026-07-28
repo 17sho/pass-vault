@@ -36,12 +36,12 @@ for (const [variant, extra] of Object.entries(variants)) {
     ...pkg,
     private: true,
     scripts: variant === 'cloudflare' ? {
-      test: 'node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
+      test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
       lint: 'node scripts/check.mjs',
       typecheck: 'tsc --noEmit -p apps/worker/tsconfig.json',
       build: 'node scripts/build.mjs'
     } : {
-      test: 'node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
+      test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
       lint: 'node scripts/check.mjs',
       typecheck: 'node --check apps/server/server.mjs',
       build: 'node scripts/build.mjs',
