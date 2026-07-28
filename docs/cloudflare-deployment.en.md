@@ -4,11 +4,28 @@
 
 This guide is exclusively for Cloudflare deployment. Replace every `<...>` placeholder. Never commit real account IDs, D1 IDs, tokens, or domains.
 
+## 0. Download and verify v1.1.58 (recommended)
+
+Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.58](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.58):
+
+```bash
+VERSION=1.1.58
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
+grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
+tar -xzf "pass-vault-v2-cloudflare-$VERSION.tar.gz"
+cd "pass-vault-v2-cloudflare-$VERSION"
+npm ci
+npm run build && npm test && npm run lint && npm run typecheck
+```
+
+The checksum must report `OK`. The packaged `apps/worker/wrangler.jsonc` contains only an all-zero D1 ID and an example R2 name. Replace them with your own resources before deployment and never commit production configuration to a public repository. A `.zip` is also available and is covered by the same `SHA256SUMS` manifest.
+
 ## Requirements and architecture
 
-- Node.js 22+, npm, Git, and a Cloudflare account with Workers, D1, and R2.
+- Node.js 22+, npm, and a Cloudflare account with Workers, D1, and R2; Git is additionally required for a source install.
 - Wrangler authentication for CLI deployment; a connected GitHub repository or equivalent build/upload path for Dashboard deployment.
-- **v1.1.13 prerequisite:** prepare a strong random 16–256-character `INVITE_CODE`, and apply `apps/worker/migrations/0005_invite_attempts.sql` before deploying the new code. Missing/invalid configuration returns HTTP 503 `registration_unavailable`; a wrong value returns HTTP 403 `invalid_invite` and counts toward durable rate limiting. Existing sign-in remains available.
+- **Current-version prerequisite:** prepare a strong random 16–256-character `INVITE_CODE` and apply every pending migration in `apps/worker/migrations/` in filename order before deploying code. Missing/invalid configuration returns HTTP 503 `registration_unavailable`; a wrong value returns HTTP 403 `invalid_invite` and counts toward durable rate limiting. Existing sign-in remains available.
 
 ```text
 Browser ──HTTPS──> Cloudflare Worker
@@ -21,7 +38,7 @@ Before the first operation, run at repository root:
 
 ```bash
 npm ci
-npm test && npm run lint && npm run typecheck && npm run build
+npm run build && npm test && npm run lint && npm run typecheck
 ```
 
 ## 1. Wrangler CLI deployment
@@ -60,7 +77,7 @@ Wrangler should confirm only the secret name/success, never its value. If people
 # apps/worker/
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote
-# Confirm 0005_invite_attempts.sql is applied; stop before deploy if it is not
+# Confirm that no migration remains pending; stop before deploy if uncertain
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 cd ../..
 npm run build
@@ -91,7 +108,7 @@ Dashboard labels may change; follow the current UI.
 4. This is not static-only Pages: it needs a Worker API plus Workers Static Assets. Where supported, set deploy command to `npx wrangler deploy --config apps/worker/wrangler.jsonc`. If import cannot honor the Worker main module, Assets, and D1, invoke Wrangler from Cloudflare CI/GitHub Actions instead of publishing plain Pages.
 5. Worker **Settings → Bindings → Add → D1 database**: variable name must be `DB`; select the target database.
 6. Create a private bucket under **Storage & Databases → R2 → Create bucket**; add it at Worker **Settings → Bindings → Add → R2 bucket** with variable name `ATTACHMENTS`.
-7. Prefer Wrangler migrations from a controlled terminal; **confirm `0005_invite_attempts.sql` is applied before deployment**. If D1 **Console** is required, execute all unapplied `apps/worker/migrations/*.sql` in filename order and inspect the `invite_attempts` table. Do not deploy only the new code.
+7. Prefer Wrangler migrations from a controlled terminal; **confirm every pending migration is applied before deployment**. If D1 **Console** is required, execute all unapplied `apps/worker/migrations/*.sql` in filename order. Do not deploy only the new code.
 8. In the target Worker's **Settings → Variables and Secrets** (the current UI may group this under **Bindings** or a similarly named settings page), add the exact name `INVITE_CODE`, select encrypted **Secret**, and use a password-manager-generated value with at least 128 bits of randomness and 16–256 characters. Save and deploy the resulting version if prompted. Never choose plaintext or use build variables, repository files, or screenshots.
 9. Return to the variables/secrets list and verify only the name `INVITE_CODE`, Secret type, and intended environment. Cloudflare should not reveal the value. If Secret type or environment is ambiguous, stop and use `wrangler secret put`; do not downgrade to plaintext.
 10. Confirm Assets use built `dist/` and API requests reach the Worker first.
@@ -115,11 +132,11 @@ If registration breaks after rotation, check length, target Worker/environment, 
 
 ## 4. Upgrade, backup, restore, and rollback
 
-### Upgrading to v1.1.20
+### Upgrading to v1.1.58
 
-v1.1.20 adds D1 migration `0006_entries_created_at.sql`. Back up D1 + R2, apply every pending migration in filename order (including `0006`), and only then deploy the Worker and static assets. The migration backfills legacy `created_at` values from `updated_at`; do not clear, import, or recreate the database, and no vault re-encryption is needed. R2, bindings, environment variables, and secrets are unchanged.
+When upgrading an older installation to v1.1.58, back up D1 and R2 at the same logical point, apply every pending migration in filename order, and only then deploy the Worker and static assets. Older environments may still need `0005_invite_attempts.sql` and `0006_entries_created_at.sql`: the former creates durable invitation-rate-limit storage, while the latter backfills legacy `created_at` values from `updated_at`. Do not clear, import, or recreate the database, and no vault re-encryption is needed. R2 bindings, environment variables, and secrets do not change for this upgrade.
 
-After deployment, confirm that the home page references `app.mjs?v=1.1.20`, then verify creation times on legacy and new entries and confirm that editing preserves the original timestamp.
+After deployment, confirm that the home page references `app.mjs?v=1.1.58`. Verify creation times on legacy and new entries, confirm editing preserves the original timestamp, and check at 320–430px mobile widths that the trash permanent-delete and empty-trash confirmations have safe padding and no horizontal overflow.
 
 Before upgrading, stop writes and back up D1 and R2 at one logical point. Export D1 and use a controlled tool or Cloudflare API to copy all R2 objects to an independent versioned bucket, retaining keys, sizes, and checksums under the same timestamp. Never back up D1 alone.
 
@@ -128,7 +145,7 @@ cd apps/worker
 npx wrangler d1 export <D1_DATABASE_NAME> --remote --output=<SAFE_BACKUP_PATH>/d1-<TIMESTAMP>.sql
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
 cd ../..
-npm ci && npm test && npm run lint && npm run typecheck && npm run build
+npm ci && npm run build && npm test && npm run lint && npm run typecheck
 npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote --config apps/worker/wrangler.jsonc
 npx wrangler deploy --config apps/worker/wrangler.jsonc
 ```

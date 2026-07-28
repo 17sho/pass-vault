@@ -44,14 +44,15 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Download a GitHub Release (recommended)
 
-Download `pass-vault-v2-linux-<VERSION>.tar.gz` and `SHA256SUMS` from Releases:
+The current stable release is v1.1.58. Download the Linux archive and `SHA256SUMS`:
 
 ```bash
+VERSION=1.1.58
 cd /tmp
-curl -fLO https://github.com/17sho/pass-vault-v2/releases/download/v<VERSION>/pass-vault-v2-linux-<VERSION>.tar.gz
-curl -fLO https://github.com/17sho/pass-vault-v2/releases/download/v<VERSION>/SHA256SUMS
-grep 'pass-vault-v2-linux-<VERSION>.tar.gz' SHA256SUMS | sha256sum -c -
-sudo tar -xzf pass-vault-v2-linux-<VERSION>.tar.gz -C /opt/pass-vault-v2/releases
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
+curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
+grep "pass-vault-v2-linux-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
+sudo tar -xzf "pass-vault-v2-linux-$VERSION.tar.gz" -C /opt/pass-vault-v2/releases
 ```
 
 ### 3.2 Install from source
@@ -70,8 +71,9 @@ Run the gates in the source/extracted directory, then use the single atomic depl
 
 ```bash
 npm ci
+npm run build
 npm test
-npm run lint && npm run lint:docs && npm run typecheck && npm run build
+npm run lint && npm run typecheck
 sudo env \
   PV_SOURCE="$PWD" \
   PV_APP_ROOT=/opt/pass-vault-v2 \
@@ -254,11 +256,11 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
-### Upgrading to v1.1.20
+### Upgrading to v1.1.58
 
-v1.1.20 performs an idempotent SQLite migration at service startup: when `entries.created_at` is absent it adds the column and backfills each row from `updated_at`. Make a consistent SQLite + attachments backup before switching and restarting. Do not manually clear, import, or recreate SQLite, and no vault re-encryption is needed. Attachment storage, environment variables, secrets, and systemd settings are unchanged; repeated starts do not repeat the migration.
+Before upgrading an older installation to v1.1.58, make a consistent SQLite plus attachment-directory backup, install into a new immutable release directory, and switch atomically. If `entries.created_at` is absent, startup idempotently adds it and backfills from `updated_at`. Do not clear, import, or recreate SQLite, and no vault re-encryption is needed. Attachment storage, environment variables, secrets, and systemd settings do not change for this upgrade.
 
-After switching and restarting, confirm there is no migration error and the home page references `app.mjs?v=1.1.20`; verify backfilled legacy timestamps, Beijing time on new entries, and preservation after editing.
+After switching and restarting, confirm there is no migration error and the home page references `app.mjs?v=1.1.58`. Verify backfilled legacy timestamps, Beijing time on new entries, preservation after editing, and at 320–430px mobile widths confirm that the trash permanent-delete and empty-trash dialogs have safe padding and no horizontal overflow.
 
 1. Record `readlink -f /opt/pass-vault-v2/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.
