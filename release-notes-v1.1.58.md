@@ -14,4 +14,4 @@
 - Long item names wrap safely without horizontal overflow across 320–430px viewports.
 - Multi-width Chromium/WebKit geometry coverage and all 179 tests pass.
 
-> 本版本继续采用纯文字Release，不附加安装压缩包。
+> 提供Cloudflare与Linux两套平台安装包、`.tar.gz`/`.zip`格式及`SHA256SUMS`完整性校验；Release附件不包含任何生产配置、真实资源ID或凭据。

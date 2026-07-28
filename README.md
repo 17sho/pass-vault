@@ -67,9 +67,18 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 
 - **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2。
 - **Linux 服务器部署指南**：**[中文](docs/server-deployment.zh-CN.md)** · [English](docs/server-deployment.en.md) — VPS/独立服务器 Node.js + SQLite、systemd、Caddy/Nginx、备份恢复。
-- [下载最新稳定版 Release 包（当前 v1.1.20）](https://github.com/17sho/pass-vault-v2/releases/latest)
 
-> **部署前必做：** 两种生产部署都必须安全设置 `INVITE_CODE`。升级到 v1.1.20 时，Cloudflare 必须在部署代码前按顺序应用到 `0006_entries_created_at.sql`；Linux 启动时会幂等新增 `created_at` 并从 `updated_at` 回填。不要清空或重建数据库，也不要把真实邀请码写入仓库、命令参数、截图或日志。
+### 下载最新稳定版（v1.1.58）
+
+前往 [GitHub Release v1.1.58](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.58) 下载对应平台包：
+
+- Cloudflare：`pass-vault-v2-cloudflare-1.1.58.tar.gz`或`.zip`
+- Linux：`pass-vault-v2-linux-1.1.58.tar.gz`或`.zip`
+- 完整性校验：同时下载`SHA256SUMS`，在下载目录运行`sha256sum -c SHA256SUMS`
+
+解压后先阅读包内对应的中英文部署指南。Linux包已包含systemd、Caddy/Nginx模板和原子部署脚本；Cloudflare包使用占位D1/R2配置，必须填入你自己的资源信息，不能直接把示例值用于生产。
+
+> **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。Cloudflare升级时先备份D1/R2，并按`apps/worker/migrations/`中的顺序应用所有待处理迁移，再部署代码；Linux升级前先备份SQLite和附件目录。不要清空或重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 
 Cloudflare 版使用的 Workers、Static Assets、D1、R2 Standard、DNS/SSL 均有免费层；部署指南已列出 D1/R2 额度、项目 R2 保守硬限制、账户级共享风险、Billing/Usage 检查路径，以及避免 Web Analytics 自动注入破坏密码库 CSP 的设置方法。
 

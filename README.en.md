@@ -67,9 +67,18 @@ The deployment methods are independent. Choose the matching guide:
 
 - **Cloudflare deployment guide**: [中文](docs/cloudflare-deployment.zh-CN.md) · **[English](docs/cloudflare-deployment.en.md)** — Workers + Static Assets + D1 + R2, including Wrangler CLI and Dashboard. Attachments require R2 to be enabled first.
 - **Linux server deployment guide**: [中文](docs/server-deployment.zh-CN.md) · **[English](docs/server-deployment.en.md)** — VPS/dedicated-server Node.js + SQLite, systemd, Caddy/Nginx, backup and restore.
-- [Download the latest stable release packages (currently v1.1.20)](https://github.com/17sho/pass-vault-v2/releases/latest)
 
-> **Required before deployment:** both production targets need a securely configured `INVITE_CODE`. When upgrading to v1.1.20, Cloudflare must apply migrations in order through `0006_entries_created_at.sql` before deploying code; Linux idempotently adds `created_at` at startup and backfills it from `updated_at`. Do not clear or recreate the database, and never expose the real invitation in the repository, arguments, screenshots, or logs.
+### Download the latest stable release (v1.1.58)
+
+Open [GitHub Release v1.1.58](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.58) and download the package for your target:
+
+- Cloudflare: `pass-vault-v2-cloudflare-1.1.58.tar.gz` or `.zip`
+- Linux: `pass-vault-v2-linux-1.1.58.tar.gz` or `.zip`
+- Integrity: also download `SHA256SUMS`, then run `sha256sum -c SHA256SUMS` in the download directory
+
+Read the matching English or Chinese deployment guide inside the extracted package first. The Linux package includes systemd, Caddy/Nginx templates, and the atomic deployment script. The Cloudflare package ships placeholder D1/R2 configuration that must be replaced with your own resource details before production use.
+
+> **Required before deployment:** securely configure `INVITE_CODE` for both production targets. For Cloudflare upgrades, back up D1/R2 and apply every pending migration in `apps/worker/migrations/` in order before deploying code. For Linux upgrades, back up SQLite and the attachment directory first. Never clear or recreate the database, and never expose real invitation codes, resource IDs, or credentials in the repository, command arguments, screenshots, or logs.
 
 Workers, Static Assets, D1, R2 Standard, DNS, and SSL all have free tiers. The Cloudflare guide now documents D1/R2 allowances, conservative application R2 caps, account-wide shared-usage risk, Billing/Usage checks, and how to prevent Web Analytics auto-injection from conflicting with the vault CSP.
 
