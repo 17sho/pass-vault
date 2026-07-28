@@ -834,38 +834,21 @@ test('功能2：有活动时不锁库（活动重置计时器）',async()=>{
  }finally{await page.close()}
 });
 
-test('设置：自动锁定时间可在菜单中选择并持久化，"从不"则不自动锁',async()=>{
+test('设置：自动锁定时间迁入安全中心并持久化，"从不"则不自动锁',async()=>{
  const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
  page.on('pageerror',e=>errors.push(String(e)));
  try{
   await register(page);
-  // 打开菜单，点“自动锁定时间”
   await page.getByRole('button',{name:'更多'}).click();
-  const setBtn=page.locator('#idle-lock-setting');
-  await setBtn.waitFor({state:'visible'});
-  // 默认标签应含 5 分钟
-  assert.match(await setBtn.textContent(),/5 分钟/,'默认应为 5 分钟');
-  await setBtn.click();
-  // 对话框出现，选“1 分钟”
-  const dlg=page.locator('#idle-lock');
+  assert.equal(await page.locator('#idle-lock-setting').count(),0,'更多一级菜单不应再重复显示自动锁定');
+  await page.getByRole('menuitem',{name:'安全中心'}).click();
+  const dlg=page.getByRole('dialog',{name:'安全中心'}),select=dlg.getByLabel('自动锁定时间');
   await dlg.waitFor({state:'visible'});
-  // 当前项应高亮为 5 分钟
-  const current5=await dlg.locator('.idle-lock-option.is-current').textContent();
-  assert.match(current5,/5 分钟/,'当前高亮应为 5 分钟');
-  await dlg.getByRole('radio',{name:'1 分钟'}).click();
-  // 持久化到 localStorage（毫秒）
-  const stored=await page.evaluate(()=>localStorage.getItem('pass-vault-idle-lock-ms'));
-  assert.equal(stored,'60000','应持久化 1 分钟=60000ms');
-  // 菜单标签更新
-  await page.getByRole('button',{name:'更多'}).click();
-  assert.match(await page.locator('#idle-lock-setting').textContent(),/1 分钟/,'标签应更新为 1 分钟');
-  // 选“从不”：设为 0，且计时器不应锁库
-  await page.locator('#idle-lock-setting').click();
-  await dlg.waitFor({state:'visible'});
-  await dlg.getByRole('radio',{name:'从不'}).click();
-  const never=await page.evaluate(()=>localStorage.getItem('pass-vault-idle-lock-ms'));
-  assert.equal(never,'0','从不应持久化为 0');
-  // 用测试钩子把“从不”语义验证：设 0 后即使等待也不锁（这里短等，确认 vaultKey 仍在）
+  assert.equal(await select.inputValue(),'300000','默认应为 5 分钟');
+  await select.selectOption('60000');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('pass-vault-idle-lock-ms')),'60000','应持久化 1 分钟=60000ms');
+  await select.selectOption('0');
+  assert.equal(await page.evaluate(()=>localStorage.getItem('pass-vault-idle-lock-ms')),'0','从不应持久化为 0');
   await page.evaluate(()=>{ if(typeof resetIdleTimer==='function') resetIdleTimer(); });
   await page.waitForTimeout(800);
   assert.equal(await page.evaluate(()=>window.__vaultKeyPresent()),true,'“从不”时不应自动锁库');

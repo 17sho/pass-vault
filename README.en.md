@@ -69,12 +69,12 @@ The deployment methods are independent. Choose the matching guide:
 - **Cloudflare deployment guide**: [中文](docs/cloudflare-deployment.zh-CN.md) · **[English](docs/cloudflare-deployment.en.md)** — Workers + Static Assets + D1 + R2, including Wrangler CLI and Dashboard. Attachments require R2 to be enabled first.
 - **Linux server deployment guide**: [中文](docs/server-deployment.zh-CN.md) · **[English](docs/server-deployment.en.md)** — VPS/dedicated-server Node.js + SQLite, systemd, Caddy/Nginx, backup and restore.
 
-### Download the latest stable release (v1.1.60)
+### Download the latest stable release (v1.1.61)
 
-Open [GitHub Release v1.1.60](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.60) and download the package for your target:
+Open [GitHub Release v1.1.61](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.61) and download the package for your target:
 
-- Cloudflare: `pass-vault-v2-cloudflare-1.1.60.tar.gz` or `.zip`
-- Linux: `pass-vault-v2-linux-1.1.60.tar.gz` or `.zip`
+- Cloudflare: `pass-vault-v2-cloudflare-1.1.61.tar.gz` or `.zip`
+- Linux: `pass-vault-v2-linux-1.1.61.tar.gz` or `.zip`
 - Integrity: also download `SHA256SUMS`, then run `sha256sum -c SHA256SUMS` in the download directory
 
 Read the matching English or Chinese deployment guide inside the extracted package first. The Linux package includes systemd, Caddy/Nginx templates, and the atomic deployment script. The Cloudflare package ships placeholder D1/R2 configuration that must be replaced with your own resource details before production use.
