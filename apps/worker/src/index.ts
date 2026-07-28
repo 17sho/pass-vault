@@ -1,10 +1,11 @@
 import { validEnvelope, validKeyMaterial, validateUsername, validAttachmentId, validAttachmentEnvelope, validInviteCode, MAX_ATTACHMENT_CIPHERTEXT } from '../../../shared/contract.mjs';
+import { classifySessionClient, normalizeSessionIp } from '../../../shared/session-metadata.mjs';
 
 interface Env { DB:D1Database; ASSETS:Fetcher; ATTACHMENTS:R2Bucket; INVITE_CODE?:string }
 type User={id:string;username:string;password_hash:string;password_salt:string;kdf:string;wrapped_key:string};
-type Session=User&{user_id:string;id_hash:string;csrf_hash:string;expires_at:number};
+type Session=User&{user_id:string;id_hash:string;csrf_hash:string;expires_at:number;public_id:string;created_at:number;last_seen_at:number;ip_address:string;device_type:string;browser:string};
 type Envelope={id:string;type:'account'|'website'|'note';version:number;iv:string;ciphertext:string};
-const COOKIE='pv_session', SESSION_SECONDS=28800, MAX_BODY=2_000_000, LOGIN_WINDOW=60_000, LOGIN_LIMIT=10, MAX_BACKUP_ATTACHMENTS=20*1024*1024, MAX_BACKUP_JSON=30*1024*1024, MAX_WORKER_UPLOAD=20*1024*1024+16;
+const COOKIE='pv_session', SESSION_SECONDS=28800, ACTIVITY_WRITE_MS=5*60*1000, MAX_BODY=2_000_000, LOGIN_WINDOW=60_000, LOGIN_LIMIT=10, MAX_BACKUP_ATTACHMENTS=20*1024*1024, MAX_BACKUP_JSON=30*1024*1024, MAX_WORKER_UPLOAD=20*1024*1024+16;
 const enc=new TextEncoder();
 export const R2_QUOTAS={storageBytes:8*1024**3,classA:800_000,classB:8_000_000} as const;
 export const utcMonth=(date=new Date())=>date.toISOString().slice(0,7);
@@ -38,7 +39,7 @@ const validPassword=(x:unknown)=>typeof x==='string'&&x.length>=12&&x.length<=10
 const validKey=(x:Record<string,unknown>)=>validKeyMaterial(x);
 const material=(u:{kdf:string;wrapped_key:string})=>({kdf:JSON.parse(u.kdf),wrappedKey:JSON.parse(u.wrapped_key)});
 function cookie(req:Request){for(const part of (req.headers.get('cookie')||'').split(';')){const [k,...v]=part.trim().split('=');if(k===COOKIE)return v.join('=')}return null}
-async function session(req:Request,env:Env){const token=cookie(req);if(!token)return null;return env.DB.prepare('SELECT s.id_hash,s.user_id,s.csrf_hash,s.expires_at,u.id,u.username,u.password_hash,u.password_salt,u.kdf,u.wrapped_key FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash = ? AND s.expires_at > ?').bind(await digest(token),Date.now()).first<Session>()}
+async function session(req:Request,env:Env){const token=cookie(req);if(!token)return null;return env.DB.prepare('SELECT s.id_hash,s.user_id,s.csrf_hash,s.expires_at,s.public_id,s.created_at,s.last_seen_at,s.ip_address,s.device_type,s.browser,u.id,u.username,u.password_hash,u.password_salt,u.kdf,u.wrapped_key FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash = ? AND s.expires_at > ?').bind(await digest(token),Date.now()).first<Session>()}
 async function safe(req:Request,s:Session){const origin=req.headers.get('origin'),expected=new URL(req.url).origin,token=req.headers.get('x-csrf-token');return origin===expected&&!!token&&equal(await digest(token),s.csrf_hash)}
 async function rateLimited(env:Env,key:string){const cutoff=Date.now()-LOGIN_WINDOW;await env.DB.prepare('DELETE FROM login_attempts WHERE attempted_at < ?').bind(cutoff).run();const row=await env.DB.prepare('SELECT COUNT(*) AS count FROM login_attempts WHERE key = ? AND attempted_at > ?').bind(key,cutoff).first<{count:number}>();return Number(row?.count||0)>=LOGIN_LIMIT}
 const envelope=(x:Record<string,unknown>,id?:string):Envelope|null=>{const y={...x,...(id?{id}:{})};return Object.keys(y).every(k=>['id','type','version','iv','ciphertext'].includes(k))&&validEnvelope(y)?y as Envelope:null};
@@ -59,13 +60,17 @@ export default {async fetch(req:Request,env:Env):Promise<Response>{
    const usr=await env.DB.prepare('SELECT id,username,password_hash,password_salt,kdf,wrapped_key FROM users WHERE username = ?').bind(name.value).first<User>();
    const ok=usr&&typeof x.password==='string'&&equal(await passwordHash(x.password,usr.password_salt),usr.password_hash);
    if(!ok){await env.DB.prepare('INSERT INTO login_attempts(key,attempted_at) VALUES(?,?)').bind(key,Date.now()).run();return error(401,'invalid_credentials')}
-   await env.DB.prepare('DELETE FROM login_attempts WHERE key = ?').bind(key).run();const token=random(),csrf=random(24);
-   await env.DB.prepare('INSERT INTO sessions(id_hash,user_id,csrf_hash,expires_at) VALUES(?,?,?,?)').bind(await digest(token),usr.id,await digest(csrf),Date.now()+SESSION_SECONDS*1000).run();
+   await env.DB.prepare('DELETE FROM login_attempts WHERE key = ?').bind(key).run();const token=random(),csrf=random(24),now=Date.now(),client=classifySessionClient(req.headers.get('user-agent')||''),ip=normalizeSessionIp(req.headers.get('CF-Connecting-IP')||'');
+   await env.DB.prepare('INSERT INTO sessions(id_hash,user_id,csrf_hash,expires_at,public_id,created_at,last_seen_at,ip_address,device_type,browser) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(await digest(token),usr.id,await digest(csrf),now+SESSION_SECONDS*1000,random(18),now,now,ip,client.device,client.browser).run();
    return json({csrf,...material(usr)},200,{'set-cookie':`${COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${SESSION_SECONDS}`});
   }
   const s=await session(req,env);if(!s)return error(401,'unauthorized');
   if(!['GET','HEAD'].includes(req.method)&&!await safe(req,s))return error(403,'csrf');
+  const activityNow=Date.now();if(s.last_seen_at<activityNow-ACTIVITY_WRITE_MS){await env.DB.prepare('UPDATE sessions SET last_seen_at=? WHERE id_hash=? AND last_seen_at<?').bind(activityNow,s.id_hash,activityNow-ACTIVITY_WRITE_MS).run();s.last_seen_at=activityNow}
   if(req.method==='GET'&&p==='/api/session')return json({username:s.username,...material(s)});
+  if(req.method==='GET'&&p==='/api/sessions'){const now=Date.now();const rows=await env.DB.prepare('SELECT public_id,created_at,last_seen_at,ip_address,device_type,browser,id_hash FROM sessions WHERE user_id=? AND expires_at>? ORDER BY last_seen_at DESC').bind(s.user_id,now).all();return json({sessions:(rows.results as any[]).map(row=>({id:row.public_id,current:row.id_hash===s.id_hash,createdAt:row.created_at,lastSeenAt:row.last_seen_at,ip:row.ip_address,device:row.device_type,browser:row.browser}))})}
+  if(req.method==='POST'&&p==='/api/sessions/logout-others'){const result=await env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND id_hash<>?').bind(s.user_id,s.id_hash).run();return json({ok:true,revoked:Number(result.meta?.changes||0)})}
+  const sm=p.match(/^\/api\/sessions\/([A-Za-z0-9_-]{16,80})$/);if(req.method==='DELETE'&&sm){const target=await env.DB.prepare('SELECT id_hash FROM sessions WHERE user_id=? AND public_id=?').bind(s.user_id,sm[1]).first<{id_hash:string}>();if(!target)return error(404,'session_not_found');if(target.id_hash===s.id_hash)return error(409,'current_session');await env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND public_id=?').bind(s.user_id,sm[1]).run();return json({ok:true})}
   if(req.method==='POST'&&p==='/api/logout'){await env.DB.prepare('DELETE FROM sessions WHERE id_hash = ?').bind(s.id_hash).run();return json({ok:true},200,{'set-cookie':`${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`})}
   if(req.method==='POST'&&p==='/api/change-username'){
    const x=await body(req),keys=Object.keys(x);if(keys.length!==2||!keys.includes('newUsername')||!keys.includes('currentPassword'))return error(400,'invalid_request');const name=validateUsername(x.newUsername);if(!name.valid)return error(400,'invalid_username');if(!validPassword(x.currentPassword)||!equal(await passwordHash(x.currentPassword as string,s.password_salt),s.password_hash))return error(401,'invalid_current_password');try{await env.DB.batch([env.DB.prepare('UPDATE users SET username=? WHERE id=?').bind(name.value,s.user_id),env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(s.user_id)])}catch(e){if(String(e).includes('UNIQUE'))return error(409,'username_taken');throw e}return json({ok:true},200,{'set-cookie':`${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`});

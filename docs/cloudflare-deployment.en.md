@@ -4,12 +4,12 @@
 
 This guide is exclusively for Cloudflare deployment. Replace every `<...>` placeholder. Never commit real account IDs, D1 IDs, tokens, or domains.
 
-## 0. Download and verify v1.1.60 (recommended)
+## 0. Download and verify v1.1.61 (recommended)
 
-Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.60](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.60):
+Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.61](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.61):
 
 ```bash
-VERSION=1.1.60
+VERSION=1.1.61
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
@@ -132,11 +132,11 @@ If registration breaks after rotation, check length, target Worker/environment, 
 
 ## 4. Upgrade, backup, restore, and rollback
 
-### Upgrading to v1.1.60
+### Upgrading to v1.1.61
 
-When upgrading an older installation to v1.1.60, back up D1 and R2 at the same logical point, apply every pending migration in filename order, and only then deploy the Worker and static assets. `0007_totp_entries.sql` is required to permit encrypted TOTP records; older environments may also need `0005_invite_attempts.sql` and `0006_entries_created_at.sql`. The migration copies named columns and preserves existing ciphertext and creation times. Do not clear, import, or recreate the database, and no vault re-encryption is needed.
+When upgrading an older installation to v1.1.61, back up D1 and R2 at the same logical point, apply every pending migration in filename order, and only then deploy the Worker and static assets. This release adds `0008_session_metadata.sql` for Security Center session IDs, sign-in/last-activity timestamps, trusted login IP, and coarse device/browser categories. Existing sessions remain valid and are backfilled as unknown IP/device metadata; new sign-ins record the new fields. No ciphertext or vault-key migration is required.
 
-After deployment, confirm that the home page references `app.mjs?v=1.1.60`. Create a test TOTP record, verify its six-digit code and countdown refresh, and confirm that neither the account nor secret appears in plaintext network requests. Also verify existing records and creation times remain intact.
+After deployment, confirm that the home page references `app.mjs?v=1.1.61`. Sign in from a second browser, verify Security Center shows its trusted login IP, device/browser category, and sign-in time, then revoke that session and confirm the current session remains active.
 
 Before upgrading, stop writes and back up D1 and R2 at one logical point. Export D1 and use a controlled tool or Cloudflare API to copy all R2 objects to an independent versioned bucket, retaining keys, sizes, and checksums under the same timestamp. Never back up D1 alone.
 

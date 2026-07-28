@@ -9,7 +9,7 @@ const guides = [
   'docs/server-deployment.zh-CN.md', 'docs/server-deployment.en.md',
   'docs/deployment.zh-CN.md', 'docs/deployment.en.md', 'docs/DEPLOYMENT.md',
 ];
-const markdown = [...guides, 'release-notes-v1.1.60.md'];
+const markdown = [...guides, `release-notes-v${pkg.version}.md`];
 const contents = new Map();
 for (const file of markdown) {
   const text = await readFile(resolve(root, file), 'utf8');
@@ -40,13 +40,13 @@ for (const file of ['README.md', 'README.en.md']) {
 }
 for (const file of ['docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md']) {
   const text = contents.get(file);
-  for (const required of ['v1.1.60','SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0005_invite_attempts.sql','0006_entries_created_at.sql','0007_totp_entries.sql','registration_unavailable','invalid_invite']) {
+  for (const required of [`v${pkg.version}`,'SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0008_session_metadata.sql','registration_unavailable','invalid_invite']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
 }
 for (const file of ['docs/server-deployment.zh-CN.md','docs/server-deployment.en.md']) {
   const text = contents.get(file);
-  for (const required of ['v1.1.60','SHA256SUMS','/etc/pass-vault-v2/pass-vault-v2.env','0600','systemctl restart pass-vault-v2','registration_unavailable']) {
+  for (const required of [`v${pkg.version}`,'SHA256SUMS','/etc/pass-vault-v2/pass-vault-v2.env','0600','systemctl restart pass-vault-v2','registration_unavailable']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
 }
