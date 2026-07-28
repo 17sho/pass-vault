@@ -1,0 +1,10 @@
+vault.example.com {
+	encode gzip zstd
+	reverse_proxy 127.0.0.1:3000
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+	}
+}

@@ -21,6 +21,8 @@ const kdf={salt:'c2FsdHNhbHRzYWx0c2FsdA==',iterations:310000,hash:'SHA-256'};
 const wrappedKey={iv:'dGVzdGl2MTIzNDU2',ciphertext:'ZW5jcnlwdGVk'};
 const inviteCode='test-invite-code-1234567890';
 
+test('Linux 健康、静态与错误响应统一提供安全头和 no-store API 缓存策略',async()=>{const dir=await mkdtemp(join(tmpdir(),'pv2-headers-')),db=join(dir,'vault.sqlite');try{await start(db);for(const path of ['/api/health','/api/session']){const r=await fetch(origin+path);assert.equal(r.headers.get('x-content-type-options'),'nosniff');assert.equal(r.headers.get('referrer-policy'),'no-referrer');assert.equal(r.headers.get('permissions-policy'),'camera=(), microphone=(), geolocation=(), payment=(), usb=()');assert.match(r.headers.get('content-security-policy'),/object-src 'none'/);assert.equal(r.headers.get('cache-control'),'no-store')}const page=await fetch(origin+'/');assert.equal(page.status,200);assert.equal(page.headers.get('permissions-policy'),'camera=(), microphone=(), geolocation=(), payment=(), usb=()');assert.match(page.headers.get('content-security-policy'),/frame-ancestors 'none'/)}finally{await stop();await rm(dir,{recursive:true,force:true})}});
+
 test('Linux 反代后按可信 CLIENT_IP_HEADER 隔离限流，攻击者刷满不连坐其他真实用户，且伪造头无效',async()=>{const dir=await mkdtemp(join(tmpdir(),'pv2-clientip-')),db=join(dir,'vault.sqlite');try{
   // 生产拓扑：Cloudflare → Caddy → Node，真实 IP 来自 CF-Connecting-IP
   await start(db,{CLIENT_IP_HEADER:'cf-connecting-ip'});
