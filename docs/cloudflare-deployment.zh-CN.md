@@ -4,12 +4,12 @@
 
 本指南仅讲 Cloudflare 部署。请把 `<...>` 替换成实际值；真实账户 ID、D1 ID、token 和域名不要提交到公开仓库。
 
-## 0. 下载并校验 v1.1.59（推荐）
+## 0. 下载并校验 v1.1.60（推荐）
 
-从 [GitHub Release v1.1.59](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.59) 下载Cloudflare平台包与校验文件：
+从 [GitHub Release v1.1.60](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.60) 下载Cloudflare平台包与校验文件：
 
 ```bash
-VERSION=1.1.59
+VERSION=1.1.60
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
@@ -132,11 +132,11 @@ curl -fsSI https://<APP_DOMAIN>/
 
 ## 4. 升级、备份、恢复与回滚
 
-### 升级到 v1.1.59
+### 升级到 v1.1.60
 
-从旧版本升级到v1.1.59时，先在同一逻辑时间点备份D1与R2，再按文件名顺序应用全部待执行迁移，确认成功后才部署Worker与静态资源。必须执行`0007_totp_entries.sql`以允许保存TOTP密文条目；较旧环境还可能待执行`0005_invite_attempts.sql`和`0006_entries_created_at.sql`。迁移按命名列复制并保留既有密文和创建时间。不要清空、导入或重建数据库，也无需重新加密密码库。R2 binding、环境变量和Secret不因本次升级改变。
+从旧版本升级到v1.1.60时，先在同一逻辑时间点备份D1与R2，再按文件名顺序应用全部待执行迁移，确认成功后才部署Worker与静态资源。必须执行`0007_totp_entries.sql`以允许保存TOTP密文条目；较旧环境还可能待执行`0005_invite_attempts.sql`和`0006_entries_created_at.sql`。迁移按命名列复制并保留既有密文和创建时间。不要清空、导入或重建数据库，也无需重新加密密码库。R2 binding、环境变量和Secret不因本次升级改变。
 
-部署后确认首页引用`app.mjs?v=1.1.59`，再新建一条测试TOTP，确认6位验证码和倒计时自动刷新，且网络请求中不出现账号或密钥明文；同时验证旧条目和创建时间仍完整。
+部署后确认首页引用`app.mjs?v=1.1.60`，再新建一条测试TOTP，确认6位验证码和倒计时自动刷新，且网络请求中不出现账号或密钥明文；同时验证旧条目和创建时间仍完整。
 
 升级前停止写入，并在同一逻辑时间点备份 D1 与 R2。导出 D1，同时用受控工具或 Cloudflare API 将 R2 全量复制到独立的版本化 bucket，保留对象键、大小和校验信息；不要只备份 D1。
 

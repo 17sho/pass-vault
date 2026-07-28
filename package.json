@@ -1,6 +1,6 @@
 {
   "name": "pass-vault-v2",
-  "version": "1.1.59",
+  "version": "1.1.60",
   "private": true,
   "description": "Zero-knowledge password vault with shared frontend and Cloudflare D1 or Linux SQLite backends",
   "license": "MIT",
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
+    "miniflare": "4.20260708.1",
     "playwright": "^1.61.1",
     "typescript": "latest",
     "wrangler": "latest"
