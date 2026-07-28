@@ -1,0 +1,3 @@
+export function legacyTrashParents(file,items){return file.type==='attachment'&&!file.trashOwnerId?items.filter(note=>note.type==='note'&&note.deletedAt&&note.attachmentIds?.includes(file.id)):[]}
+export function trashParentNote(file,items){if(file.type!=='attachment')return undefined;if(file.trashOwnerId)return items.find(note=>note.type==='note'&&note.id===file.trashOwnerId&&note.deletedAt);const legacy=legacyTrashParents(file,items);return legacy.length===1?legacy[0]:undefined}
+export function linkedTrashAttachments(note,attachments,items){return note.type==='note'?attachments.filter(file=>file.deletedAt&&(file.trashOwnerId===note.id||(!file.trashOwnerId&&legacyTrashParents(file,items).length===1&&legacyTrashParents(file,items)[0]===note))):[]}

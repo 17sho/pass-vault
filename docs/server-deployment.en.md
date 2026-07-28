@@ -66,17 +66,24 @@ sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases/pass-v
 sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURITY.md public shared scripts apps/server deploy docs /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>/
 ```
 
-Continue after either method:
+Run the gates in the source/extracted directory, then use the single atomic deployment entry point. It creates a read-only release, normalizes directories to `0755` and files to `0644`, switches a temporary symlink with `mv -T`, automatically restores the old `current` if service restart or health fails, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
 
 ```bash
-cd /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>
-sudo npm ci
-sudo npm test
-sudo npm run lint && sudo npm run typecheck && sudo npm run build
-sudo chown -R root:pass-vault .
-sudo chmod -R go-w .
-sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION> /opt/pass-vault-v2/current
+npm ci
+npm test
+npm run lint && npm run lint:docs && npm run typecheck && npm run build
+sudo env \
+  PV_SOURCE="$PWD" \
+  PV_APP_ROOT=/opt/pass-vault-v2 \
+  PV_VERSION=<VERSION> \
+  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2' \
+  PV_HEALTH_COMMAND='curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"'' \
+  PV_EVIDENCE=/var/log/pass-vault-v2/deploy-<VERSION>.json \
+  bash scripts/deploy-linux-atomic.sh
+sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<VERSION>.json
 ```
+
+Never write the environment file, cookies, invitation, user data, ciphertext, or complete response bodies into deployment evidence.
 
 ## 4. Configuration variables
 
@@ -248,19 +255,20 @@ After switching and restarting, confirm there is no migration error and the home
 1. Record `readlink -f /opt/pass-vault-v2/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.
 3. Install the new version into a new release directory and run all tests/build before activation.
-4. Switch atomically and restart:
+4. Activate with `scripts/deploy-linux-atomic.sh`; it restarts, checks health, and restores the old `current` automatically on failure. On success, inspect evidence and verify the public cache:
 
 ```bash
-sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<NEW_VERSION> /opt/pass-vault-v2/current
-sudo systemctl restart pass-vault-v2
-sudo journalctl -u pass-vault-v2 -n 100 --no-pager
+sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<NEW_VERSION>.json
 curl -fsS https://<APP_DOMAIN>/api/health
+node scripts/verify-production-cache.mjs https://<APP_DOMAIN> <NEW_VERSION> /tmp/cache-evidence.json
+jq '{at,version,backend,sourceVersion,revalidated,fixedVersion,status}' /tmp/cache-evidence.json
 ```
 
-Code rollback:
+For a manual code rollback, use the same atomic mechanism to select a known-good release, then restart. Do not use a two-step unlink/create sequence that leaves a missing-link window:
 
 ```bash
-sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<KNOWN_GOOD_VERSION> /opt/pass-vault-v2/current
+sudo ln -s /opt/pass-vault-v2/releases/pass-vault-v2-linux-<KNOWN_GOOD_VERSION> /opt/pass-vault-v2/current.rollback
+sudo mv -Tf /opt/pass-vault-v2/current.rollback /opt/pass-vault-v2/current
 sudo systemctl restart pass-vault-v2
 ```
 

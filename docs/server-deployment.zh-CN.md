@@ -67,17 +67,24 @@ sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases/pass-v
 sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURITY.md public shared scripts apps/server deploy docs /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>/
 ```
 
-两种方式都继续：
+两种方式都先在源码/解压目录完成门禁，然后调用统一原子部署入口。脚本会创建只读版本目录、统一目录 `0755`/文件 `0644`、用临时软链接加 `mv -T` 原子切换；服务命令或健康检查失败时自动恢复旧 `current`，并只写时间、版本、布尔结果和回滚状态到 root-only JSON 证据：
 
 ```bash
-cd /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>
-sudo npm ci
-sudo npm test
-sudo npm run lint && sudo npm run typecheck && sudo npm run build
-sudo chown -R root:pass-vault .
-sudo chmod -R go-w .
-sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION> /opt/pass-vault-v2/current
+npm ci
+npm test
+npm run lint && npm run lint:docs && npm run typecheck && npm run build
+sudo env \
+  PV_SOURCE="$PWD" \
+  PV_APP_ROOT=/opt/pass-vault-v2 \
+  PV_VERSION=<VERSION> \
+  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2' \
+  PV_HEALTH_COMMAND='curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"'' \
+  PV_EVIDENCE=/var/log/pass-vault-v2/deploy-<VERSION>.json \
+  bash scripts/deploy-linux-atomic.sh
+sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<VERSION>.json
 ```
+
+不要把环境文件、Cookie、邀请码、用户资料、密文或完整响应正文写进部署证据。
 
 ## 4. 配置变量
 
@@ -257,19 +264,20 @@ v1.1.20 在服务启动时执行幂等 SQLite 迁移：若 `entries.created_at` 
 1. 记录当前目标：`readlink -f /opt/pass-vault-v2/current`。
 2. 按第 10 节做 SQLite + 附件一致性备份并通过完整性检查；确认新版本磁盘空间足够。
 3. 按第 3 节把新版本安装到新的版本目录，先完成测试/build。
-4. 原子切换软链接并重启：
+4. 使用 `scripts/deploy-linux-atomic.sh` 切换；该脚本会重启并检查健康，失败时自动恢复旧 `current`。成功后检查证据并验证公开缓存：
 
 ```bash
-sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<NEW_VERSION> /opt/pass-vault-v2/current
-sudo systemctl restart pass-vault-v2
-sudo journalctl -u pass-vault-v2 -n 100 --no-pager
+sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<NEW_VERSION>.json
 curl -fsS https://<APP_DOMAIN>/api/health
+node scripts/verify-production-cache.mjs https://<APP_DOMAIN> <NEW_VERSION> /tmp/cache-evidence.json
+jq '{at,version,backend,sourceVersion,revalidated,fixedVersion,status}' /tmp/cache-evidence.json
 ```
 
-代码回滚：
+如需人工代码回滚，使用同一原子机制切回已知良好版本目录后重启；不要使用会留下短暂断链窗口的两步删除/创建链接：
 
 ```bash
-sudo ln -sfn /opt/pass-vault-v2/releases/pass-vault-v2-linux-<KNOWN_GOOD_VERSION> /opt/pass-vault-v2/current
+sudo ln -s /opt/pass-vault-v2/releases/pass-vault-v2-linux-<KNOWN_GOOD_VERSION> /opt/pass-vault-v2/current.rollback
+sudo mv -Tf /opt/pass-vault-v2/current.rollback /opt/pass-vault-v2/current
 sudo systemctl restart pass-vault-v2
 ```
 

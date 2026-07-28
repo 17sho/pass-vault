@@ -3,11 +3,12 @@ Description=Pass Vault V2
 After=network.target
 
 # Template: replace @APP_USER@, @APP_DIR@, and @DATA_DIR@ before installing.
+# Keep the verified Node binary at @APP_DIR@/node while release code lives under @APP_DIR@/current.
 [Service]
 Type=simple
 User=@APP_USER@
 Group=@APP_USER@
-WorkingDirectory=@APP_DIR@
+WorkingDirectory=@APP_DIR@/current
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
@@ -17,7 +18,7 @@ Environment=HOST=127.0.0.1
 Environment=CLIENT_IP_HEADER=cf-connecting-ip
 Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
 EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
-ExecStart=/usr/bin/env node apps/server/server.mjs
+ExecStart=@APP_DIR@/node apps/server/server.mjs
 Restart=on-failure
 NoNewPrivileges=true
 PrivateTmp=true
