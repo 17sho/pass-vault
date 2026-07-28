@@ -3,7 +3,7 @@ import { readFile, mkdir, open, rename, unlink } from 'node:fs/promises';
 import { join, extname, dirname, resolve } from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { migrateEntriesForSettings, migrateEntriesCreatedAt } from './migrations.mjs';
+import { migrateEntriesForSettings, migrateEntriesCreatedAt, migrateEntriesForTotp } from './migrations.mjs';
 import { validEnvelope, validKdf, validWrappedKey, validateUsername, validAttachmentId, validAttachmentEnvelope, validInviteCode, MAX_ATTACHMENT_CIPHERTEXT } from '../../shared/contract.mjs';
 
 const HOST=process.env.HOST||'127.0.0.1',PORT=Number(process.env.PORT||3000);
@@ -21,6 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_attachments_user_updated ON attachments(user_id,u
 db.exec(`CREATE TABLE IF NOT EXISTS auth_attempts(key TEXT NOT NULL,attempted_at INTEGER NOT NULL);CREATE INDEX IF NOT EXISTS idx_auth_attempts_key_time ON auth_attempts(key,attempted_at);`);
 migrateEntriesForSettings(db);
 migrateEntriesCreatedAt(db);
+migrateEntriesForTotp(db);
 const cookieName='pv_session',SESSION_MS=8*60*60*1000,MAX_BODY=2_000_000;
 const TRUSTED_IP_HEADER=(process.env.CLIENT_IP_HEADER||'').trim().toLowerCase();
 function clientIp(req){if(TRUSTED_IP_HEADER){const raw=req.headers[TRUSTED_IP_HEADER];const value=Array.isArray(raw)?raw[0]:raw;if(typeof value==='string'){const first=value.split(',')[0].trim();if(first)return first}}return req.socket.remoteAddress||'unknown'}

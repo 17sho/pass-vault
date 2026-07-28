@@ -4,12 +4,12 @@
 
 This guide is exclusively for Cloudflare deployment. Replace every `<...>` placeholder. Never commit real account IDs, D1 IDs, tokens, or domains.
 
-## 0. Download and verify v1.1.58 (recommended)
+## 0. Download and verify v1.1.59 (recommended)
 
-Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.58](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.58):
+Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.59](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.59):
 
 ```bash
-VERSION=1.1.58
+VERSION=1.1.59
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
@@ -132,11 +132,11 @@ If registration breaks after rotation, check length, target Worker/environment, 
 
 ## 4. Upgrade, backup, restore, and rollback
 
-### Upgrading to v1.1.58
+### Upgrading to v1.1.59
 
-When upgrading an older installation to v1.1.58, back up D1 and R2 at the same logical point, apply every pending migration in filename order, and only then deploy the Worker and static assets. Older environments may still need `0005_invite_attempts.sql` and `0006_entries_created_at.sql`: the former creates durable invitation-rate-limit storage, while the latter backfills legacy `created_at` values from `updated_at`. Do not clear, import, or recreate the database, and no vault re-encryption is needed. R2 bindings, environment variables, and secrets do not change for this upgrade.
+When upgrading an older installation to v1.1.59, back up D1 and R2 at the same logical point, apply every pending migration in filename order, and only then deploy the Worker and static assets. `0007_totp_entries.sql` is required to permit encrypted TOTP records; older environments may also need `0005_invite_attempts.sql` and `0006_entries_created_at.sql`. The migration copies named columns and preserves existing ciphertext and creation times. Do not clear, import, or recreate the database, and no vault re-encryption is needed.
 
-After deployment, confirm that the home page references `app.mjs?v=1.1.58`. Verify creation times on legacy and new entries, confirm editing preserves the original timestamp, and check at 320–430px mobile widths that the trash permanent-delete and empty-trash confirmations have safe padding and no horizontal overflow.
+After deployment, confirm that the home page references `app.mjs?v=1.1.59`. Create a test TOTP record, verify its six-digit code and countdown refresh, and confirm that neither the account nor secret appears in plaintext network requests. Also verify existing records and creation times remain intact.
 
 Before upgrading, stop writes and back up D1 and R2 at one logical point. Export D1 and use a controlled tool or Cloudflare API to copy all R2 objects to an independent versioned bucket, retaining keys, sizes, and checksums under the same timestamp. Never back up D1 alone.
 

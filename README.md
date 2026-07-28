@@ -8,8 +8,9 @@
 
 ## 功能
 
-- 保存账号、网站与安全笔记，支持标签、当前分类内模糊搜索、编辑与删除；搜索支持中文片段与英文拼写容错，且解密后的查询和内容只在浏览器内匹配
-- 账号、网站、笔记与附件各有隐式“全部”视图和相互独立的加密自定义分组；空分组可持久化，分组筛选可与模糊搜索组合
+- 保存账号、网站、安全笔记与TOTP动态验证码；TOTP密钥进入客户端加密载荷，浏览器本地生成默认6位、30秒自动刷新的验证码，服务端只保存密文
+- 账号、网站、笔记、TOTP与附件各有隐式“全部”视图和相互独立的加密自定义分组；空分组可持久化，分组筛选可与模糊搜索组合
+- 支持标签、当前分类及全站模糊搜索、编辑、置顶、最近查看与加密回收站；搜索支持中文片段与英文拼写容错，且解密后的查询和内容只在浏览器内匹配
 - 笔记图片与独立附件库：上传、分类/分组筛选、预览/播放、下载、重命名、移动分组和删除
 - 响应式桌面/移动界面，无需原生客户端
 - 加密备份导入/导出与主密码修改
@@ -68,12 +69,12 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 - **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2。
 - **Linux 服务器部署指南**：**[中文](docs/server-deployment.zh-CN.md)** · [English](docs/server-deployment.en.md) — VPS/独立服务器 Node.js + SQLite、systemd、Caddy/Nginx、备份恢复。
 
-### 下载最新稳定版（v1.1.58）
+### 下载最新稳定版（v1.1.59）
 
-前往 [GitHub Release v1.1.58](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.58) 下载对应平台包：
+前往 [GitHub Release v1.1.59](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.59) 下载对应平台包：
 
-- Cloudflare：`pass-vault-v2-cloudflare-1.1.58.tar.gz`或`.zip`
-- Linux：`pass-vault-v2-linux-1.1.58.tar.gz`或`.zip`
+- Cloudflare：`pass-vault-v2-cloudflare-1.1.59.tar.gz`或`.zip`
+- Linux：`pass-vault-v2-linux-1.1.59.tar.gz`或`.zip`
 - 完整性校验：同时下载`SHA256SUMS`，在下载目录运行`sha256sum -c SHA256SUMS`
 
 解压后先阅读包内对应的中英文部署指南。Linux包已包含systemd、Caddy/Nginx模板和原子部署脚本；Cloudflare包使用占位D1/R2配置，必须填入你自己的资源信息，不能直接把示例值用于生产。

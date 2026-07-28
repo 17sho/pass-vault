@@ -50,7 +50,7 @@ async function create(page,type, values){
   await editor.getByRole('button',{name:'保存'}).click();
 }
 
-test('更多里的全站搜索跨四类本地匹配、排除密码并打开对应详情',async()=>{
+test('更多里的全站搜索跨五类本地匹配、排除密码与TOTP密钥并打开对应详情',async()=>{
  for(const engine of [chromium,webkit]){
   const ownBrowser=await engine.launch({headless:true}),page=await ownBrowser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'}),requests=[];
   page.on('request',request=>requests.push(request.url()));
@@ -61,6 +61,8 @@ test('更多里的全站搜索跨四类本地匹配、排除密码并打开对�
    await create(page,'网站',{'名称':'搜索网站 Beta','网址':'https://beta.example','说明':'网站说明','标签（逗号分隔）':''});
    await page.getByText('已保存',{exact:true}).waitFor();
    await create(page,'笔记',{'标题':'搜索笔记 Gamma','正文':'正文检索词 delta-body','标签（逗号分隔）':''});
+   await page.getByText('已保存',{exact:true}).waitFor();
+   await create(page,'TOTP',{'账号':'搜索验证码 Zeta','密钥':'JBSWY3DPEHPK3PXP','标签（逗号分隔）':'otp-searchable'});
    await page.getByText('已保存',{exact:true}).waitFor();
    await page.getByRole('button',{name:'+ 新建'}).click();
    await page.locator('#picker').getByRole('button',{name:'附件',exact:true}).click();
@@ -79,9 +81,14 @@ test('更多里的全站搜索跨四类本地匹配、排除密码并打开对�
    await results.getByRole('button',{name:/search-document-epsilon.txt/}).click();
    await page.locator('#detail').getByRole('heading',{name:'search-document-epsilon.txt'}).waitFor();
    await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'全站搜索'}).click();
+   await input.fill('otp-searchable');
+   await results.getByRole('button',{name:/搜索验证码 Zeta/}).click();
+   await page.locator('#detail').getByRole('heading',{name:'搜索验证码 Zeta'}).waitFor();
+   await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'全站搜索'}).click();
    const before=requests.length;await input.fill('never-global-secret');
    await dialog.getByText('没有找到匹配资料',{exact:true}).waitFor();
    assert.equal(requests.length,before,'输入查询词不得发起网络请求');
+   await input.fill('JBSWY3DPEHPK3PXP');await dialog.getByText('没有找到匹配资料',{exact:true}).waitFor();
    const geometry=await dialog.evaluate(el=>{const r=el.getBoundingClientRect(),list=el.querySelector('#global-search-results').getBoundingClientRect();return{overflow:document.documentElement.scrollWidth-innerWidth,left:r.left,right:innerWidth-r.right,listHeight:list.height,inputHeight:el.querySelector('input').getBoundingClientRect().height}});
    assert.ok(geometry.left>=0&&geometry.right>=0);assert.ok(geometry.overflow<=1);assert.ok(geometry.listHeight>0);assert.ok(geometry.inputHeight>=44);
    await input.fill('alpha');await results.getByRole('button',{name:/搜索账号 Alpha/}).waitFor();
