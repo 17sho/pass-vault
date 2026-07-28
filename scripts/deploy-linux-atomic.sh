@@ -7,9 +7,16 @@ set -euo pipefail
 : "${PV_SERVICE_COMMAND:?PV_SERVICE_COMMAND is required}"
 : "${PV_HEALTH_COMMAND:?PV_HEALTH_COMMAND is required}"
 : "${PV_EVIDENCE:?PV_EVIDENCE is required}"
+PV_HEALTH_ATTEMPTS=${PV_HEALTH_ATTEMPTS:-30}
+PV_HEALTH_INTERVAL=${PV_HEALTH_INTERVAL:-1}
+[[ "$PV_HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || { echo 'invalid health attempts' >&2; exit 2; }
+[[ "$PV_HEALTH_INTERVAL" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo 'invalid health interval' >&2; exit 2; }
 
 [[ "$PV_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'invalid version' >&2; exit 2; }
 [[ -d "$PV_SOURCE/dist" && -d "$PV_SOURCE/apps/server" && -d "$PV_SOURCE/shared" && -f "$PV_SOURCE/package.json" ]] || { echo 'incomplete source' >&2; exit 2; }
+source_version=$(node -p "require(process.argv[1]).version" "$PV_SOURCE/package.json")
+[[ "$source_version" == "$PV_VERSION" ]] || { echo 'package version mismatch' >&2; exit 2; }
+grep -Fq "app.mjs?v=$PV_VERSION" "$PV_SOURCE/dist/index.html" || { echo 'asset version mismatch' >&2; exit 2; }
 
 releases="$PV_APP_ROOT/releases"
 current="$PV_APP_ROOT/current"
@@ -60,11 +67,14 @@ mv "$temporary" "$candidate"
 ln -s "$candidate" "$current.next.$$"
 mv -Tf "$current.next.$$" "$current"
 if ! bash -c "$PV_SERVICE_COMMAND"; then rollback; exit 1; fi
-if bash -c "$PV_HEALTH_COMMAND"; then
-  health=true
-  status=PASS
-  write_evidence
-  exit 0
-fi
+for ((attempt=1;attempt<=PV_HEALTH_ATTEMPTS;attempt++)); do
+  if bash -c "$PV_HEALTH_COMMAND"; then
+    health=true
+    status=PASS
+    write_evidence
+    exit 0
+  fi
+  (( attempt == PV_HEALTH_ATTEMPTS )) || sleep "$PV_HEALTH_INTERVAL"
+done
 rollback
 exit 1

@@ -67,7 +67,7 @@ sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases/pass-v
 sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURITY.md public shared scripts apps/server deploy docs /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>/
 ```
 
-两种方式都先在源码/解压目录完成门禁，然后调用统一原子部署入口。脚本会创建只读版本目录、统一目录 `0755`/文件 `0644`、用临时软链接加 `mv -T` 原子切换；服务命令或健康检查失败时自动恢复旧 `current`，并只写时间、版本、布尔结果和回滚状态到 root-only JSON 证据：
+两种方式都先在源码/解压目录完成门禁，然后调用统一原子部署入口。脚本会创建只读版本目录、统一目录 `0755`/文件 `0644`、用临时软链接加 `mv -T` 原子切换；服务命令失败，或健康检查默认每秒一次、连续 30 次仍未通过时，自动恢复旧 `current`，并只写时间、版本、布尔结果和回滚状态到 root-only JSON 证据：
 
 ```bash
 npm ci
@@ -179,7 +179,12 @@ DNS 的 A/AAAA 记录须先指向服务器。二选一，不要同时占用 80/4
 <APP_DOMAIN> {
   encode zstd gzip
   reverse_proxy 127.0.0.1:3000
-  header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Referrer-Policy "no-referrer"
+    X-Content-Type-Options "nosniff"
+  }
 }
 ```
 
@@ -205,7 +210,10 @@ server {
   server_name <APP_DOMAIN>;
   ssl_certificate /etc/letsencrypt/live/<APP_DOMAIN>/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/<APP_DOMAIN>/privkey.pem;
-  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Content-Type-Options "nosniff" always;
   client_max_body_size 110m;
   location / {
     proxy_pass http://127.0.0.1:3000;
