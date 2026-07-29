@@ -14,6 +14,7 @@
 - 笔记图片与独立附件库：上传、分类/分组筛选、预览/播放、下载、重命名、移动分组和删除
 - 响应式桌面/移动界面，无需原生客户端
 - 加密备份导入/导出与主密码修改
+- 可选的设备级快速解锁：自动锁定后可通过平台WebAuthn用户验证（如Face ID、Touch ID或Windows Hello）解锁；仅在浏览器支持PRF扩展时启用，本机密文绑定当前账户与会话，主密码始终作为回退
 - 完整认证、会话、CSRF、同源检查和限速
 - 同一密文 API 契约、两种独立部署方式
 
@@ -69,12 +70,12 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 - **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2。
 - **Linux 服务器部署指南**：**[中文](docs/server-deployment.zh-CN.md)** · [English](docs/server-deployment.en.md) — VPS/独立服务器 Node.js + SQLite、systemd、Caddy/Nginx、备份恢复。
 
-### 下载最新稳定版（v1.1.62）
+### 下载最新稳定版（v1.1.63）
 
-前往 [GitHub Release v1.1.62](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.62) 下载对应平台包：
+前往 [GitHub Release v1.1.63](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.63) 下载对应平台包：
 
-- Cloudflare：`pass-vault-v2-cloudflare-1.1.62.tar.gz`或`.zip`
-- Linux：`pass-vault-v2-linux-1.1.62.tar.gz`或`.zip`
+- Cloudflare：`pass-vault-v2-cloudflare-1.1.63.tar.gz`或`.zip`
+- Linux：`pass-vault-v2-linux-1.1.63.tar.gz`或`.zip`
 - 完整性校验：同时下载`SHA256SUMS`，在下载目录运行`sha256sum -c SHA256SUMS`
 
 解压后先阅读包内对应的中英文部署指南。Linux包已包含systemd、Caddy/Nginx模板和原子部署脚本；Cloudflare包使用占位D1/R2配置，必须填入你自己的资源信息，不能直接把示例值用于生产。
