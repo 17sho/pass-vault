@@ -4,12 +4,12 @@
 
 This guide is exclusively for Cloudflare deployment. Replace every `<...>` placeholder. Never commit real account IDs, D1 IDs, tokens, or domains.
 
-## 0. Download and verify v1.1.64 (recommended)
+## 0. Download and verify v1.1.65 (recommended)
 
-Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.64](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.64):
+Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65):
 
 ```bash
-VERSION=1.1.64
+VERSION=1.1.65
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
@@ -132,11 +132,11 @@ If registration breaks after rotation, check length, target Worker/environment, 
 
 ## 4. Upgrade, backup, restore, and rollback
 
-### Upgrading to v1.1.64
+### Upgrading to v1.1.65
 
-When upgrading to v1.1.64, back up D1 and R2 at the same logical point before deploying the Worker and static assets. This patch adds no database migration. Installations older than v1.1.61 must still apply every existing migration in filename order, including `0008_session_metadata.sql`, before deploying current code. No ciphertext or vault-key migration is required.
+When upgrading to v1.1.65, back up D1 and R2 at the same logical point before deploying the Worker and static assets. This patch adds no database migration. Installations older than v1.1.61 must still apply every existing migration in filename order, including `0008_session_metadata.sql`, before deploying current code. No ciphertext or vault-key migration is required.
 
-After deployment, confirm that the home page references `app.mjs?v=1.1.64`. Sign in from a second browser, verify Security Center shows its trusted login IP, device/browser category, and sign-in time, then revoke that session and confirm the current session remains active.
+After deployment, confirm that the home page references `app.mjs?v=1.1.65`. Sign in from a second browser, verify Security Center shows its trusted login IP, device/browser category, and sign-in time, then revoke that session and confirm the current session remains active.
 
 Before upgrading, stop writes and back up D1 and R2 at one logical point. Export D1 and use a controlled tool or Cloudflare API to copy all R2 objects to an independent versioned bucket, retaining keys, sizes, and checksums under the same timestamp. Never back up D1 alone.
 

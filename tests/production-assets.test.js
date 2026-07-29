@@ -26,3 +26,11 @@ test(`production HTML references current v${VERSION} frontend assets`, async () 
     assert.doesNotMatch(html, /20260711-mobile-menu-1|\?v=1\.1\.11(?:[^0-9]|$)/, path);
   }
 });
+
+test(`quick-unlock submodule import uses current v${VERSION} cache key`, async () => {
+  for (const path of ['public/app.mjs', 'dist/app.mjs']) {
+    const source = await readFile(path, 'utf8');
+    assert.match(source, new RegExp(`from ['\"]/quick-unlock-device\\.mjs\\?v=${VERSION.replaceAll('.', '\\.') }['\"]`), path);
+    assert.doesNotMatch(source, /from ['"]\/quick-unlock-device\.mjs['"]/, path);
+  }
+});
