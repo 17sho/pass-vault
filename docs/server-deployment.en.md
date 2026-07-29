@@ -44,10 +44,10 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Download a GitHub Release (recommended)
 
-The current stable release is v1.1.61. Download the Linux archive and `SHA256SUMS`:
+The current stable release is v1.1.62. Download the Linux archive and `SHA256SUMS`:
 
 ```bash
-VERSION=1.1.61
+VERSION=1.1.62
 cd /tmp
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
@@ -256,11 +256,11 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
-### Upgrading to v1.1.61
+### Upgrading to v1.1.62
 
-Before upgrading an older installation to v1.1.61, make a consistent SQLite plus attachment-directory backup, install into a new immutable release directory, and switch atomically. Startup idempotently adds the session metadata columns and indexes used by Security Center. Existing sessions remain valid and are shown with unknown IP/device metadata; new sign-ins record the configured trusted client IP plus a coarse device/browser category. No ciphertext or vault-key migration is required.
+Before upgrading an older installation to v1.1.62, make a consistent SQLite plus attachment-directory backup, install into a new immutable release directory, and switch atomically. This patch adds no database migration. Installations older than v1.1.61 still receive the existing idempotent Security Center session-metadata migration during startup; no ciphertext or vault-key migration is required.
 
-After switching and restarting, confirm there is no migration error and the home page references `app.mjs?v=1.1.61`. Sign in from a second browser, verify Security Center shows its trusted IP, device/browser category, and sign-in time, then revoke that session and confirm the current session remains active.
+After switching and restarting, confirm there is no migration error and the home page references `app.mjs?v=1.1.62`. Sign in from a second browser, verify Security Center shows its trusted IP, device/browser category, and sign-in time, then revoke that session and confirm the current session remains active.
 
 1. Record `readlink -f /opt/pass-vault-v2/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.

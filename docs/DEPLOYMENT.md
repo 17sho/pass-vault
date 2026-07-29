@@ -1,6 +1,6 @@
 # 生产部署与回滚
 
-> **内部运维说明：** 公开部署请改用完整的 [Cloudflare 中文](cloudflare-deployment.zh-CN.md) / [English](cloudflare-deployment.en.md) 或 [Linux 中文](server-deployment.zh-CN.md) / [English](server-deployment.en.md) 指南。v1.1.61要求所有目标配置`INVITE_CODE`；Cloudflare还必须在部署代码前按文件名顺序应用全部待执行迁移。本页不提供秘密配置快捷方式，避免把目标特定步骤混用。
+> **内部运维说明：** 公开部署请改用完整的 [Cloudflare 中文](cloudflare-deployment.zh-CN.md) / [English](cloudflare-deployment.en.md) 或 [Linux 中文](server-deployment.zh-CN.md) / [English](server-deployment.en.md) 指南。v1.1.62要求所有目标配置`INVITE_CODE`；Cloudflare还必须在部署代码前按文件名顺序应用全部待执行迁移。本页不提供秘密配置快捷方式，避免把目标特定步骤混用。
 
 Pass Vault V2 同时运行两个独立生产版本：
 

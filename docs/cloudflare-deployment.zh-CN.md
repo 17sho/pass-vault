@@ -4,12 +4,12 @@
 
 本指南仅讲 Cloudflare 部署。请把 `<...>` 替换成实际值；真实账户 ID、D1 ID、token 和域名不要提交到公开仓库。
 
-## 0. 下载并校验 v1.1.61（推荐）
+## 0. 下载并校验 v1.1.62（推荐）
 
-从 [GitHub Release v1.1.61](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.61) 下载Cloudflare平台包与校验文件：
+从 [GitHub Release v1.1.62](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.62) 下载Cloudflare平台包与校验文件：
 
 ```bash
-VERSION=1.1.61
+VERSION=1.1.62
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
@@ -132,11 +132,11 @@ curl -fsSI https://<APP_DOMAIN>/
 
 ## 4. 升级、备份、恢复与回滚
 
-### 升级到 v1.1.61
+### 升级到 v1.1.62
 
-从旧版本升级到v1.1.61时，先在同一逻辑时间点备份D1与R2，再按文件名顺序应用全部待执行迁移，确认成功后才部署Worker与静态资源。本版本新增`0008_session_metadata.sql`，为安全中心增加公开会话ID、登录/最近活动时间、受信任登录IP及粗粒度设备/浏览器类别。现有会话保持有效并回填为未知IP/设备，新登录才记录新字段；无需迁移密文或保险库密钥。
+升级到v1.1.62时，先在同一逻辑时间点备份D1与R2，再部署Worker和静态资源。本补丁不新增数据库迁移；早于v1.1.61的安装仍须在部署当前代码前按文件名顺序应用全部既有迁移，包括`0008_session_metadata.sql`。无需迁移密文或保险库密钥。
 
-部署后确认首页引用`app.mjs?v=1.1.61`；从第二个浏览器登录，确认安全中心显示其受信任登录IP、设备/浏览器类别和登录时间，再注销该会话并验证当前会话仍有效。
+部署后确认首页引用`app.mjs?v=1.1.62`；从第二个浏览器登录，确认安全中心显示其受信任登录IP、设备/浏览器类别和登录时间，再注销该会话并验证当前会话仍有效。
 
 升级前停止写入，并在同一逻辑时间点备份 D1 与 R2。导出 D1，同时用受控工具或 Cloudflare API 将 R2 全量复制到独立的版本化 bucket，保留对象键、大小和校验信息；不要只备份 D1。
 
