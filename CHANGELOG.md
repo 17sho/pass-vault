@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.62] - 2026-07-29
+
+### Fixed
+- Prevent repeated taps or form submissions while authentication is pending from sending duplicate login requests and creating duplicate sessions.
+- Disable the authentication action with an in-progress label until success or failure, then safely restore it for retry.
+
 ## [1.1.61] - 2026-07-28
 
 ### Added / 新增
