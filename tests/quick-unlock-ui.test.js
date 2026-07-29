@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { spawn } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import { TEST_INVITE_CODE, withTestInviteEnv } from './fixtures.mjs';
@@ -13,6 +13,27 @@ async function installPrf(page){const cdp=await page.context().newCDPSession(pag
 async function peerLock(page){await page.evaluate(async()=>{const session=await fetch('/api/session').then(response=>response.json()),channel=new BroadcastChannel('pass-vault-sync');channel.postMessage({type:'lock',source:`test-peer-${crypto.randomUUID()}`,username:session.username,at:Date.now()});channel.close()});await page.locator('#auth').waitFor({state:'visible'})}
 
 test.before(start);test.after(stop);
+
+async function installSafariRegistrationShape(page,{flags=0x05,malformed=false,variant='plain'}={}){
+ await page.evaluate(({flags,malformed,variant})=>{
+  const nativeCreate=navigator.credentials.create.bind(navigator.credentials);
+  navigator.credentials.create=async options=>{
+   const credential=await nativeCreate(options),authenticatorData=new Uint8Array(credential.response.getAuthenticatorData()),key=new TextEncoder().encode('authData');
+   authenticatorData[32]=flags;
+   let encoded=malformed?Uint8Array.of(0xa1,0x68,...key,0x58):Uint8Array.of(0xa1,0x68,...key,0x58,authenticatorData.length,...authenticatorData);
+   if(variant==='tagged')encoded=Uint8Array.of(0xc0,...encoded);
+   if(variant==='oversized'){const junk=new Uint8Array(16385);encoded=Uint8Array.of(0xa2,0x68,...key,0x58,authenticatorData.length,...authenticatorData,0x64,0x6a,0x75,0x6e,0x6b,0x5a,0,0,0x40,1,...junk)}
+   if(variant==='deep'){const nested=Uint8Array.of(...Array(10).fill(0x81),0xf6);encoded=Uint8Array.of(0xa2,0x68,...key,0x58,authenticatorData.length,...authenticatorData,0x64,0x6a,0x75,0x6e,0x6b,...nested)}
+   return {type:credential.type,rawId:credential.rawId,response:{attestationObject:encoded.buffer},getClientExtensionResults:()=>credential.getClientExtensionResults()};
+  };
+ },{flags,malformed,variant});
+}
+
+test('Safari注册响应仅提供attestationObject时仍严格验证UV并开启快速解锁',async()=>{const browser=await chromium.launch({headless:true}),page=await browser.newPage();await installPrf(page);try{await register(page);await installSafariRegistrationShape(page);await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'安全中心'}).click();const security=page.getByRole('dialog',{name:'安全中心'});await security.getByRole('button',{name:'开启快速解锁'}).click();const enable=page.getByRole('dialog',{name:'开启此设备快速解锁'});await enable.getByLabel('当前主密码').fill('correct horse battery staple');await enable.getByRole('button',{name:'确认开启'}).click();await security.getByText('已开启').waitFor();assert.equal(await page.evaluate(async()=>(await import('/quick-unlock-device.mjs')).readQuickUnlock().then(Boolean)),true)}finally{await page.close();await browser.close()}});
+
+test('WebKit引擎可从Safari标准attestationObject完成严格UV快速解锁记录写入',async()=>{const browser=await webkit.launch({headless:true}),page=await browser.newPage();try{await page.goto(base);const result=await page.evaluate(async()=>{const authData=new Uint8Array(37);authData[32]=0x05;const key=new TextEncoder().encode('authData'),attestationObject=Uint8Array.of(0xa1,0x68,...key,0x58,authData.length,...authData).buffer,prf=crypto.getRandomValues(new Uint8Array(32)),rawId=crypto.getRandomValues(new Uint8Array(32));Object.defineProperty(navigator,'credentials',{value:{create:async()=>({type:'public-key',rawId,response:{attestationObject},getClientExtensionResults:()=>({prf:{results:{first:prf}}})})},configurable:true});const module=await import('/quick-unlock-device.mjs'),vaultKey=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']),record=await module.createQuickUnlock(vaultKey,'csrf-token','webkit-user','public-session');return{stored:Boolean(await module.readQuickUnlock()),credentialId:record.credentialId}});assert.equal(result.stored,true);assert.ok(result.credentialId)}finally{await page.close();await browser.close()}});
+
+test('Safari attestationObject缺少UV、设置BE、CBOR截断或超限歧义编码时必须拒绝',async()=>{const browser=await chromium.launch({headless:true});for(const shape of [{flags:0x01},{flags:0x0d},{flags:0x05,malformed:true},{variant:'tagged'},{variant:'oversized'},{variant:'deep'}]){const page=await browser.newPage();await installPrf(page);try{await register(page);await installSafariRegistrationShape(page,shape);await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'安全中心'}).click();const security=page.getByRole('dialog',{name:'安全中心'});await security.getByRole('button',{name:'开启快速解锁'}).click();const enable=page.getByRole('dialog',{name:'开启此设备快速解锁'});await enable.getByLabel('当前主密码').fill('correct horse battery staple');await enable.getByRole('button',{name:'确认开启'}).click();await enable.getByText('设备未完成本机用户验证，无法开启快速解锁').waitFor();assert.equal(await page.evaluate(async()=>(await import('/quick-unlock-device.mjs')).readQuickUnlock().then(Boolean)),false)}finally{await page.close()}}await browser.close()});
 
 test('开启本机快速解锁后自动锁定可用设备验证恢复且不重新登录',async()=>{const browser=await chromium.launch({headless:true}),context=await browser.newContext(),page=await context.newPage();await installPrf(page);let loginRequests=0;page.on('request',request=>{if(request.method()==='POST'&&request.url().endsWith('/api/login'))loginRequests++});try{const username=await register(page);await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'安全中心'}).click();const security=page.getByRole('dialog',{name:'安全中心'});await security.getByRole('button',{name:'开启快速解锁'}).click();const enable=page.getByRole('dialog',{name:'开启此设备快速解锁'});await enable.getByLabel('当前主密码').fill('correct horse battery staple');await enable.getByRole('button',{name:'确认开启'}).click();await security.getByText('已开启').waitFor();assert.equal(await page.evaluate(()=>indexedDB.databases().then(rows=>rows.some(row=>row.name==='pass-vault-quick-unlock'))),true);await security.getByRole('button',{name:'关闭',exact:true}).click();await peerLock(page);await page.locator('#auth').waitFor({state:'visible'});await page.locator('[name=username]').waitFor();await page.waitForFunction(expected=>document.querySelector('[name=username]')?.value===expected,username);assert.equal(await page.locator('[name=username]').inputValue(),username);const before=loginRequests;await page.getByRole('button',{name:'使用此设备快速解锁'}).click();await page.locator('#vault').waitFor({state:'visible'});assert.equal(loginRequests,before);assert.equal(await page.evaluate(()=>window.__vaultKeyPresent()),true)}finally{await context.close();await browser.close()}});
 

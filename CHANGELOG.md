@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.64] - 2026-07-29
+
+### Fixed / 修复
+- 修复iPhone Safari完成平台用户验证后，因注册响应仅通过标准CBOR `attestationObject.authData`提供验证器标志而被误报“未完成本机用户验证”的问题。
+- 在缺少`getAuthenticatorData()`便捷接口时严格解析标准attestation数据；仍要求UV标志、拒绝可备份/同步凭据，并对缺失、截断或畸形CBOR安全失败。
+
 ## [1.1.63] - 2026-07-29
 
 ### Added / 新增
