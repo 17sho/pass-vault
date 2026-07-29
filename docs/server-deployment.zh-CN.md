@@ -45,10 +45,10 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 下载 GitHub Release（推荐）
 
-当前稳定版为v1.1.62。在Release页面下载Linux包与`SHA256SUMS`：
+当前稳定版为v1.1.63。在Release页面下载Linux包与`SHA256SUMS`：
 
 ```bash
-VERSION=1.1.62
+VERSION=1.1.63
 cd /tmp
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
@@ -265,11 +265,11 @@ sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 
 ## 9. 升级与回滚
 
-### 升级到 v1.1.62
+### 升级到 v1.1.63
 
-从旧版本升级到v1.1.62前，先做SQLite与附件目录的一致性备份，再安装到新的不可变版本目录并原子切换。本补丁不新增数据库迁移；早于v1.1.61的安装仍会在启动时执行既有的安全中心会话元数据幂等迁移，无需迁移密文或保险库密钥。
+从旧版本升级到v1.1.63前，先做SQLite与附件目录的一致性备份，再安装到新的不可变版本目录并原子切换。本补丁不新增数据库迁移；早于v1.1.61的安装仍会在启动时执行既有的安全中心会话元数据幂等迁移，无需迁移密文或保险库密钥。
 
-切换版本并重启后，确认日志无迁移错误且首页引用`app.mjs?v=1.1.62`；从第二个浏览器登录，确认安全中心显示其受信任IP、设备/浏览器类别和登录时间，再注销该会话并验证当前会话仍有效。
+切换版本并重启后，确认日志无迁移错误且首页引用`app.mjs?v=1.1.63`；从第二个浏览器登录，确认安全中心显示其受信任IP、设备/浏览器类别和登录时间，再注销该会话并验证当前会话仍有效。
 
 1. 记录当前目标：`readlink -f /opt/pass-vault-v2/current`。
 2. 按第 10 节做 SQLite + 附件一致性备份并通过完整性检查；确认新版本磁盘空间足够。
