@@ -101,6 +101,9 @@ sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<V
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | 附件密文对象目录；必须是持久本地磁盘 |
 | `COOKIE_SECURE` | 不设置 | 默认启用 Secure Cookie；生产绝不能设为 `false` |
 | `INVITE_CODE` | 必填 | 共享注册邀请码（16–256 字符）；保存在 root:`pass-vault`、`0600` 的环境文件中，绝不记录日志 |
+| `PASSKEY_UNLOCK_KEK` | 启用辅助解锁时必填 | 32 个随机字节的 Base64URL；仅用于 AES-256-GCM 包装 vault key，绝不提交仓库或记录日志 |
+| `PASSKEY_RP_ID` | 启用辅助解锁时必填 | 应用的精确 HTTPS 主机名，例如 `<APP_DOMAIN>` |
+| `PASSKEY_ORIGIN` | 启用辅助解锁时必填 | canonical HTTPS Origin，例如 `https://<APP_DOMAIN>`，不得有路径或尾部斜杠 |
 
 创建 `/etc/pass-vault-v2/pass-vault-v2.env`。为避免邀请码出现在 shell 历史或进程参数中，使用 root-only 临时文件接收 `openssl` 标准输出并原子安装：
 
@@ -112,6 +115,9 @@ printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
   'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
 openssl rand -hex 32 >>"$tmp"
+printf 'PASSKEY_UNLOCK_KEK=' >>"$tmp"
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' >>"$tmp"
+printf '\nPASSKEY_RP_ID=<APP_DOMAIN>\nPASSKEY_ORIGIN=https://<APP_DOMAIN>\n' >>"$tmp"
 sudo install -o root -g pass-vault -m 0600 "$tmp" /etc/pass-vault-v2/pass-vault-v2.env
 rm -f "$tmp"
 sudo stat -c '%U:%G %a %n' /etc/pass-vault-v2/pass-vault-v2.env
@@ -119,6 +125,8 @@ sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVIT
 ```
 
 预期只显示 `root:pass-vault 600` 和变量名确认，**不要**运行 `cat`、非静默 `grep INVITE_CODE` 或把值发到日志。systemd `EnvironmentFile` 不是 shell：推荐使用生成器得到的十六进制值。若必须使用人工值，请限制为不含空白、引号、反斜杠、`#`、`$`、`%`、控制字符或换行的可打印 ASCII；长度 16–256。不要依赖 shell 引号/展开来“转义”复杂值。
+
+三项 Passkey 配置必须同时有效，否则服务器辅助解锁安全关闭，主密码和本机 PRF 解锁不受影响。该功能会把 32 字节 vault key 以独立 KEK 的 AES-256-GCM 密文存入服务器，**改变原纯客户端零知识边界**：服务器配合一次通过用户验证的 Passkey 会话可以恢复 vault key。服务器不保存主密码或明文 vault key。修改主密码/用户名会撤销全部服务器辅助 Passkey。直接轮换或丢失 KEK 会使既有辅助凭据不可用；应先由用户撤销并重新注册，而不是盲目替换。
 
 ## 5. systemd
 
