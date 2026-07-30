@@ -34,6 +34,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@simplewebauthn/server": "13.3.2",
     "pdfjs-dist": "^4.10.38"
   }
 }

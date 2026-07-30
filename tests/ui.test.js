@@ -1,25 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, webkit, devices } from 'playwright';
-import { spawn } from 'node:child_process';
-import { TEST_INVITE_CODE, withTestInviteEnv } from './fixtures.mjs';
+import { TEST_INVITE_CODE, startTestServer } from './fixtures.mjs';
 import { mkdir } from 'node:fs/promises';
 
-const port = 4317;
-const base = `http://localhost:${port}`;
-let server, browser;
+let fixture, base, browser;
 async function stopFixture() {
   await browser?.close(); browser = undefined;
-  if (server && server.exitCode === null) {
-    server.kill('SIGTERM');
-    await new Promise(resolve => server.once('exit', resolve));
-  }
-  server = undefined;
+  await fixture?.stop(); fixture = undefined;
 }
 test.beforeEach(async () => {
   await mkdir('artifacts', { recursive: true });
-  server = spawn(process.execPath, ['apps/server/server.mjs'], { env: { ...withTestInviteEnv(), PORT: String(port), DB_PATH: `/tmp/pass-vault-ui-${process.pid}.sqlite`, COOKIE_SECURE: 'false' } });
-  await new Promise((resolve, reject) => { const deadline=Date.now()+5000; const ping=async()=>{try{const r=await fetch(base);if(r.ok)return resolve()}catch{} if(Date.now()>deadline)return reject(Error('server timeout'));setTimeout(ping,80)};ping() });
+  fixture = await startTestServer({ dbPath: `/tmp/pass-vault-ui-${process.pid}.sqlite` });
+  base = fixture.base;
   browser = await chromium.launch({headless:true});
 });
 test.afterEach(stopFixture);
@@ -48,6 +41,7 @@ async function create(page,type, values){
   }
   for(const [label,value] of Object.entries(fields)) await editor.getByLabel(label,{exact:true}).fill(value);
   await editor.getByRole('button',{name:'保存'}).click();
+  await editor.waitFor({state:'hidden'});
 }
 
 test('更多里的全站搜索跨五类本地匹配、排除密码与TOTP密钥并打开对应详情',async()=>{

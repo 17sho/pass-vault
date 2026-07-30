@@ -69,9 +69,12 @@ Generate a strong value on a controlled terminal and stream it directly to Wrang
 ```bash
 # Repository root; 32 random bytes represented by 64 hexadecimal characters
 openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | npx wrangler secret put PASSKEY_UNLOCK_KEK --config apps/worker/wrangler.jsonc
 ```
 
 Wrangler should confirm only the secret name/success, never its value. If people must retain the same value, generate it in a password manager (at least 128 bits of randomness, 16–256 characters), run `npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc`, and paste it at the hidden prompt. Never use `echo 'real-value' | ...`, a command argument, or a committed `.dev.vars` file.
+
+Set `PASSKEY_RP_ID=<APP_DOMAIN>` and `PASSKEY_ORIGIN=https://<APP_DOMAIN>` in an uncommitted production Wrangler config or Dashboard Variables. `PASSKEY_UNLOCK_KEK`, `PASSKEY_RP_ID`, and `PASSKEY_ORIGIN` must all be valid or assisted Passkey unlock fails closed. The RP ID must be the exact HTTPS application hostname, and the Origin must be canonical with no path or trailing slash.
 
 ```bash
 # apps/worker/
@@ -87,6 +90,8 @@ curl -fsS https://<WORKER_SUBDOMAIN>/api/health
 ```
 
 Add a new migration for every schema change. Never rewrite a migration already applied remotely.
+
+Assisted Passkey unlock stores the 32-byte vault key in D1 only as AES-256-GCM ciphertext under an independent KEK, but it **changes the original client-only zero-knowledge boundary**: the Worker, together with a user-verified Passkey session, can recover the vault key. The Worker stores neither the master password nor a plaintext vault key. Changing the master password or username revokes all assisted Passkeys. Replacing or losing the KEK makes existing assisted credentials unusable; revoke and re-enroll them first.
 
 ### 1.3 Custom domain
 
