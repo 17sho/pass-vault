@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-一个移动优先、可自托管的零知识密码库。共享前端可搭配 **Cloudflare Workers + Static Assets + D1** 或 **Linux Node.js + SQLite** 后端运行。
+一个移动优先、可自托管、默认采用零知识边界的密码库。共享前端可搭配 **Cloudflare Workers + Static Assets + D1** 或 **Linux Node.js + SQLite** 后端运行；可选的服务器辅助 Passkey 会明确改变该边界。
 
 > 如果这个项目对你有帮助，欢迎点一个 Star 小星星⭐️ ，也欢迎提交问题与改进。
 
@@ -15,6 +15,7 @@
 - 响应式桌面/移动界面，无需原生客户端
 - 加密备份导入/导出与主密码修改
 - 可选的设备级快速解锁：自动锁定后可通过平台WebAuthn用户验证（如Face ID、Touch ID或Windows Hello）解锁；仅在浏览器支持PRF扩展时启用，本机密文绑定当前账户与会话，主密码始终作为回退
+- 可选的服务器辅助Passkey：先在已认证会话中注册；后续即使没有现有会话，也可通过匿名challenge和平台用户验证恢复服务器包装的vault key并创建新会话，因此会改变下述默认零知识边界
 - 完整认证、会话、CSRF、同源检查和限速
 - 同一密文 API 契约、两种独立部署方式
 
@@ -28,7 +29,7 @@
             └─ 每个附件以唯一 IV + 认证 AAD 加密 → 密文对象 → R2/服务器磁盘
 ```
 
-服务端只保存认证材料、被包装的 vault key、条目/附件元数据密文和附件密文对象，不应接触主密码、vault key、明文文件名、MIME 或内容。零知识设计不能替代可信终端、HTTPS、及时更新与可靠备份；恶意或被攻陷的前端仍可能窃取解锁后的数据。
+默认模式下，服务端只保存认证材料、由主密码派生密钥保护的 vault key、条目/附件元数据密文和附件密文对象，不接收主密码，也不持有可独立恢复 vault key 的服务器密钥。启用**服务器辅助 Passkey**后，服务端会额外保存由服务器 KEK 包装的 vault key；匿名 Passkey challenge 经 WebAuthn 用户验证、精确 RP ID/Origin、凭据归属和 counter 校验通过后，服务端可恢复该 vault key 并创建新会话。因此服务器辅助 Passkey 会改变默认零知识边界，服务器或前端失陷时可能导致已存密文被解密。主密码仍不上传；修改主密码或用户名会撤销辅助凭据。任何模式都不能替代可信终端、HTTPS、及时更新与可靠备份。
 
 ## 两个版本的区别
 
@@ -70,15 +71,15 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 - **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2。
 - **Linux 服务器部署指南**：**[中文](docs/server-deployment.zh-CN.md)** · [English](docs/server-deployment.en.md) — VPS/独立服务器 Node.js + SQLite、systemd、Caddy/Nginx、备份恢复。
 
-### 下载最新稳定版（v1.1.65）
+### 下载最新稳定版（v1.1.66）
 
-前往 [GitHub Release v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65) 下载对应平台包：
+前往 [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) 下载 Cloudflare 平台包：
 
-- Cloudflare：`pass-vault-v2-cloudflare-1.1.65.tar.gz`或`.zip`
-- Linux：`pass-vault-v2-linux-1.1.65.tar.gz`或`.zip`
+- Cloudflare：`pass-vault-v2-cloudflare-1.1.66.tar.gz`或`.zip`
+- Linux：当前稳定制品仍为[v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65)；v1.1.66 Linux制品暂不发布
 - 完整性校验：同时下载`SHA256SUMS`，在下载目录运行`sha256sum -c SHA256SUMS`
 
-解压后先阅读包内对应的中英文部署指南。Linux包已包含systemd、Caddy/Nginx模板和原子部署脚本；Cloudflare包使用占位D1/R2配置，必须填入你自己的资源信息，不能直接把示例值用于生产。
+解压后先阅读包内对应的中英文部署指南。当前 v1.1.66 Cloudflare包使用占位D1/R2配置，必须填入你自己的资源信息，不能直接把示例值用于生产；Linux请继续使用v1.1.65制品及其中的部署指南。
 
 > **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。Cloudflare升级时先备份D1/R2，并按`apps/worker/migrations/`中的顺序应用所有待处理迁移，再部署代码；Linux升级前先备份SQLite和附件目录。不要清空或重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 
@@ -110,7 +111,7 @@ Cloudflare 版使用的 Workers、Static Assets、D1、R2 Standard、DNS/SSL 均
 
 **Cloudflare 与 Linux 版会自动同步吗？**  不会。它们是共享前端/契约的两个独立后端。
 
-**服务端能看到条目明文吗？**  按设计不能；加解密发生在浏览器。但被攻陷的前端或终端可在解锁时读取明文。
+**服务端能看到条目明文吗？**  默认模式下，服务端没有恢复 vault key 的独立材料，加解密发生在浏览器；但被攻陷的前端或终端仍可在解锁时读取明文。启用服务器辅助 Passkey 后，服务器持有 KEK 和额外包装材料，并能在匿名 Passkey 认证成功后恢复 vault key、创建新会话；这会扩大服务器失陷时的风险边界。
 
 **可以找回主密码吗？**  不可以。请妥善保存主密码和经过验证的加密备份。
 

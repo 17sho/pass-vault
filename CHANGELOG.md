@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.1.66
+
+> Release scope: GitHub publishes Cloudflare artifacts only. The stable Linux artifact remains v1.1.65 while Linux packaging is held back for separate verification.
+
+### Added / 新增
+
+- 新增可撤销的服务器辅助 Passkey：先在已认证会话中注册；后续可在没有现有会话时通过匿名 Passkey challenge 和平台用户验证恢复服务器包装的保险库密钥，并创建新会话。
+- Cloudflare Worker/D1 与 Linux Node.js/SQLite 使用相同 AES-256-GCM 包装协议，并分别配置独立 KEK、精确 RP ID 与 canonical Origin。
+- Cloudflare 新增 `0009_passkey_assisted_unlock.sql`；Linux 启动时幂等创建凭据、challenge 与失败限速表。
+
+### Security / 安全
+
+- 明确披露可选功能改变原纯客户端零知识边界：服务器配合一次通过用户验证的 Passkey 会话可以恢复保险库密钥，但不保存主密码、生物信息或明文保险库密钥。
+- 双后端强制一次性 challenge、UV、精确 RP/Origin、CSRF、凭据归属、counter CAS 与验证前失败限速预占；修改主密码或用户名会撤销全部辅助凭据。
+- 前端新会话后续解锁失败或认证代际变化时执行补偿 logout；所有浏览器测试钩子仅在 loopback hostname 生效。
+
 ## v1.1.65
 
 - 允许已完成用户验证的系统同步型平台凭据用于快速解锁，兼容 iPhone Safari、Chrome 及现代移动密码管理器。
