@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-A mobile-first, self-hosted, zero-knowledge password vault. The shared frontend runs with either a **Cloudflare Workers + Static Assets + D1** backend or a **Linux Node.js + SQLite** backend.
+A mobile-first, self-hosted password vault with a zero-knowledge boundary by default. The shared frontend runs with either a **Cloudflare Workers + Static Assets + D1** backend or a **Linux Node.js + SQLite** backend; optional server-assisted Passkey unlock explicitly changes that boundary.
 
 > If this project helps you, a Star would mean a lot ❤️. Issues and improvements are welcome too.
 
@@ -15,6 +15,7 @@ A mobile-first, self-hosted, zero-knowledge password vault. The shared frontend 
 - Responsive desktop/mobile UI with no native client required
 - Encrypted backup import/export and master-password changes
 - Optional device quick unlock after an automatic lock using platform WebAuthn user verification (such as Face ID, Touch ID, or Windows Hello); enabled only when the browser supports the PRF extension, with the local ciphertext bound to the current account and session and the master password always retained as fallback
+- Optional server-assisted Passkey unlock: registration starts from an authenticated session; later, even with no existing session, an anonymous challenge plus platform user verification can recover a server-wrapped vault key and create a new session, changing the default zero-knowledge boundary described below
 - Authentication, sessions, CSRF protection, origin checks, and rate limiting
 - One encrypted API contract with two independent deployment options
 
@@ -28,7 +29,7 @@ Master password (browser only)
             └─ each attachment encrypted with a unique IV + authenticated AAD → ciphertext object → R2/server disk
 ```
 
-The server stores only authentication material, the wrapped vault key, encrypted item/attachment metadata envelopes, and encrypted attachment objects. It should never receive plaintext filenames, MIME types, or file contents. It should never receive the master password, vault key, or item plaintext. Zero knowledge does not replace a trusted endpoint, HTTPS, prompt updates, and tested backups; a malicious or compromised frontend can still steal unlocked data.
+In the default mode, the server stores authentication material, a vault key protected by a master-password-derived key, encrypted item/attachment metadata envelopes, and encrypted attachment objects. It does not receive the master password or hold a server key that can independently recover the vault key. Enabling **server-assisted Passkey unlock** adds a copy of the vault key wrapped by a server KEK. After an anonymous Passkey challenge passes WebAuthn user verification, exact RP ID/Origin, credential ownership, and counter checks, the server can recover that vault key and create a new session. Server-assisted Passkey therefore changes the default zero-knowledge boundary, and a compromised server or frontend may be able to decrypt stored ciphertext. The master password is still never uploaded, and changing the master password or username revokes assisted credentials. No mode replaces a trusted endpoint, HTTPS, prompt updates, and tested backups.
 
 ## Cloudflare vs. Linux
 
@@ -70,15 +71,15 @@ The deployment methods are independent. Choose the matching guide:
 - **Cloudflare deployment guide**: [中文](docs/cloudflare-deployment.zh-CN.md) · **[English](docs/cloudflare-deployment.en.md)** — Workers + Static Assets + D1 + R2, including Wrangler CLI and Dashboard. Attachments require R2 to be enabled first.
 - **Linux server deployment guide**: [中文](docs/server-deployment.zh-CN.md) · **[English](docs/server-deployment.en.md)** — VPS/dedicated-server Node.js + SQLite, systemd, Caddy/Nginx, backup and restore.
 
-### Download the latest stable release (v1.1.65)
+### Download the latest stable release (v1.1.66)
 
-Open [GitHub Release v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65) and download the package for your target:
+Open [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) and download the Cloudflare package:
 
-- Cloudflare: `pass-vault-v2-cloudflare-1.1.65.tar.gz` or `.zip`
-- Linux: `pass-vault-v2-linux-1.1.65.tar.gz` or `.zip`
+- Cloudflare: `pass-vault-v2-cloudflare-1.1.66.tar.gz` or `.zip`
+- Linux: the current stable artifact remains [v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65); no v1.1.66 Linux artifact is published yet
 - Integrity: also download `SHA256SUMS`, then run `sha256sum -c SHA256SUMS` in the download directory
 
-Read the matching English or Chinese deployment guide inside the extracted package first. The Linux package includes systemd, Caddy/Nginx templates, and the atomic deployment script. The Cloudflare package ships placeholder D1/R2 configuration that must be replaced with your own resource details before production use.
+Read the matching English or Chinese deployment guide inside the extracted package first. The v1.1.66 Cloudflare package ships placeholder D1/R2 configuration that must be replaced with your own resource details before production use; Linux operators should continue using the v1.1.65 artifact and its deployment guide.
 
 > **Required before deployment:** securely configure `INVITE_CODE` for both production targets. For Cloudflare upgrades, back up D1/R2 and apply every pending migration in `apps/worker/migrations/` in order before deploying code. For Linux upgrades, back up SQLite and the attachment directory first. Never clear or recreate the database, and never expose real invitation codes, resource IDs, or credentials in the repository, command arguments, screenshots, or logs.
 
@@ -110,7 +111,7 @@ The legacy combined deployment URL remains as a [short navigation page](docs/dep
 
 **Do the Cloudflare and Linux editions synchronize?**  No. They are independent backends sharing a frontend and contract.
 
-**Can the server read item plaintext?**  Not by design; encryption occurs in the browser. A compromised frontend or endpoint can still read data while unlocked.
+**Can the server read item plaintext?**  In the default mode, the server has no independent material for recovering the vault key and encryption occurs in the browser, although a compromised frontend or endpoint can still read unlocked data. With server-assisted Passkey enabled, the server holds a KEK and an additional wrapped key and can recover the vault key and create a new session after anonymous Passkey authentication succeeds; this expands the impact of a server compromise.
 
 **Can my master password be recovered?**  No. Store it safely and maintain tested encrypted backups.
 

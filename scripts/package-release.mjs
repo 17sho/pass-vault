@@ -12,6 +12,11 @@ const variants = {
   cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/worker.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
   linux: ['apps/server','deploy/pass-vault-v2.service','deploy/Caddyfile','deploy/nginx.conf','scripts/deploy-linux-atomic.sh','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/server.integration.test.js','docs/server-deployment.zh-CN.md','docs/server-deployment.en.md'],
 };
+const requestedVariants = (process.env.RELEASE_VARIANTS || Object.keys(variants).join(','))
+  .split(',').map(value => value.trim()).filter(Boolean);
+if (!requestedVariants.length || requestedVariants.some(variant => !variants[variant])) {
+  throw new Error(`invalid RELEASE_VARIANTS: ${process.env.RELEASE_VARIANTS || ''}`);
+}
 
 function run(command, args, cwd=root) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
@@ -23,11 +28,25 @@ async function copy(relative, stage) {
 async function hash(path) {
   return createHash('sha256').update(await readFile(path)).digest('hex');
 }
+async function rewriteCloudflareOnlyLinks(stage) {
+  const releaseBase = 'https://github.com/17sho/pass-vault-v2/blob/v1.1.65';
+  const files = ['README.md', 'README.en.md', 'docs/DEPLOYMENT.md', 'docs/deployment.zh-CN.md', 'docs/deployment.en.md'];
+  for (const file of files) {
+    const path = join(stage, file);
+    const prefix = file.startsWith('docs/') ? '' : 'docs/';
+    let text = await readFile(path, 'utf8');
+    text = text
+      .replaceAll(`${prefix}server-deployment.zh-CN.md`, `${releaseBase}/docs/server-deployment.zh-CN.md`)
+      .replaceAll(`${prefix}server-deployment.en.md`, `${releaseBase}/docs/server-deployment.en.md`);
+    await writeFile(path, text);
+  }
+}
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 const archives = [];
-for (const [variant, extra] of Object.entries(variants)) {
+for (const variant of requestedVariants) {
+  const extra = variants[variant];
   const name = `${pkg.name}-${variant}-${pkg.version}`;
   const stage = join(out, '.stage', name);
   await mkdir(stage, { recursive: true });
@@ -50,6 +69,7 @@ for (const [variant, extra] of Object.entries(variants)) {
   };
   await writeFile(join(stage, 'package.json'), JSON.stringify(releasePackage, null, 2) + '\n');
   if (variant === 'cloudflare') {
+    await rewriteCloudflareOnlyLinks(stage);
     await writeFile(join(stage, 'apps/worker/wrangler.jsonc'), JSON.stringify({
       name: 'pass-vault-v2', workers_dev: true, main: 'src/index.ts',
       compatibility_date: '2026-07-11', compatibility_flags: ['nodejs_compat'],
