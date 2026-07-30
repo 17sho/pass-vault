@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, webkit } from 'playwright';
-import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { fillTestInvite, withTestInviteEnv } from './fixtures.mjs';
+import { fillTestInvite, startTestServer } from './fixtures.mjs';
 
-const port=4321, base=`http://localhost:${port}`,dbPath=`/tmp/pass-vault-nav-${process.pid}.sqlite`;
-let server, registrations=0;
-async function startServer(){server=spawn(process.execPath,['apps/server/server.mjs'],{env:{...withTestInviteEnv(),PORT:String(port),DB_PATH:dbPath,COOKIE_SECURE:'false'}});await new Promise((resolve,reject)=>{const end=Date.now()+6000;(async function ping(){try{if((await fetch(base)).ok)return resolve()}catch{}if(Date.now()>end)return reject(Error('server timeout'));setTimeout(ping,60)})()})}
-async function stopServer(){if(server?.exitCode===null){server.kill('SIGTERM');await new Promise(r=>server.once('exit',r))}}
+const dbPath=`/tmp/pass-vault-nav-${process.pid}.sqlite`;
+let fixture, base, registrations=0;
+async function startServer(){fixture=await startTestServer({dbPath});base=fixture.base}
+async function stopServer(){await fixture?.stop();fixture=undefined}
 test.before(async()=>{await mkdir('artifacts/mobile-nav-flicker',{recursive:true});await startServer()});
 test.after(stopServer);
 

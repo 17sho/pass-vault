@@ -69,9 +69,12 @@ npx wrangler r2 bucket create <R2_BUCKET_NAME>
 ```bash
 # 仓库根目录；openssl rand 的 32 随机字节以 64 个十六进制字符表示
 openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | npx wrangler secret put PASSKEY_UNLOCK_KEK --config apps/worker/wrangler.jsonc
 ```
 
 Wrangler 应只确认 secret 名称/成功状态，不应回显值。若需人工保管同一个值，使用密码管理器自身的密码生成器（至少 128 bit 随机性、16–256 字符），再运行 `npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc` 并在隐藏提示中粘贴；不要使用 `echo '真实值' | ...`、命令行参数或提交的 `.dev.vars`。
+
+在不提交的生产 Wrangler 配置或 Dashboard Variables 中设置 `PASSKEY_RP_ID=<APP_DOMAIN>` 与 `PASSKEY_ORIGIN=https://<APP_DOMAIN>`。`PASSKEY_UNLOCK_KEK`、`PASSKEY_RP_ID`、`PASSKEY_ORIGIN` 必须同时有效，否则服务器辅助 Passkey 安全关闭。RP ID 必须是应用的精确 HTTPS 主机名，Origin 必须是无路径、无尾部斜杠的 canonical Origin。
 
 ```bash
 # apps/worker/
@@ -87,6 +90,8 @@ curl -fsS https://<WORKER_SUBDOMAIN>/api/health
 ```
 
 每次 schema 变更只新增 migration，绝不重写已在远程执行的文件。
+
+服务器辅助 Passkey 会把 32 字节 vault key 以独立 KEK 的 AES-256-GCM 密文保存到 D1，**改变原纯客户端零知识边界**：Worker 配合一次通过用户验证的 Passkey 会话可以恢复 vault key。Worker 不保存主密码或明文 vault key。修改主密码/用户名会撤销全部服务器辅助 Passkey。直接轮换或丢失 KEK 会使既有辅助凭据不可用；应先撤销并重新注册。
 
 ### 1.3 自定义域
 

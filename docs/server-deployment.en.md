@@ -98,6 +98,9 @@ Never write the environment file, cookies, invitation, user data, ciphertext, or
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | Persistent local directory for encrypted attachment objects |
 | `COOKIE_SECURE` | unset | Secure cookies are on by default; never set `false` in production |
 | `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root:`pass-vault`, `0600` environment file and never log it |
+| `PASSKEY_UNLOCK_KEK` | required when assisted unlock is enabled | Base64URL encoding of 32 random bytes; used only to AES-256-GCM wrap vault keys; never commit or log it |
+| `PASSKEY_RP_ID` | required when assisted unlock is enabled | Exact HTTPS application hostname, such as `<APP_DOMAIN>` |
+| `PASSKEY_ORIGIN` | required when assisted unlock is enabled | Canonical HTTPS origin, such as `https://<APP_DOMAIN>`, with no path or trailing slash |
 
 Create `/etc/pass-vault-v2/pass-vault-v2.env`. To keep the invitation out of shell history and process arguments, assemble a root-only temporary file, stream randomness from `openssl`, and install it atomically:
 
@@ -109,6 +112,9 @@ printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
   'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
 openssl rand -hex 32 >>"$tmp"
+printf 'PASSKEY_UNLOCK_KEK=' >>"$tmp"
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' >>"$tmp"
+printf '\nPASSKEY_RP_ID=<APP_DOMAIN>\nPASSKEY_ORIGIN=https://<APP_DOMAIN>\n' >>"$tmp"
 sudo install -o root -g pass-vault -m 0600 "$tmp" /etc/pass-vault-v2/pass-vault-v2.env
 rm -f "$tmp"
 sudo stat -c '%U:%G %a %n' /etc/pass-vault-v2/pass-vault-v2.env
@@ -116,6 +122,8 @@ sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVIT
 ```
 
 Expected output contains only `root:pass-vault 600` and the name-presence confirmation. Do **not** use `cat`, non-quiet `grep INVITE_CODE`, or log the value. A systemd `EnvironmentFile` is not a shell; the generated hexadecimal value is safest. If an operator-supplied value is required, restrict it to printable ASCII without whitespace, quotes, backslashes, `#`, `$`, `%`, control characters, or newlines, and keep it 16–256 characters. Do not rely on shell quoting/expansion to encode a complex value.
+
+All three Passkey settings must be valid together. Otherwise assisted unlock fails closed while password and local PRF unlock remain available. Assisted unlock stores the 32-byte vault key only as AES-256-GCM ciphertext under an independent KEK, but it **changes the original client-only zero-knowledge boundary**: the server, together with a user-verified Passkey session, can recover the vault key. The server stores neither the master password nor a plaintext vault key. Changing the master password or username revokes all assisted Passkeys. Replacing or losing the KEK makes existing assisted credentials unusable; revoke and re-enroll them instead of rotating the value blindly.
 
 ## 5. systemd
 
