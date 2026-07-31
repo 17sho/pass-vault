@@ -811,10 +811,14 @@ test('账号编辑器可逐行显示密码并在重新打开时恢复隐藏',asy
    await passwords.nth(0).fill('first-secret');
    await passwords.nth(1).fill('second-secret');
    assert.deepEqual(await passwords.evaluateAll(inputs=>inputs.map(input=>input.type)),['password','password']);
-   await editor.getByRole('button',{name:'显示密码 2'}).click();
+   const hiddenToggle=editor.getByRole('button',{name:'显示密码 2'});
+   assert.equal((await hiddenToggle.textContent()).trim(),'');
+   assert.equal(await hiddenToggle.locator('svg[data-icon="eye"]').count(),1);
+   await hiddenToggle.click();
    assert.deepEqual(await passwords.evaluateAll(inputs=>inputs.map(input=>input.type)),['password','text']);
    assert.equal(await passwords.nth(1).inputValue(),'second-secret');
    const toggle=editor.getByRole('button',{name:'隐藏密码 2'}),field=toggle.locator('..'),generate=editor.getByRole('button',{name:'生成密码 2'});
+   assert.equal(await toggle.locator('svg[data-icon="eye-off"]').count(),1);
    assert.equal(await toggle.getAttribute('aria-pressed'),'true');
    const geometry=await Promise.all([toggle,field,generate].map(locator=>locator.boundingBox()));
    assert.ok(geometry.every(Boolean));
