@@ -5,9 +5,9 @@ import { readFile } from 'node:fs/promises';
 const { version: VERSION } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const expected = new Map([
   ['theme-init', `/theme-init.js?v=${VERSION}`],
-  ['stylesheet', `/style.css?v=${VERSION}-group-management`],
+  ['stylesheet', `/style.css?v=${VERSION}-account-toggle`],
   ['app-shell', `/app-shell.css?v=${VERSION}`],
-  ['module', `/app.mjs?v=${VERSION}-totp-copy`],
+  ['module', `/app.mjs?v=${VERSION}-account-toggle`],
 ]);
 
 function refs(html) {
@@ -23,8 +23,8 @@ test(`production HTML references current v${VERSION} frontend assets`, async () 
   for (const path of ['public/index.html', 'dist/index.html']) {
     const html = await readFile(path, 'utf8');
     assert.deepEqual(refs(html), expected, path);
-    assert.doesNotMatch(html, new RegExp(`style\\.css\\?v=${VERSION.replaceAll('.', '\\.') }-(?!group-management(?:["']))`), path);
-    assert.doesNotMatch(html, new RegExp(`app\\.mjs\\?v=${VERSION.replaceAll('.', '\\.') }-(?!totp-copy(?:["']))`), path);
+    assert.doesNotMatch(html, new RegExp(`style\\.css\\?v=${VERSION.replaceAll('.', '\\.') }-(?!account-toggle(?:["']))`), path);
+    assert.doesNotMatch(html, new RegExp(`app\\.mjs\\?v=${VERSION.replaceAll('.', '\\.') }-(?!account-toggle(?:["']))`), path);
     assert.doesNotMatch(html, /20260711-mobile-menu-1|\?v=1\.1\.11(?:[^0-9]|$)/, path);
   }
 });
