@@ -984,9 +984,7 @@ test('分组管理选中项边框用 inset 阴影绘制在项内，不溢出滚�
    await page.locator('#groups-form').evaluate(f=>f.requestSubmit());
    await page.locator('.group-row',{hasText:n}).waitFor();
  }
- // 选中「默认」(全宽行,无按钮,最易溢出)
- await page.locator('.group-row [data-group-choice]',{hasText:'默认'}).first().click();
- await page.waitForTimeout(120);
+ // 当前「默认」已是选中项；选择动作现在会自动关闭，因此直接检查打开态选中框
  const m=await page.evaluate(()=>{
    const list=document.querySelector('#groups-list');
    const sel=list.querySelector('[data-group-choice][aria-pressed="true"]');
