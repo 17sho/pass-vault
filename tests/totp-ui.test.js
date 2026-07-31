@@ -13,6 +13,43 @@ async function register(page){const username=`totp-${Date.now()}`;await page.got
 
 test('iPhone独立TOTP菜单保存加密密钥并跨30秒窗口自动刷新验证码',async()=>{const context=await browser.newContext({...devices['iPhone 13'],reducedMotion:'reduce'}),page=await context.newPage(),writes=[],errors=[];page.on('request',request=>{if(request.method()==='PUT'&&request.url().includes('/api/entries/'))writes.push(request.postData()||'')});page.on('pageerror',error=>errors.push(error.message));try{await register(page);await page.evaluate(()=>{window.__TOTP_NOW=()=>59000});assert.deepEqual(await page.locator('nav [data-type]').allTextContents(),['账号','网站','笔记','TOTP','附件']);await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'TOTP',exact:true}).click();const editor=page.locator('#editor');await editor.getByLabel('账号',{exact:true}).fill('GitHub · alice@example.com');await editor.getByLabel('密钥',{exact:true}).fill('jbsw-y3dp ehpk3pxp');await editor.getByRole('button',{name:'保存'}).click();try{await page.getByText('已保存',{exact:true}).waitFor({timeout:10000})}catch{throw Error(`TOTP保存未完成: toast=${await page.locator('#toast').textContent()} editorOpen=${await page.locator('#editor').getAttribute('open')} errors=${errors.join('|')}`)};assert.equal(writes.some(body=>body.includes('JBSWY3DPEHPK3PXP')||body.includes('alice@example.com')),false,'账号和TOTP密钥不得出现在网络明文');const card=page.locator('.item-card',{hasText:'GitHub · alice@example.com'});await card.waitFor();const code=card.locator('[data-totp-code]');await page.waitForFunction(()=>/^\d{6}$/.test(document.querySelector('[data-totp-code]')?.textContent||''));const first=await code.textContent();await page.evaluate(async()=>{window.__TOTP_NOW=()=>89000;await window.__refreshTotp()});await page.waitForFunction(previous=>/^\d{6}$/.test(document.querySelector('[data-totp-code]')?.textContent||'')&&document.querySelector('[data-totp-code]').textContent!==previous,first);assert.notEqual(await code.textContent(),first);assert.match(await card.locator('[data-totp-remaining]').textContent(),/^\d+ 秒后刷新$/);await card.click();const detail=page.locator('#detail');assert.equal(await detail.getByText('JBSWY3DPEHPK3PXP',{exact:true}).count(),0,'详情不得直接显示密钥');await page.waitForFunction(()=>/^\d{6}$/.test(document.querySelector('#detail [data-totp-code]')?.textContent||''));assert.match(await detail.locator('[data-totp-code]').textContent(),/^\d{6}$/)}finally{await context.close()}});
 
+test('iPhone复制TOTP在点击用户激活失效前写入剪贴板',async()=>{
+ const context=await browser.newContext({...devices['iPhone 13'],reducedMotion:'reduce'});
+ await context.addInitScript(()=>{
+  window.__totpClipboardWrites=[];
+  window.__totpCopyClicked=false;
+  window.__totpSignedAfterCopyClick=false;
+  document.addEventListener('click',event=>{
+   if(event.target?.textContent==='复制验证码')window.__totpCopyClicked=true;
+  },true);
+  const sign=crypto.subtle.sign.bind(crypto.subtle);
+  crypto.subtle.sign=async(...args)=>{
+   if(window.__totpCopyClicked)window.__totpSignedAfterCopyClick=true;
+   return sign(...args);
+  };
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+   writeText:async value=>{
+    if(window.__totpSignedAfterCopyClick)throw Error('NotAllowedError');
+    window.__totpClipboardWrites.push(value);
+   }
+  }});
+  document.execCommand=()=>false;
+ });
+ const page=await context.newPage();
+ try{
+  await register(page);
+  const account=await createTotp(page,'gesture-copy-review');
+  await page.locator('.item-card',{hasText:account}).click();
+  const detail=page.locator('#detail');
+  await detail.waitFor({state:'visible'});
+  await page.waitForFunction(()=>/^\d{6}$/.test(document.querySelector('#detail [data-totp-code]')?.textContent||''));
+  const code=await detail.locator('[data-totp-code]').textContent();
+  await detail.getByRole('button',{name:'复制验证码'}).click();
+  await page.getByText('验证码已复制',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.__totpClipboardWrites),[code]);
+ }finally{await context.close()}
+});
+
 async function createTotp(page,account='lock-review'){await page.locator('nav').getByRole('button',{name:'TOTP',exact:true}).click();await page.getByRole('button',{name:'+ 新建'}).click();await page.locator('#picker').getByRole('button',{name:'TOTP',exact:true}).click();const editor=page.locator('#editor');await editor.getByLabel('账号',{exact:true}).fill(account);await editor.getByLabel('密钥',{exact:true}).fill('JBSWY3DPEHPK3PXP');await editor.getByRole('button',{name:'保存'}).click();await page.getByText('已保存',{exact:true}).waitFor();await page.waitForFunction(()=>/^\d{6}$/.test(document.querySelector('[data-totp-code]')?.textContent||''));return account}
 
 test('退出锁库在等待服务端前立即清除TOTP密钥、验证码和解密DOM',async()=>{const page=await browser.newPage({viewport:{width:390,height:844}});try{await register(page);const account=await createTotp(page);const card=page.locator('.item-card',{hasText:account});await card.getByRole('button',{name:new RegExp(`${account}的更多操作`)}).click();await card.getByRole('menuitem',{name:'编辑'}).click();const editor=page.locator('#editor');await editor.getByLabel('密钥',{exact:true}).fill('MZXW6YTBOI======');await page.route('**/api/logout',async route=>{await new Promise(r=>setTimeout(r,2000));await route.continue()});await page.evaluate(()=>document.querySelector('#logout').click());await page.waitForTimeout(100);const state=await page.evaluate(()=>({key:window.__vaultKeyPresent(),secret:document.querySelector('#fields input[name="secret"]')?.value||'',codes:[...document.querySelectorAll('[data-totp-code]')].map(x=>x.textContent),list:document.querySelector('#list').textContent,detail:document.querySelector('#detail').textContent,editorOpen:document.querySelector('#editor').open}));assert.deepEqual(state,{key:false,secret:'',codes:[],list:'',detail:'',editorOpen:false})}finally{await page.close()}});

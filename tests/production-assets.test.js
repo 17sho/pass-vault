@@ -7,7 +7,7 @@ const expected = new Map([
   ['theme-init', `/theme-init.js?v=${VERSION}`],
   ['stylesheet', `/style.css?v=${VERSION}-group-management`],
   ['app-shell', `/app-shell.css?v=${VERSION}`],
-  ['module', `/app.mjs?v=${VERSION}-group-management`],
+  ['module', `/app.mjs?v=${VERSION}-totp-copy`],
 ]);
 
 function refs(html) {
@@ -23,7 +23,8 @@ test(`production HTML references current v${VERSION} frontend assets`, async () 
   for (const path of ['public/index.html', 'dist/index.html']) {
     const html = await readFile(path, 'utf8');
     assert.deepEqual(refs(html), expected, path);
-    assert.doesNotMatch(html, new RegExp(`(?:app\\.mjs|style\\.css)\\?v=${VERSION.replaceAll('.', '\\.') }-(?!group-management(?:["']))`), path);
+    assert.doesNotMatch(html, new RegExp(`style\\.css\\?v=${VERSION.replaceAll('.', '\\.') }-(?!group-management(?:["']))`), path);
+    assert.doesNotMatch(html, new RegExp(`app\\.mjs\\?v=${VERSION.replaceAll('.', '\\.') }-(?!totp-copy(?:["']))`), path);
     assert.doesNotMatch(html, /20260711-mobile-menu-1|\?v=1\.1\.11(?:[^0-9]|$)/, path);
   }
 });
