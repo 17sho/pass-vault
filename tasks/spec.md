@@ -26,7 +26,7 @@
 - 空闲自动锁定：解锁后启动空闲计时,超时清空内存中的 vault key 与解密数据并回到解锁界面;用户交互重置计时并记录最后活动时间；页面从后台重新可见或经 `pageshow`（含 BFCache）恢复时必须按实际经过时间判断，已超过阈值则立即锁定，不得因 iOS Safari 冻结定时器而重新获得一个完整周期;与退出登录共用清理逻辑,自动锁定不主动注销服务端会话。时长可在菜单「自动锁定时间」中选择(1/5/15/30 分钟或「从不」,默认 5 分钟),经 `localStorage`(键 `pass-vault-idle-lock-ms`,毫秒;0=从不)持久化;测试可经 `window.__IDLE_LOCK_MS` 覆盖(优先级最高)。
 - WebCrypto PBKDF2-SHA-256(310000)+AES-GCM；随机 vault key 被 KEK 包装；修改密码只重包密钥。
 - 注册、登录/会话、改密与备份中的 `kdf` 为 `{salt,iterations:310000,hash?:'SHA-256'}`，`wrappedKey` 为 `{iv,ciphertext}`；数据库文本列只存 JSON 文本，API 始终输出对象。
-- 会话 Cookie HttpOnly/Secure/SameSite=Strict、CSRF、限速、同源检查。
+- 会话 Cookie HttpOnly/Secure/SameSite=Strict、CSRF、限速、同源检查。安全中心的当前有效会话必须记录并显示认证方式：主密码登录为 `password`，服务器辅助 Passkey 登录为 `passkey`，迁移前旧会话为 `unknown`；认证方式不得由客户端提交或覆盖。
 - 用户名存储和查询使用 `trim()` 后的原值，允许中文、空格、emoji 与常见符号；不得改变大小写或隐式 Unicode 规范化。trim 后须非空，按 JavaScript UTF-16 `String.length` 最多 80 个字符，拒绝控制/格式字符；精确匹配且唯一，违规返回 `invalid_username`。
 
 ## 命令
