@@ -798,6 +798,40 @@ test('功能4：账号编辑器点"生成"填入强密码，长度可调',async(
  }finally{await page.close()}
 });
 
+test('账号编辑器可逐行显示密码并在重新打开时恢复隐藏',async()=>{
+ for(const engine of [chromium,webkit])for(const width of [320,390]){
+  const ownBrowser=await engine.launch({headless:true}),page=await ownBrowser.newPage({viewport:{width,height:844},reducedMotion:'reduce'});
+  try{
+   await register(page);
+   await page.getByRole('button',{name:'+ 新建'}).click();
+   await page.locator('#picker').getByRole('button',{name:'账号',exact:true}).click();
+   const editor=page.locator('#editor');
+   await editor.getByRole('button',{name:'+ 添加账号'}).click();
+   const passwords=editor.locator('input[name=credentialPassword]');
+   await passwords.nth(0).fill('first-secret');
+   await passwords.nth(1).fill('second-secret');
+   assert.deepEqual(await passwords.evaluateAll(inputs=>inputs.map(input=>input.type)),['password','password']);
+   await editor.getByRole('button',{name:'显示密码 2'}).click();
+   assert.deepEqual(await passwords.evaluateAll(inputs=>inputs.map(input=>input.type)),['password','text']);
+   assert.equal(await passwords.nth(1).inputValue(),'second-secret');
+   const toggle=editor.getByRole('button',{name:'隐藏密码 2'}),field=toggle.locator('..'),generate=editor.getByRole('button',{name:'生成密码 2'});
+   assert.equal(await toggle.getAttribute('aria-pressed'),'true');
+   const geometry=await Promise.all([toggle,field,generate].map(locator=>locator.boundingBox()));
+   assert.ok(geometry.every(Boolean));
+   const [toggleBox,fieldBox,generateBox]=geometry;
+   assert.ok(toggleBox.width>=44&&toggleBox.height>=44);
+   assert.ok(toggleBox.x>=fieldBox.x&&toggleBox.x+toggleBox.width<=fieldBox.x+fieldBox.width);
+   assert.ok(toggleBox.x+toggleBox.width<=generateBox.x);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false);
+   await page.screenshot({path:`artifacts/account-password-toggle-${engine.name()}-${width}.png`,fullPage:true});
+   await editor.getByRole('button',{name:'关闭'}).click();
+   await page.getByRole('button',{name:'+ 新建'}).click();
+   await page.locator('#picker').getByRole('button',{name:'账号',exact:true}).click();
+   assert.equal(await editor.locator('input[name=credentialPassword]').first().getAttribute('type'),'password');
+  }finally{await page.close();await ownBrowser.close()}
+ }
+});
+
 test('功能2：空闲超时自动锁库，清 vaultKey 并回到解锁界面',async()=>{
  const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
  try{
