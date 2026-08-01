@@ -47,7 +47,19 @@ Cloudflare 版为避免 R2 超额费用而设有月度应用级配额；Linux �
 
 ## 截图
 
-> 截图占位：发布前可在 `docs/images/` 添加使用空白测试数据生成的桌面端与移动端截图；不得包含真实账户、域名、密码、Cookie 或其他敏感信息。
+以下截图由本地隔离环境和虚构的 `example.com` / `example.org` 测试数据生成，不包含生产账户、密码、Cookie 或真实域名。
+
+### 桌面端密码库
+
+![桌面端密码库界面](docs/images/vault-desktop.png)
+
+### 移动端密码库
+
+<img src="docs/images/vault-mobile.png" alt="移动端密码库界面" width="390">
+
+### 安全中心与 Passkey
+
+![安全中心与 Passkey 设置](docs/images/security-center.png)
 
 ## 本地开发预览（不是服务器生产部署）
 
