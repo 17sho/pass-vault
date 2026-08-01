@@ -5,7 +5,8 @@
 ### 新增
 
 - 在安全中心新增可撤销的服务器辅助 Passkey：有效会话内注册平台凭据后，可在本地 `vaultKey` 已清除的锁定状态下，通过系统用户验证重新解锁，无需再次输入主密码。
-- 本次 GitHub Release 仅发布 Cloudflare Worker + D1 制品；Linux 稳定制品暂时保持 v1.1.65，不在本 Release 中提供。
+- 本次 GitHub Release 仅发布冻结的 Cloudflare Worker + D1 制品；v1.1.66与v1.1.65当前都没有可下载Linux资产，Linux部署请从审核过的当前`main`源码构建。
+- 此Release的3个既有资产不包含`main`后续加入的`0011`–`0013` R2生命周期修复；新部署和生产升级应优先使用当前`main`的明确commit SHA。旧tag和资产保持不变。
 - 新增 Cloudflare migration `0009_passkey_assisted_unlock.sql`，用于辅助凭据、challenge 和失败限速槽。
 
 ### 安全边界
@@ -27,7 +28,8 @@
 ### Added
 
 - Adds a revocable server-assisted Passkey in Security Center. After registering a platform credential from a valid session, a locked browser whose local `vaultKey` has been cleared can unlock again through system user verification without re-entering the master password.
-- This GitHub Release publishes Cloudflare Worker + D1 artifacts only. The stable Linux artifact remains v1.1.65 and is not included in this Release.
+- This GitHub Release publishes frozen Cloudflare Worker + D1 artifacts only. Neither v1.1.66 nor v1.1.65 currently has a downloadable Linux asset; build Linux from a reviewed current `main` commit.
+- The three existing Release assets do not contain the later `0011`–`0013` R2 lifecycle fixes on `main`. Prefer an exact reviewed current `main` commit for new and upgraded production deployments. The old tag and assets remain unchanged.
 - Adds Cloudflare migration `0009_passkey_assisted_unlock.sql` for assisted credentials, challenges, and failure-rate slots.
 
 ### Security boundary

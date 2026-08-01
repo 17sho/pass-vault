@@ -1,219 +1,380 @@
-# Cloudflare Deployment Guide (Workers + Static Assets + D1 + R2)
+# Complete Cloudflare Deployment Guide (Workers + Static Assets + D1 + R2)
 
 [中文](cloudflare-deployment.zh-CN.md) · [English](cloudflare-deployment.en.md) · [Back to home](../README.en.md)
 
-This guide is exclusively for Cloudflare deployment. Replace every `<...>` placeholder. Never commit real account IDs, D1 IDs, tokens, or domains.
+This guide covers first deployment, production upgrades, backup, restore, rollback, and acceptance checks for current `main`. Replace every `<...>` placeholder. Never commit real domains, account/database IDs, bucket names, tokens, invitation codes, KEKs, production backups, or private deployment configuration to the public repository.
 
-## 0. Download and verify v1.1.66 (recommended)
+> **Version note:** the Cloudflare archives attached to GitHub Release `v1.1.66` are frozen artifacts from that tag. They do not contain the later `0011`–`0013` R2 lifecycle fixes on `main`. Prefer a reviewed current `main` commit for new and upgraded production deployments. Do not move the old tag or replace its assets.
 
-Download the Cloudflare package and checksum manifest from [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66):
+## 1. Architecture, requirements, and trust boundary
+
+```text
+Browser ──HTTPS──> Cloudflare Worker
+                       ├─ /api/* → Worker → D1 binding: DB (auth material and encrypted metadata)
+                       │                  └→ R2 binding: ATTACHMENTS (encrypted attachment objects)
+                       └─ other  → Workers Static Assets binding: ASSETS (dist/)
+                                      ↑
+                         Cron 17 * * * *: bounded reconciliation/cleanup
+```
+
+Requirements:
+
+- Node.js 22+, npm, Git, and a Cloudflare account with Workers, D1, and R2 enabled;
+- Wrangler 4.x, installed at the repository-pinned version by `npm ci`;
+- a strong random 16–256-character `INVITE_CODE`;
+- a private R2 bucket for attachments; public access, an R2 custom domain, and bucket CORS are unnecessary;
+- HTTPS only in production.
+
+By default, the Worker has no server key that can independently recover the vault key. Optional server-assisted Passkey unlock stores a vault-key copy wrapped under an independent KEK in D1. After WebAuthn user verification, the Worker can recover the vault key and create a session, so this **changes the default zero-knowledge boundary**. The Worker still receives neither the master password nor a plaintext vault key. Understand this trade-off before enabling it.
+
+## 2. Obtain the code and run local gates
+
+### 2.1 Recommended: deploy current `main`
+
+```bash
+git clone https://github.com/17sho/pass-vault-v2.git
+cd pass-vault-v2
+git checkout main
+git pull --ff-only
+# Record and review the exact commit; evidence must contain no secrets
+git rev-parse HEAD
+npm ci
+npm test
+npm run lint
+npm run lint:docs
+npm run typecheck
+npm run build
+```
+
+Every command must naturally exit 0. Do not substitute interrupted, timed-out, or older-commit results.
+
+### 2.2 Frozen v1.1.66 Cloudflare artifacts
+
+The existing Release contains only:
+
+- `pass-vault-v2-cloudflare-1.1.66.tar.gz`
+- `pass-vault-v2-cloudflare-1.1.66.zip`
+- `SHA256SUMS`
 
 ```bash
 VERSION=1.1.66
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
-tar -xzf "pass-vault-v2-cloudflare-$VERSION.tar.gz"
-cd "pass-vault-v2-cloudflare-$VERSION"
-npm ci
-npm run build && npm test && npm run lint && npm run typecheck
 ```
 
-The checksum must report `OK`. The packaged `apps/worker/wrangler.jsonc` contains only an all-zero D1 ID and an example R2 name. Replace them with your own resources before deployment and never commit production configuration to a public repository. A `.zip` is also available and is covered by the same `SHA256SUMS` manifest.
+The check must report `OK`. This frozen package lacks the later R2 fixes on `main`; do not describe it as current complete code or replace the original assets.
 
-## Requirements and architecture
+## 3. Configuration model: public template vs. private production config
 
-- Node.js 22+, npm, and a Cloudflare account with Workers, D1, and R2; Git is additionally required for a source install.
-- Wrangler authentication for CLI deployment; a connected GitHub repository or equivalent build/upload path for Dashboard deployment.
-- **Current-version prerequisite:** prepare a strong random 16–256-character `INVITE_CODE` and apply every pending migration in `apps/worker/migrations/` in filename order before deploying code. Missing/invalid configuration returns HTTP 503 `registration_unavailable`; a wrong value returns HTTP 403 `invalid_invite` and counts toward durable rate limiting. Existing sign-in remains available.
+`apps/worker/wrangler.jsonc` is a public template. It intentionally contains placeholder D1/R2 resources and `workers_dev:true` so a new deployment without a custom domain still has a target. **Never write production IDs, bucket names, domains, or variables back into the public template.**
 
-```text
-Browser ──HTTPS──> Cloudflare Worker
-                       ├─ /api/* → Worker → D1: DB (encrypted metadata)
-                       │                  └→ R2: ATTACHMENTS (encrypted objects)
-                       └─ other  → Workers Static Assets (dist/)
-```
-
-Before the first operation, run at repository root:
+Copy it outside the repository or to a gitignored path for production, for example:
 
 ```bash
-npm ci
-npm run build && npm test && npm run lint && npm run typecheck
+umask 077
+install -m 0600 apps/worker/wrangler.jsonc <SAFE_CONFIG_DIR>/wrangler.production.jsonc
 ```
 
-## 1. Wrangler CLI deployment
+A private production config should contain at least:
 
-### 1.1 Authenticate, create D1, and configure
+```jsonc
+{
+  "$schema": "<ABSOLUTE_REPOSITORY_PATH>/node_modules/wrangler/config-schema.json",
+  "name": "<WORKER_NAME>",
+  "workers_dev": false,
+  "main": "<ABSOLUTE_REPOSITORY_PATH>/apps/worker/src/index.ts",
+  "compatibility_date": "2026-07-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PASSKEY_RP_ID": "<APP_DOMAIN>",
+    "PASSKEY_ORIGIN": "https://<APP_DOMAIN>"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "<D1_DATABASE_NAME>",
+    "database_id": "<D1_DATABASE_ID>",
+    "migrations_dir": "<ABSOLUTE_REPOSITORY_PATH>/apps/worker/migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "ATTACHMENTS",
+    "bucket_name": "<R2_BUCKET_NAME>"
+  }],
+  "assets": {
+    "directory": "<ABSOLUTE_REPOSITORY_PATH>/dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "routes": [{ "pattern": "<APP_DOMAIN>", "custom_domain": true }],
+  "triggers": { "crons": ["17 * * * *"] },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
+```
+
+If the private config is outside the repository, use absolute paths for `main`, `assets.directory`, and `migrations_dir`. Relative paths resolve from the **config file's directory** and can accidentally point to locations such as `/tmp/migrations`.
+
+### 3.1 Required bindings and settings
+
+| Type | Name | Requirement |
+|---|---|---|
+| Secret | `INVITE_CODE` | Required, 16–256 characters; invalid/missing config returns 503 for new registration while existing sign-in remains available |
+| Secret | `PASSKEY_UNLOCK_KEK` | Required for assisted Passkey unlock; Base64URL of 32 random bytes; never rotate blindly |
+| Plain var | `PASSKEY_RP_ID` | Exact HTTPS hostname such as `<APP_DOMAIN>` when Passkey is enabled |
+| Plain var | `PASSKEY_ORIGIN` | `https://<APP_DOMAIN>` with no path or trailing slash |
+| D1 | `DB` | Must target the intended database |
+| R2 | `ATTACHMENTS` | Must target the private attachment bucket |
+| Assets | `ASSETS` | Built `dist/` with `run_worker_first:true` |
+| Cron | `17 * * * *` | Maintains R2 inventory/pending work, crash-stale in-flight/locks, and expired sessions |
+
+All three Passkey settings must be valid together. Otherwise only assisted Passkey unlock fails closed; master-password sign-in still works. **Never replace an existing `PASSKEY_UNLOCK_KEK`**: losing or changing it breaks already enrolled assisted wrapping material.
+
+## 4. First CLI deployment
+
+### 4.1 Authenticate and create resources
 
 ```bash
 npx wrangler login
 npx wrangler whoami
-cd apps/worker
 npx wrangler d1 create <D1_DATABASE_NAME>
 npx wrangler r2 bucket create <R2_BUCKET_NAME>
 ```
 
-Copy the returned `database_id`. Edit `apps/worker/wrangler.jsonc`:
+Write returned resource details only to the private production config. Binding names must remain `DB`, `ATTACHMENTS`, and `ASSETS`.
 
-- set `name` to `<WORKER_NAME>`;
-- keep binding `DB` and set the real `database_name`/`database_id`;
-- keep `migrations_dir` as `migrations`;
-- keep the R2 binding exactly `ATTACHMENTS` and set its `bucket_name`;
-- keep Assets at `../../dist` with `run_worker_first: true`;
-- remove sample routes or replace them with your domain. Keep placeholders on a public branch and inject real values through an uncommitted config or CI secrets.
-
-### 1.2 Migrate, build, and deploy
-
-Generate a strong value on a controlled terminal and stream it directly to Wrangler. This avoids command arguments, environment variables, and shell history. Do not enable `set -x`, record the terminal, or paste output into a ticket:
+### 4.2 Store secrets safely
 
 ```bash
-# Repository root; 32 random bytes represented by 64 hexadecimal characters
-openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc
-openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | npx wrangler secret put PASSKEY_UNLOCK_KEK --config apps/worker/wrangler.jsonc
+openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config <PRODUCTION_CONFIG>
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | \
+  npx wrangler secret put PASSKEY_UNLOCK_KEK --config <PRODUCTION_CONFIG>
 ```
 
-Wrangler should confirm only the secret name/success, never its value. If people must retain the same value, generate it in a password manager (at least 128 bits of randomness, 16–256 characters), run `npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc`, and paste it at the hidden prompt. Never use `echo 'real-value' | ...`, a command argument, or a committed `.dev.vars` file.
+Do not enable `set -x`, use `echo 'real-value'`, or expose values in arguments, the repository, tickets, screenshots, or logs. If a stable recoverable value is required, generate/store it in a password manager and paste it into Wrangler's hidden prompt.
 
-Set `PASSKEY_RP_ID=<APP_DOMAIN>` and `PASSKEY_ORIGIN=https://<APP_DOMAIN>` in an uncommitted production Wrangler config or Dashboard Variables. `PASSKEY_UNLOCK_KEK`, `PASSKEY_RP_ID`, and `PASSKEY_ORIGIN` must all be valid or assisted Passkey unlock fails closed. The RP ID must be the exact HTTPS application hostname, and the Origin must be canonical with no path or trailing slash.
+### 4.3 Apply the complete migration chain
+
+The migration ledger is in `apps/worker/migrations/`. A first deployment applies entries `0001` through `0013`; an upgrade applies only pending entries:
 
 ```bash
-# apps/worker/
-npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
-npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote
-# Confirm that no migration remains pending; stop before deploy if uncertain
-npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
-cd ../..
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
+npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
+```
+
+The final command must show no pending migration. Add a new migration for each schema change; never rewrite an already-applied file. Important current migrations include:
+
+- `0008_session_metadata.sql`: session device/activity metadata;
+- `0009_passkey_assisted_unlock.sql`: assisted credentials, challenges, and failure-rate slots;
+- `0010_session_auth_method.sql`: session authentication method;
+- `0011_r2_cleanup_queue.sql`: durable R2 deletion queue and physical quota;
+- `0012_backup_import_locks.sql`: per-user backup import lock;
+- `0013_r2_inflight_uploads.sql`: durable pre-R2-write in-flight fencing.
+
+### 4.4 Dry-run and deploy
+
+```bash
 npm run build
-npx wrangler deploy --config apps/worker/wrangler.jsonc
-npx wrangler versions list --config apps/worker/wrangler.jsonc
-curl -fsS https://<WORKER_SUBDOMAIN>/api/health
+npx wrangler deploy --dry-run --config <PRODUCTION_CONFIG>
+npx wrangler deploy --config <PRODUCTION_CONFIG>
+npx wrangler deployments status --config <PRODUCTION_CONFIG>
+npx wrangler versions list --config <PRODUCTION_CONFIG>
 ```
 
-Add a new migration for every schema change. Never rewrite a migration already applied remotely. When upgrading to the R2 physical-quota fix, apply `0011_r2_cleanup_queue.sql`, `0012_backup_import_locks.sql`, and `0013_r2_inflight_uploads.sql` in order and confirm that no migration remains pending before deploying the Worker; otherwise authenticated requests, attachment uploads, or full-backup imports can fail because required tables are missing. The Worker records an in-flight key before writing R2 and atomically removes it when committing the D1 reference. A bounded hourly inventory reconciliation rechecks references before orphan deletion. Scheduled maintenance reclaims crash-stale in-flight uploads and full-backup locks only after 24 hours.
+Completion requires the intended new version to serve 100% of traffic. Uploading a version alone is not a successful traffic cutover.
 
-Assisted Passkey unlock stores the 32-byte vault key in D1 only as AES-256-GCM ciphertext under an independent KEK, but it **changes the original client-only zero-knowledge boundary**: the Worker, together with a user-verified Passkey session, can recover the vault key. The Worker stores neither the master password nor a plaintext vault key. Changing the master password or username revokes all assisted Passkeys. Replacing or losing the KEK makes existing assisted credentials unusable; revoke and re-enroll them first.
+## 5. Production upgrades: preserve the complete live configuration
 
-### 1.3 Custom domain
+> **Critical Wrangler behavior:** deploying code does not automatically preserve ordinary `vars`. By default Wrangler deletes old plain vars and then sets only the vars in the config. Secrets are not deleted by ordinary deploy. Cloudflare's `--keep-vars` preserves Dashboard-managed plain vars, but it does not replace a full audit of bindings, routes, triggers, compatibility, and `workers_dev`.
 
-Add this to the config (confirm fields against the current Wrangler schema):
+### 5.1 Freeze the pre-upgrade baseline
 
-```json
-"routes": [{ "pattern": "<APP_DOMAIN>", "custom_domain": true }]
+Before any deployment, record the **version active before the task began** and store a name/type-only inventory with no secret values:
+
+```bash
+npx wrangler deployments status --config <PRODUCTION_CONFIG>
+npx wrangler versions view <PRE_TASK_VERSION_ID> --json --config <PRODUCTION_CONFIG> > <SAFE_EVIDENCE>/before-version.json
+npx wrangler secret list --config <PRODUCTION_CONFIG> > <SAFE_EVIDENCE>/before-secret-names.json
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
 ```
 
-Deploy again, or use Worker **Settings → Domains & Routes → Add → Custom Domain** in Dashboard. After DNS and certificate issuance, verify the homepage and `/api/health`.
+Compare and preserve:
 
-## 2. Cloudflare Dashboard deployment
+- every plain variable and its managed source;
+- every Secret name (never retrieve its value);
+- `DB`, `ATTACHMENTS`, and `ASSETS` bindings and targets;
+- compatibility date and flags;
+- custom-domain routes;
+- Cron triggers;
+- intended `workers_dev` state;
+- observability settings.
 
-Dashboard labels may change; follow the current UI.
+**Never use an intermediate version deployed during the same task as the old baseline.** If live values cannot be established, stop and reconstruct the inventory from Dashboard or restricted configuration before deploying.
 
-1. **Storage & Databases → D1 → Create database** and create `<D1_DATABASE_NAME>`.
-2. **Workers & Pages → Create → Import a repository**; connect `<GITHUB_REPOSITORY>` and select `<PRODUCTION_BRANCH>`.
-3. Set Root directory to repository root and Build command to `npm ci && npm run build`.
-4. This is not static-only Pages: it needs a Worker API plus Workers Static Assets. Where supported, set deploy command to `npx wrangler deploy --config apps/worker/wrangler.jsonc`. If import cannot honor the Worker main module, Assets, and D1, invoke Wrangler from Cloudflare CI/GitHub Actions instead of publishing plain Pages.
-5. Worker **Settings → Bindings → Add → D1 database**: variable name must be `DB`; select the target database.
-6. Create a private bucket under **Storage & Databases → R2 → Create bucket**; add it at Worker **Settings → Bindings → Add → R2 bucket** with variable name `ATTACHMENTS`.
-7. Prefer Wrangler migrations from a controlled terminal; **confirm every pending migration is applied before deployment**. If D1 **Console** is required, execute all unapplied `apps/worker/migrations/*.sql` in filename order. Do not deploy only the new code.
-8. In the target Worker's **Settings → Variables and Secrets** (the current UI may group this under **Bindings** or a similarly named settings page), add the exact name `INVITE_CODE`, select encrypted **Secret**, and use a password-manager-generated value with at least 128 bits of randomness and 16–256 characters. Save and deploy the resulting version if prompted. Never choose plaintext or use build variables, repository files, or screenshots.
-9. Return to the variables/secrets list and verify only the name `INVITE_CODE`, Secret type, and intended environment. Cloudflare should not reveal the value. If Secret type or environment is ambiguous, stop and use `wrangler secret put`; do not downgrade to plaintext.
-10. Confirm Assets use built `dist/` and API requests reach the Worker first.
-11. Add `<APP_DOMAIN>` under **Settings → Domains & Routes** (or its current equivalent), then finish DNS/certificate setup.
-12. Store least-privilege `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as encrypted CI secrets, never repository values or log output.
+If plain vars are intentionally Dashboard-managed rather than declared in private config, use explicitly:
 
-## 3. Post-deployment verification
+```bash
+npx wrangler deploy --keep-vars --config <PRODUCTION_CONFIG>
+```
+
+This project recommends declaring non-secret `PASSKEY_RP_ID` and `PASSKEY_ORIGIN` in the restricted production config for reproducibility. With or without `--keep-vars`, audit every other binding and route.
+
+### 5.2 Consistent backup
+
+Before upgrading, pause or isolate writes and back up D1 and R2 at the same logical point:
+
+```bash
+npx wrangler d1 export <D1_DATABASE_NAME> --remote \
+  --output=<SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql \
+  --config <PRODUCTION_CONFIG>
+sha256sum <SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql > <SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql.sha256
+chmod 0600 <SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql*
+```
+
+Also use a controlled tool/API to copy every R2 object to an independent versioned backup bucket, retaining keys, sizes, and checksums. **Never back up D1 or R2 alone.** Keep backups outside the repository, access-restricted, and off-site.
+
+### 5.3 Upgrade order
+
+1. Record the pre-task version and complete configuration inventory.
+2. Create and validate a same-point D1 + R2 backup.
+3. Run `npm ci` and all current gates.
+4. Run deploy dry-run against the private production config.
+5. Apply every pending migration and confirm none remain.
+6. Deploy the Worker and Assets.
+7. Confirm 100% traffic on the new version.
+8. Compare old/new configuration; any unintended deletion blocks the release.
+9. Complete section 7 before closing the maintenance window.
+
+## 6. Dashboard / CI deployment
+
+Dashboard labels change, but the final state must equal the CLI path:
+
+1. Create/select D1 and a private R2 bucket.
+2. Bind `DB`, `ATTACHMENTS`, and `ASSETS`.
+3. Use repository root and build command `npm ci && npm run build`.
+4. Deploy Worker API + Workers Static Assets, never static-only Pages.
+5. Store `INVITE_CODE` and `PASSKEY_UNLOCK_KEK` as Secrets.
+6. Store `PASSKEY_RP_ID` and `PASSKEY_ORIGIN` as plain variables.
+7. Add Cron Trigger `17 * * * *`.
+8. Add the exact custom domain; disable `workers.dev` where production should not expose it.
+9. Apply every D1 migration from a controlled terminal before code deployment.
+10. Keep least-privilege API token/account ID in encrypted CI secrets only.
+11. Before each upgrade, export/compare all variables, Secret names, bindings, routes, and triggers. A code diff alone is insufficient.
+
+## 7. Complete post-deployment acceptance
+
+### 7.1 Anonymous and configuration checks
 
 ```bash
 curl -fsS https://<APP_DOMAIN>/api/health
 curl -fsSI https://<APP_DOMAIN>/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://<WORKER_SUBDOMAIN>.workers.dev/api/health
 ```
 
-In a browser with a disposable account, verify that the correct invitation registers, an obviously wrong placeholder is rejected without creating an account, and the new account can sign in/unlock. Never print the real invitation through an API, log, or screenshot. Missing/invalid `INVITE_CODE` should produce HTTP 503 `registration_unavailable`; a wrong value should produce HTTP 403 `invalid_invite` (or 429 after repeated failures), while existing users can still sign in. Then test CSRF rejection, encrypted item and attachment upload/download/delete, encrypted backup import/export, and logout. R2 needs neither public access nor a public domain, and bucket CORS is unnecessary.
+Expected: custom-domain health is 200; if production uses `workers_dev:false`, the real workers.dev endpoint is 404. Also verify:
 
-### 3.1 Rotation and rollback
+- only the target version serves 100% traffic;
+- Secret names `INVITE_CODE` and `PASSKEY_UNLOCK_KEK` remain;
+- plain vars `PASSKEY_RP_ID` and `PASSKEY_ORIGIN` remain;
+- D1/R2/Assets bindings, custom domain, Cron, and compatibility remain;
+- homepage, `app.mjs`, `style.css`, and other fixed assets match local `dist/` hashes;
+- security headers remain and Web Analytics did not inject script into the DOM.
 
-Rotation affects only **new registrations after rotation**. It does not invalidate existing sessions, change master passwords, or re-encrypt existing vaults. Notify people who still need to register, then save a new Dashboard Secret or repeat the safe `openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config ...` flow. Verify the secret name only and run the disposable-account acceptance check. Do not keep two active values.
+An anonymous Passkey authentication-options request can verify server configuration: correct configuration returns a WebAuthn challenge rather than 503 `passkey_unlock_unavailable`. The probe creates short-lived challenge/rate-limit rows; use a recognizable test source and clean only its exact scope. Never delete production rows broadly.
 
-If registration breaks after rotation, check length, target Worker/environment, and active version first. To roll back, retrieve the previous value from the password manager and write it through the Secret UI or Wrangler's hidden prompt—**do not** use a Worker code rollback as secret rollback. Never restore a value suspected of disclosure; generate another strong random value instead.
+### 7.2 Real browser and disposable account
 
-## 4. Upgrade, backup, restore, and rollback
+Only run these checks with a legitimate invitation and a disposable account:
 
-### Upgrading to v1.1.66
+1. register with the correct invitation; an obviously wrong value returns 403 `invalid_invite` without creating a user, while missing/invalid server configuration returns 503 `registration_unavailable`;
+2. master-password sign-in/unlock and item CRUD;
+3. attachment upload, download, replacement, and deletion;
+4. metadata-only and complete backup export/import;
+5. Security Center authentication-method/session display;
+6. enroll assisted Passkey, lock, complete real-device Passkey unlock, then revoke and verify rejection;
+7. logout and confirm session invalidation;
+8. delete test items, attachments, sessions, Passkeys, and account; verify no residue.
 
-When upgrading to v1.1.66, back up D1 and R2 at the same logical point. Apply every pending migration in filename order before deploying code. Installations older than v1.1.61 still require `0008_session_metadata.sql`; this release adds `0009_passkey_assisted_unlock.sql` for server-assisted Passkey credentials, challenges, and failure-rate slots. Then configure an independent `PASSKEY_UNLOCK_KEK` and exact `PASSKEY_RP_ID`/`PASSKEY_ORIGIN` before deploying the Worker and static assets. Existing ciphertext and vault keys do not require re-encryption.
+Never fabricate success without a legitimate invitation or real device. A returned challenge proves server configuration only; it **does not prove an existing Passkey completed real-device unlock**.
 
-After deployment, confirm that the home page references `app.mjs?v=1.1.66`. From a valid session, enable a server-assisted Passkey, lock, complete user verification to unlock again, then revoke the credential and confirm it can no longer be used. Confirm the current Security Center session remains valid.
+### 7.3 D1/R2 reconciliation
 
-Before upgrading, stop writes and back up D1 and R2 at one logical point. Export D1 and use a controlled tool or Cloudflare API to copy all R2 objects to an independent versioned bucket, retaining keys, sizes, and checksums under the same timestamp. Never back up D1 alone.
+At minimum compare:
 
-```bash
-cd apps/worker
-npx wrangler d1 export <D1_DATABASE_NAME> --remote --output=<SAFE_BACKUP_PATH>/d1-<TIMESTAMP>.sql
-npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
-cd ../..
-npm ci && npm run build && npm test && npm run lint && npm run typecheck
-npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote --config apps/worker/wrangler.jsonc
-npx wrangler deploy --config apps/worker/wrangler.jsonc
-```
+- `attachments` references, object keys, and `ciphertext_size`;
+- R2 object keys and sizes;
+- D1 missing objects = 0, R2 orphans = 0, size mismatches = 0;
+- `pending_r2_deletions = 0`;
+- `r2_inflight_uploads = 0`;
+- `backup_import_locks = 0`;
+- `r2_storage_usage.reserved_bytes` is not below Worker-managed physical object bytes.
 
-Restrict and store backups off-site. Restore into a new D1 and a new R2 bucket; import SQL, restore every object, verify counts and sizes, then switch `DB` and `ATTACHMENTS` bindings together before re-enabling writes:
+A small conservative counter margin is not an R2 orphan. Report physical object differences separately from quota counters. Cron performs bounded inventory, but does not replace post-release human read-only reconciliation.
 
-```bash
-npx wrangler d1 create <RESTORE_DATABASE_NAME>
-npx wrangler d1 execute <RESTORE_DATABASE_NAME> --remote --file=<SAFE_BACKUP_PATH>/<BACKUP_FILE>.sql
-```
+## 8. R2 lifecycle, Cron, and limits
+
+- Ordinary delete atomically removes the D1 reference and records pending work; storage quota is released only after actual R2 deletion.
+- Upload records `r2_inflight_uploads` before R2 write; committing the D1 reference and removing in-flight occur in one transaction.
+- Complete backup import uses per-user token fencing against old requests and v1/v2 concurrency.
+- Hourly Cron reconciles `attachments + pending + inflight` with paginated R2 inventory and rechecks references before physical deletion.
+- Crash-stale in-flight uploads and backup locks are reclaimed by scheduled maintenance only after 24 hours.
+- A fixed grace period alone cannot prove upload completion; do not remove `0013` or disable Cron while claiming race safety.
+
+Cloudflare application limits are 20 MiB per image, video, or other attachment, and 20 MiB total attachment ciphertext in one complete backup. Conservative application caps are 8 GiB storage, 800,000 Class A/month, and 8,000,000 Class B/month. They cover only operations through this Worker; Dashboard, S3 API, other Workers, and other account buckets bypass them.
+
+## 9. Cost and account-wide checks
+
+Workers, Static Assets, D1, R2 Standard, DNS, and SSL have free tiers, but cannot guarantee a zero bill for the account:
+
+1. Billing → Subscriptions: verify no unintended paid product.
+2. Bills and documents: verify no unpaid invoice.
+3. R2 Overview/Usage: inspect account-wide storage and Class A/B.
+4. D1 Metrics: inspect rows read/written and storage.
+5. Worker Metrics: inspect requests and CPU.
+
+Cloudflare Budget Alerts notify only; they do not stop spend. R2 free allowance is account-wide, not per bucket.
+
+## 10. Restore and rollback
 
 Code rollback:
 
 ```bash
-npx wrangler versions list --config apps/worker/wrangler.jsonc
-npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config apps/worker/wrangler.jsonc
+npx wrangler versions list --config <PRODUCTION_CONFIG>
+npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config <PRODUCTION_CONFIG>
 ```
 
-**Worker rollback does not roll back D1 or R2.** For incompatible schema/object changes, switch both bindings to D1 + R2 restored from the same backup point, or use a reviewed forward fix.
+**Worker rollback does not roll back D1, R2, ordinary variables, or external resources.** After rollback, re-audit Passkey vars, Secret names, bindings, routes, Cron, and `workers_dev`.
 
-## 5. Cost and limits
+Restore data into a new D1 and R2 from the same backup point. Import SQL and every object, compare keys/counts/sizes, then switch `DB` and `ATTACHMENTS` together. Never pair old D1 with new R2 or overwrite a production resource still receiving writes. Re-enable writes and remove failed-state copies only after full acceptance succeeds.
 
-- **Workers, Workers Static Assets, D1, R2 Standard, Cloudflare DNS/proxy, Universal SSL, and baseline DDoS protection all have free tiers; this project does not require Zone Pro or Workers Paid.** A free tier does not guarantee that the entire account can never be billed: paid subscriptions, other account workloads, and R2 overage must still be checked under Billing/Usage.
-- Workers Free request/CPU limits follow the current official documentation and requests are limited when the Free allowance is reached. D1 Free currently includes 5,000,000 rows read/day, 100,000 rows written/day, and 5 GB total account storage; Free-tier queries fail at the daily limit rather than this project automatically upgrading the account.
-- Cloudflare currently includes, **account-wide**, 10 GB-month of R2 Standard storage, 1,000,000 Class A operations, and 10,000,000 Class B operations per month; these are not per-bucket allowances. The official R2 Limits page lists per-bucket storage as Unlimited and exposes no native bucket hard spend/usage cap.
-- This project therefore atomically reserves quota in D1 before R2 work, using UTC calendar months: 8 GiB encrypted bytes, 800,000 Class A/month, and 8,000,000 Class B/month. It returns `quota_exceeded` at a cap and conservatively retains counts for attempted failures. Object delete is free under the official pricing classification; a successful delete releases its storage reservation.
-- The 20% margin is for other account usage and metering differences, but **does not guarantee a zero bill**. Other buckets, Dashboard, S3/API, and other Workers bypass this application's counters; GB-month also differs from instantaneous bytes. Monitor account-wide usage and billing too.
-- Cloudflare Budget Alerts are account-wide dollar-spend notifications only: they alert but do not stop spend. There is no product-specific API alert at 80% of the R2 free allowance, so do not treat a billing alert as a cap.
-- Attachments incur R2 storage and Class A/B operations; Worker requests and D1 queries are metered separately, and backup buckets add storage cost.
-- Cloudflare application limits are 10 MiB per image and 20 MiB per video or other file; attachment ciphertext included in one complete backup is limited to 20 MiB in total. The shared frontend reads these service capabilities from the authenticated session and displays/enforces them. Video is fully downloaded and decrypted in-browser; no Range streaming or resumable upload is provided.
+## 11. Web Analytics, CSP, and troubleshooting
 
-### Free-deployment checklist
-
-1. **Account → Billing → Subscriptions**: verify that Workers Paid, Zone Pro, Argo, Images, Stream, or another paid subscription was not enabled for this deployment.
-2. **Account → Billing → Bills and documents**: verify that no invoice is due.
-3. **Storage & Databases → R2 → Overview/Usage**: inspect account-wide (not per-bucket) storage and monthly Class A/B usage.
-4. **D1 → database → Metrics → Row Metrics**: inspect daily rows read/written and total storage.
-5. **Workers & Pages → Worker → Metrics**: inspect request and CPU usage.
-
-> The project's 8 GiB / 800,000 Class A / 8,000,000 Class B caps cover only operations routed through this Worker. Dashboard, S3 API, other Workers, and other buckets bypass them. Budget Alerts notify; they do not stop spend.
-
-### Web Analytics and the vault CSP
-
-Zone-level Cloudflare Web Analytics `auto_install` may inject `static.cloudflareinsights.com/beacon.min.js` into the vault and conflict with the strict `script-src 'self'` CSP. **Do not weaken CSP or manually install the Beacon in either vault.**
-
-- If the Free plan does not offer hostname exclusion rules, open **Analytics & Logs → Web Analytics → site → Manage site → RUM** and choose **Enable and install JS snippet**. This stops automatic injection; manually install the snippet only on other, non-sensitive sites that need analytics.
-- If the entire zone needs no analytics, choose Disable. Do not delete or disable zone-wide analytics for one hostname without checking other sites.
-- Allow edge configuration to propagate, then verify in a real browser that the DOM contains no `data-cf-beacon` and the console has no CSP violation.
-
-## 6. Security and troubleshooting
-
-- Enable MFA on Cloudflare, use and rotate least-privilege API tokens, and secure GitHub/CI.
-- Use production only over HTTPS. Encrypt, restrict, store off-site, and rehearse backups.
-- Never log or share passwords, vault keys, plaintext, full ciphertext, cookies, or tokens.
+Cloudflare Web Analytics `auto_install` may inject `static.cloudflareinsights.com/beacon.min.js` and violate this vault's strict CSP. Do not weaken `script-src 'self'`. Disable automatic injection for the sensitive hostname, or manually install the snippet only on other non-sensitive sites. Verify real-browser DOM has no `data-cf-beacon` and console has no CSP violation.
 
 | Symptom | Check |
 |---|---|
-| `DB` is undefined | Binding is exactly `DB`; current environment/version uses the intended D1 |
-| Registration returns 503 `registration_unavailable` | `INVITE_CODE` is missing, outside 16–256 characters, or attached to the wrong Worker/environment; verify only name/type and write it again safely |
-| Correct value returns 403/429 | Check accidental leading/trailing whitespace and target environment; wait for the rate-limit window and retry with a disposable account without logging the value |
-| `no such table` | Migrations ran completely against the `--remote` target |
-| Static 404/stale UI | `npm run build`, Assets=`dist/`, deployment version, cache |
-| Dashboard creates only a static site | Use Worker + Assets through Wrangler/CI, not plain Pages as an API replacement |
-| Session disappears | HTTPS, system clock, consistent cookie/domain |
-| 403/CSRF | Same-origin access, cookie delivery, consistent custom domain |
-| Failure after rollback | Code/D1 schema compatibility; version rollback is not database rollback |
+| Passkey says unavailable | All three Passkey settings; whether deployment deleted RP ID/Origin because `vars` were omitted; exact Origin |
+| Registration 503 `registration_unavailable` | `INVITE_CODE` Secret name, environment, and length; never print its value |
+| Correct invitation gets 403/429 | Hidden whitespace, target environment, rate-limit window |
+| `no such table` | Full `0001`–`0013` chain on the correct remote D1 |
+| Attachment/backup 500 or missing table | `0011`–`0013`, R2 binding, Cron, and active version |
+| Static 404/stale UI | Assets path, build, 100% traffic, cache, asset hashes |
+| workers.dev unexpectedly public | Private config `workers_dev:false` was not replaced by public template |
+| Cron missing | `triggers.crons` exists in private config and active version |
+| Failure after rollback | Code/schema/config compatibility; code rollback is not data/variable rollback |
+
+## 12. Final release checklist
+
+- [ ] Record pre-task version and complete configuration inventory
+- [ ] Same-point D1 + R2 backup, verified, restricted, and outside Git
+- [ ] Current commit test/lint/docs/typecheck/build all naturally exit 0
+- [ ] Private config contains all vars, bindings, routes, Cron, compatibility, and intended `workers_dev`
+- [ ] Secret names are complete; no value enters Git or logs
+- [ ] Every pending migration applied; second listing shows none
+- [ ] Dry-run passes and intended version serves 100% traffic
+- [ ] Custom domain is 200; workers.dev is 404 when intentionally disabled
+- [ ] Passkey options works; real-device Passkey unlock checked when available
+- [ ] D1/R2 object differences and transient tables are clean
+- [ ] Disposable account and probe data are precisely cleaned
+- [ ] Git diff and secret scan pass
+
+Only then is the production Cloudflare deployment complete.

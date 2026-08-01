@@ -16,11 +16,21 @@ for (const [file, assets] of versionedAssets) {
     if (occurrences !== 1) throw new Error(`${file}: expected exactly one versioned reference for ${asset}`);
   }
 }
-const guides = [
+const guideCandidates = [
   'README.md', 'README.en.md',
   'docs/cloudflare-deployment.zh-CN.md', 'docs/cloudflare-deployment.en.md',
+  'docs/server-deployment.zh-CN.md', 'docs/server-deployment.en.md',
   'docs/deployment.zh-CN.md', 'docs/deployment.en.md', 'docs/DEPLOYMENT.md',
 ];
+const guides = [];
+for (const file of guideCandidates) {
+  try {
+    await access(resolve(root, file));
+    guides.push(file);
+  } catch {
+    // Platform-specific release archives intentionally omit the other backend's guide.
+  }
+}
 const markdown = [...guides, `release-notes-v${pkg.version}.md`];
 const contents = new Map();
 for (const file of markdown) {
@@ -41,9 +51,12 @@ for (const [file, text] of contents) {
     try { await access(target); } catch { throw new Error(`${file}: broken internal link ${href}`); }
   }
 }
-for (const file of ['README.md', 'README.en.md']) {
+for (const [file, noLinuxArtifactDisclosure] of [
+  ['README.md', '当前均没有可下载Linux资产'],
+  ['README.en.md', 'currently has a downloadable Linux asset'],
+]) {
   const text = contents.get(file);
-  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, '/releases/tag/v1.1.65']) {
+  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, noLinuxArtifactDisclosure]) {
     if (!text.includes(required)) throw new Error(`${file}: missing current release reference ${required}`);
   }
   if (text.includes(`pass-vault-v2-linux-${pkg.version}.tar.gz`) || text.includes(`pass-vault-v2-linux-${pkg.version}.zip`)) {
@@ -63,12 +76,41 @@ for (const [file, required] of [
   }
 }
 for (const [file, trustBoundary] of [
-  ['docs/cloudflare-deployment.zh-CN.md', ['独立 KEK 的 AES-256-GCM 密文', '改变原纯客户端零知识边界', '可以恢复 vault key', '不保存主密码或明文 vault key']],
-  ['docs/cloudflare-deployment.en.md', ['AES-256-GCM ciphertext under an independent KEK', 'changes the original client-only zero-knowledge boundary', 'can recover the vault key', 'stores neither the master password nor a plaintext vault key']],
+  ['docs/cloudflare-deployment.zh-CN.md', ['独立KEK加密包装', '改变默认零知识边界', '可以恢复vault key', '不保存明文vault key']],
+  ['docs/cloudflare-deployment.en.md', ['wrapped under an independent KEK', 'changes the default zero-knowledge boundary', 'can recover the vault key', 'nor a plaintext vault key']],
 ]) {
   const text = contents.get(file);
   for (const required of [`v${pkg.version}`,'SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0008_session_metadata.sql','0009_passkey_assisted_unlock.sql','PASSKEY_UNLOCK_KEK','PASSKEY_RP_ID','PASSKEY_ORIGIN',...trustBoundary,'registration_unavailable','invalid_invite']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
 }
+
+for (const phrase of [
+  '0011_r2_cleanup_queue.sql', '0012_backup_import_locks.sql',
+  '0013_r2_inflight_uploads.sql', '17 * * * *', 'workers_dev',
+  '--keep-vars', 'run_worker_first', 'migrations_dir', '100%',
+  'passkey_unlock_unavailable',
+]) {
+  for (const file of ['docs/cloudflare-deployment.zh-CN.md', 'docs/cloudflare-deployment.en.md']) {
+    if (!contents.get(file).includes(phrase)) throw new Error(`${file}: missing deployment regression guard ${phrase}`);
+  }
+}
+
+for (const phrase of ['CLIENT_IP_HEADER', 'INVITE_CODE', 'PASSKEY_UNLOCK_KEK']) {
+  for (const file of ['docs/server-deployment.zh-CN.md', 'docs/server-deployment.en.md']) {
+    if (contents.has(file) && !contents.get(file).includes(phrase)) throw new Error(`${file}: missing environment guard ${phrase}`);
+  }
+}
+
+const forbiddenLinuxArtifactClaims = [
+  /releases\/download\/v1\.1\.(?:65|66)\/pass-vault-v2-linux-/,
+  /stable (?:Linux )?artifact remains[^\n]*v1\.1\.65/i,
+  /Linux\s*稳定制品仍为[^\n]*v1\.1\.65/i,
+];
+for (const file of guides) {
+  for (const pattern of forbiddenLinuxArtifactClaims) {
+    if (pattern.test(contents.get(file))) throw new Error(`${file}: advertises a Linux Release artifact that does not exist`);
+  }
+}
+
 console.log(`Documentation checks passed (${guides.length} deployment entry points, ${markdown.length} Markdown files).`);

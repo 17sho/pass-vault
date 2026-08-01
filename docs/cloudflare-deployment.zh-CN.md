@@ -1,219 +1,380 @@
-# Cloudflare 部署指南（Workers + Static Assets + D1 + R2）
+# Cloudflare 完整部署指南（Workers + Static Assets + D1 + R2）
 
 [中文](cloudflare-deployment.zh-CN.md) · [English](cloudflare-deployment.en.md) · [返回首页](../README.md)
 
-本指南仅讲 Cloudflare 部署。请把 `<...>` 替换成实际值；真实账户 ID、D1 ID、token 和域名不要提交到公开仓库。
+本指南覆盖当前 `main` 的首次部署、生产升级、备份、恢复、回滚和验收。请把所有 `<...>` 替换为自己的值；不得把真实域名、账户/数据库 ID、bucket 名、token、邀请码、KEK、生产备份或私有配置提交到公开仓库。
 
-## 0. 下载并校验 v1.1.66（推荐）
+> **版本说明：** GitHub `v1.1.66` Release 中现有 Cloudflare 压缩包是该 tag 的冻结制品，不包含 `main` 后续加入的 `0011`–`0013` R2 生命周期修复。新部署和升级生产环境应优先从当前 `main` 的已审核提交部署；不要替换旧 tag 或 Release 资产。
 
-从 [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) 下载Cloudflare平台包与校验文件：
+## 1. 架构、要求与安全边界
+
+```text
+浏览器 ──HTTPS──> Cloudflare Worker
+                       ├─ /api/* → Worker → D1 binding: DB（认证材料和密文元数据）
+                       │                  └→ R2 binding: ATTACHMENTS（附件密文对象）
+                       └─ 其他   → Workers Static Assets binding: ASSETS（dist/）
+                                      ↑
+                         Cron 17 * * * *：有界对账/清理
+```
+
+要求：
+
+- Node.js 22+、npm、Git，以及启用 Workers、D1、R2 的 Cloudflare 账户；
+- Wrangler 4.x（仓库锁定版本通过 `npm ci` 安装）；
+- 一个强随机、16–256字符的 `INVITE_CODE`；
+- 附件功能必须使用私有R2 bucket，不需要公共访问、自定义R2域名或CORS；
+- 生产只允许HTTPS。
+
+默认模式下，Worker不持有可独立恢复vault key的服务器密钥。可选的服务器辅助Passkey会在D1保存由独立KEK加密包装的vault key；通过WebAuthn用户验证后，Worker可以恢复vault key并创建会话，因此**改变默认零知识边界**。Worker仍不接收主密码，也不保存明文vault key。启用前应理解这一风险。
+
+## 2. 获取代码与本地门禁
+
+### 2.1 推荐：从当前 `main` 部署
+
+```bash
+git clone https://github.com/17sho/pass-vault-v2.git
+cd pass-vault-v2
+git checkout main
+git pull --ff-only
+# 记录并审核实际提交；生产证据只记录SHA，不记录任何秘密
+git rev-parse HEAD
+npm ci
+npm test
+npm run lint
+npm run lint:docs
+npm run typecheck
+npm run build
+```
+
+所有命令必须自然退出0。不要用被中止、超时或旧提交的测试结果代替当前门禁。
+
+### 2.2 冻结的 v1.1.66 Cloudflare 制品
+
+现有Release资产只有：
+
+- `pass-vault-v2-cloudflare-1.1.66.tar.gz`
+- `pass-vault-v2-cloudflare-1.1.66.zip`
+- `SHA256SUMS`
 
 ```bash
 VERSION=1.1.66
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
-tar -xzf "pass-vault-v2-cloudflare-$VERSION.tar.gz"
-cd "pass-vault-v2-cloudflare-$VERSION"
-npm ci
-npm run build && npm test && npm run lint && npm run typecheck
 ```
 
-校验必须显示`OK`。压缩包内`apps/worker/wrangler.jsonc`只含全零D1 ID和示例R2名称；部署前必须替换为自己的资源，不能把真实配置提交到公开仓库。也可下载`.zip`，但仍应使用同一`SHA256SUMS`校验。
+校验必须显示`OK`。该冻结包不含`main`上的后续R2修复；不要把它误称为当前完整代码，也不要替换原资产。
 
-## 要求与架构
+## 3. 配置模型：公共模板与生产私有配置
 
-- Node.js 22+、npm，以及启用 Workers/D1/R2 的 Cloudflare 账户；从源码安装时另需Git。
-- CLI 路线需要 Wrangler 登录；Dashboard 路线需要 GitHub 仓库连接或上传/构建能力。
-- **当前版本前置条件：** 准备一个16–256字符的强随机`INVITE_CODE`，并在部署代码前按文件名顺序应用`apps/worker/migrations/`中的全部待执行迁移。缺少/无效配置会返回`registration_unavailable`（HTTP 503），错误值返回`invalid_invite`（HTTP 403）并计入持久限速；既有用户登录不受影响。
+`apps/worker/wrangler.jsonc`是公开模板，故意使用占位D1/R2资源且`workers_dev:true`，以便没有自定义域的新部署仍有目标。**不要把生产ID、bucket、域名或变量写回公共模板。**
 
-```text
-浏览器 ──HTTPS──> Cloudflare Worker
-                       ├─ /api/* → Worker → D1: DB（密文元数据）
-                       │                  └→ R2: ATTACHMENTS（密文对象）
-                       └─ 其他   → Workers Static Assets (dist/)
-```
-
-首次操作前在仓库根目录运行：
+生产应复制到仓库外或被 `.gitignore` 排除的位置，例如：
 
 ```bash
-npm ci
-npm run build && npm test && npm run lint && npm run typecheck
+umask 077
+install -m 0600 apps/worker/wrangler.jsonc <SAFE_CONFIG_DIR>/wrangler.production.jsonc
 ```
 
-## 1. Wrangler CLI 部署
+生产私有配置至少应完整包含：
 
-### 1.1 登录、创建 D1、设置配置
+```jsonc
+{
+  "$schema": "<ABSOLUTE_REPOSITORY_PATH>/node_modules/wrangler/config-schema.json",
+  "name": "<WORKER_NAME>",
+  "workers_dev": false,
+  "main": "<ABSOLUTE_REPOSITORY_PATH>/apps/worker/src/index.ts",
+  "compatibility_date": "2026-07-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PASSKEY_RP_ID": "<APP_DOMAIN>",
+    "PASSKEY_ORIGIN": "https://<APP_DOMAIN>"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "<D1_DATABASE_NAME>",
+    "database_id": "<D1_DATABASE_ID>",
+    "migrations_dir": "<ABSOLUTE_REPOSITORY_PATH>/apps/worker/migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "ATTACHMENTS",
+    "bucket_name": "<R2_BUCKET_NAME>"
+  }],
+  "assets": {
+    "directory": "<ABSOLUTE_REPOSITORY_PATH>/dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "routes": [{ "pattern": "<APP_DOMAIN>", "custom_domain": true }],
+  "triggers": { "crons": ["17 * * * *"] },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
+```
+
+若私有配置放在仓库外，`main`、`assets.directory`和`migrations_dir`应使用绝对路径；相对路径按**配置文件所在目录**解析，可能错误指向`/tmp/migrations`等位置。
+
+### 3.1 必需绑定与配置
+
+| 类型 | 名称 | 要求 |
+|---|---|---|
+| Secret | `INVITE_CODE` | 必填，16–256字符；缺失/无效时新注册返回503，但既有登录不受影响 |
+| Secret | `PASSKEY_UNLOCK_KEK` | 启用服务器辅助Passkey时必填；32随机字节的Base64URL；不能盲目轮换 |
+| Plain var | `PASSKEY_RP_ID` | 启用Passkey时为精确HTTPS主机名，如`<APP_DOMAIN>` |
+| Plain var | `PASSKEY_ORIGIN` | 启用Passkey时为`https://<APP_DOMAIN>`，无路径和尾斜杠 |
+| D1 | `DB` | 必须绑定到目标数据库 |
+| R2 | `ATTACHMENTS` | 必须绑定到私有附件bucket |
+| Assets | `ASSETS` | `dist/`，且`run_worker_first:true` |
+| Cron | `17 * * * *` | 负责R2 inventory、待删队列、崩溃遗留in-flight/锁和过期会话维护 |
+
+三项Passkey配置必须同时有效，否则只关闭服务器辅助Passkey，主密码登录仍可用。**不得替换已有`PASSKEY_UNLOCK_KEK`**；丢失或替换会使已注册的辅助Passkey包装材料不可用。
+
+## 4. 首次CLI部署
+
+### 4.1 登录并创建资源
 
 ```bash
 npx wrangler login
 npx wrangler whoami
-cd apps/worker
 npx wrangler d1 create <D1_DATABASE_NAME>
 npx wrangler r2 bucket create <R2_BUCKET_NAME>
 ```
 
-复制返回的 `database_id`。编辑 `apps/worker/wrangler.jsonc`：
+把返回的资源信息只写入生产私有配置。binding名称必须保持`DB`、`ATTACHMENTS`、`ASSETS`。
 
-- `name` 改为 `<WORKER_NAME>`；
-- `d1_databases` 中 binding 保持 `DB`，设置真实 `database_name`/`database_id`；
-- `migrations_dir` 保持 `migrations`；
-- `r2_buckets` 中 binding 必须为 `ATTACHMENTS`，并设置 `bucket_name`；
-- Assets 目录保持 `../../dist`，`run_worker_first` 保持 `true`；
-- 删除示例 route，或替换为自己的域名。公开分支应保留占位配置，实际值放在不提交的配置副本或 CI secrets 中。
-
-### 1.2 migration、构建、发布
-
-先在受控终端生成强随机值并直接送入 Wrangler。下面不会把值放进命令参数、环境变量或 shell 历史；不要开启 `set -x`，也不要把终端录屏/输出保存到工单：
+### 4.2 安全写入Secrets
 
 ```bash
-# 仓库根目录；openssl rand 的 32 随机字节以 64 个十六进制字符表示
-openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc
-openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | npx wrangler secret put PASSKEY_UNLOCK_KEK --config apps/worker/wrangler.jsonc
+openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config <PRODUCTION_CONFIG>
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | \
+  npx wrangler secret put PASSKEY_UNLOCK_KEK --config <PRODUCTION_CONFIG>
 ```
 
-Wrangler 应只确认 secret 名称/成功状态，不应回显值。若需人工保管同一个值，使用密码管理器自身的密码生成器（至少 128 bit 随机性、16–256 字符），再运行 `npx wrangler secret put INVITE_CODE --config apps/worker/wrangler.jsonc` 并在隐藏提示中粘贴；不要使用 `echo '真实值' | ...`、命令行参数或提交的 `.dev.vars`。
+不要开启`set -x`，不要用`echo '真实值'`，不要把值放进参数、仓库、工单、截图或日志。若需要可恢复的固定值，在密码管理器生成/保存，再通过Wrangler隐藏提示输入。
 
-在不提交的生产 Wrangler 配置或 Dashboard Variables 中设置 `PASSKEY_RP_ID=<APP_DOMAIN>` 与 `PASSKEY_ORIGIN=https://<APP_DOMAIN>`。`PASSKEY_UNLOCK_KEK`、`PASSKEY_RP_ID`、`PASSKEY_ORIGIN` 必须同时有效，否则服务器辅助 Passkey 安全关闭。RP ID 必须是应用的精确 HTTPS 主机名，Origin 必须是无路径、无尾部斜杠的 canonical Origin。
+### 4.3 应用完整迁移链
+
+迁移账本位于`apps/worker/migrations/`。首次部署应按账本应用`0001`到`0013`；升级只应用待执行项：
 
 ```bash
-# apps/worker/
-npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
-npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote
-# 确认列表中没有待执行迁移；未确认就停止，不要部署
-npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
-cd ../..
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
+npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
+```
+
+最后一条必须显示无待执行迁移。每次schema变更只新增migration，绝不重写已远程执行的文件。当前关键迁移包括：
+
+- `0008_session_metadata.sql`：会话设备/活动元数据；
+- `0009_passkey_assisted_unlock.sql`：辅助Passkey凭据、challenge和限流槽；
+- `0010_session_auth_method.sql`：会话认证方式；
+- `0011_r2_cleanup_queue.sql`：持久R2待删队列和物理配额；
+- `0012_backup_import_locks.sql`：用户级备份导入锁；
+- `0013_r2_inflight_uploads.sql`：R2写入前持久in-flight fencing。
+
+### 4.4 Dry-run与部署
+
+```bash
 npm run build
-npx wrangler deploy --config apps/worker/wrangler.jsonc
-npx wrangler versions list --config apps/worker/wrangler.jsonc
-curl -fsS https://<WORKER_SUBDOMAIN>/api/health
+npx wrangler deploy --dry-run --config <PRODUCTION_CONFIG>
+npx wrangler deploy --config <PRODUCTION_CONFIG>
+npx wrangler deployments status --config <PRODUCTION_CONFIG>
+npx wrangler versions list --config <PRODUCTION_CONFIG>
 ```
 
-每次 schema 变更只新增 migration，绝不重写已在远程执行的文件。升级到包含 R2 物理配额修复的版本时，必须先依次应用 `0011_r2_cleanup_queue.sql`、`0012_backup_import_locks.sql` 和 `0013_r2_inflight_uploads.sql`，确认没有待执行迁移后再部署 Worker；否则认证请求、附件上传或完整备份导入会因缺表而失败。Worker 在写 R2 前登记 in-flight key，提交 D1 引用时原子清除；每小时运行一次有界 R2 inventory 对账和孤儿清理，删除前再次检查引用。崩溃遗留的 in-flight 上传和完整备份锁仅由定时维护在超过 24 小时后回收。
+只有最新版本100%承载流量才算完成。上传version不等于切流成功。
 
-服务器辅助 Passkey 会把 32 字节 vault key 以独立 KEK 的 AES-256-GCM 密文保存到 D1，**改变原纯客户端零知识边界**：Worker 配合一次通过用户验证的 Passkey 会话可以恢复 vault key。Worker 不保存主密码或明文 vault key。修改主密码/用户名会撤销全部服务器辅助 Passkey。直接轮换或丢失 KEK 会使既有辅助凭据不可用；应先撤销并重新注册。
+## 5. 生产升级：必须保留完整现网配置
 
-### 1.3 自定义域
+> **关键规则：Wrangler部署不会因新代码自动保留普通`vars`。** 默认部署会删除旧普通变量，再设置配置文件中的`vars`；Secrets不会因普通deploy自动删除。Cloudflare官方`--keep-vars`可保留Dashboard管理的普通变量，但不能替代对bindings、routes、triggers、compatibility和`workers_dev`的完整审计。
 
-在配置中添加（具体字段以当前 Wrangler schema 为准）：
+### 5.1 升级前冻结基线
 
-```json
-"routes": [{ "pattern": "<APP_DOMAIN>", "custom_domain": true }]
+在任何部署前记录**任务开始前**版本ID，并保存只含名称/类型、不含秘密值的配置清单：
+
+```bash
+npx wrangler deployments status --config <PRODUCTION_CONFIG>
+npx wrangler versions view <PRE_TASK_VERSION_ID> --json --config <PRODUCTION_CONFIG> > <SAFE_EVIDENCE>/before-version.json
+npx wrangler secret list --config <PRODUCTION_CONFIG> > <SAFE_EVIDENCE>/before-secret-names.json
+npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
 ```
 
-重新部署；或在 Dashboard 的 Worker **Settings → Domains & Routes → Add → Custom Domain** 添加。等待 DNS/证书生效后验证主页与 `/api/health`。
+逐项比对并保留：
 
-## 2. Cloudflare Dashboard 部署
+- 所有普通变量名和值来源；
+- 所有Secret名称（只核对名称，不读取值）；
+- `DB`、`ATTACHMENTS`、`ASSETS`绑定及目标；
+- `compatibility_date`和flags；
+- custom domain/routes；
+- Cron triggers；
+- `workers_dev`期望状态；
+- observability设置。
 
-Dashboard 菜单名称可能调整；以当前界面为准。
+**不能拿本次任务中间部署的版本当旧基线。** 如果无法确认现网值，停止部署并先从Dashboard/受限配置恢复清单。
 
-1. **Storage & Databases → D1 → Create database**，创建 `<D1_DATABASE_NAME>`。
-2. **Workers & Pages → Create → Import a repository**，连接 `<GITHUB_REPOSITORY>`，选择 `<PRODUCTION_BRANCH>`。
-3. Root directory 设为仓库根目录；Build command 设为 `npm ci && npm run build`。
-4. 这不是纯静态 Pages：必须部署 Worker API 并附加 Workers Static Assets。若界面支持 deploy command，设为 `npx wrangler deploy --config apps/worker/wrangler.jsonc`；若导入流程不能识别 Worker main/Assets/D1，请使用 Cloudflare CI/GitHub Actions 调 Wrangler，而不是发布成纯 Pages。
-5. Worker **Settings → Bindings → Add → D1 database**：变量名必须为 `DB`，选择目标数据库。
-6. 在 **Storage & Databases → R2 → Create bucket** 创建私有 bucket；Worker **Settings → Bindings → Add → R2 bucket**，变量名必须为 `ATTACHMENTS`。
-7. 从受控终端运行Wrangler migrations；**发布前必须确认全部待执行迁移已应用**。若使用D1 Console，按文件名顺序执行所有尚未执行的`apps/worker/migrations/*.sql`；不要只上传新代码。
-8. 在目标 Worker 的 **Settings → Variables and Secrets**（当前界面也可能归在 **Bindings** 或类似设置页）新增变量，名称严格为 `INVITE_CODE`，类型选择加密的 **Secret**，值由密码管理器生成（至少 128 bit 随机性，16–256 字符）。保存并按界面要求部署新版本。不要选明文变量，也不要把值放在构建变量、仓库或截图中。
-9. 保存后回到变量/秘密列表，只核对名称 `INVITE_CODE`、Secret 类型和目标环境；Cloudflare 不应再次显示值。若界面没有 Secret 类型或目标环境不明确，停止并改用上面的 `wrangler secret put`，不要降级成明文。
-10. 确认 Assets 指向构建出的 `dist/`，且 API 请求先经过 Worker。
-11. **Settings → Domains & Routes**（或当前等价入口）添加 `<APP_DOMAIN>`，完成 DNS 和证书。
-12. CI 中把最小权限 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 存为加密 secrets；不得写进仓库或日志。
+若普通变量由Dashboard管理且不准备写入配置，可显式使用：
 
-## 3. 发布后验证
+```bash
+npx wrangler deploy --keep-vars --config <PRODUCTION_CONFIG>
+```
+
+但本项目更推荐把非秘密的`PASSKEY_RP_ID`和`PASSKEY_ORIGIN`写入受限生产配置，使部署可重复。无论是否使用`--keep-vars`，都必须核对其他绑定和路由。
+
+### 5.2 一致性备份
+
+升级前停止或隔离写入，在同一逻辑时间点备份D1与R2：
+
+```bash
+npx wrangler d1 export <D1_DATABASE_NAME> --remote \
+  --output=<SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql \
+  --config <PRODUCTION_CONFIG>
+sha256sum <SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql > <SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql.sha256
+chmod 0600 <SAFE_BACKUP_DIR>/d1-<TIMESTAMP>.sql*
+```
+
+同时用受控工具/API将R2全部对象复制到独立、版本化备份bucket，保留对象key、大小和校验信息。**不能只备份D1或只备份R2。** 备份目录应位于仓库外、权限受限并异地保存。
+
+### 5.3 升级顺序
+
+1. 记录任务开始前版本和完整配置清单；
+2. 生成并验证D1＋R2同点备份；
+3. `npm ci`并完成全部门禁；
+4. 用生产私有配置执行deploy dry-run；
+5. 应用全部待执行migration并再次确认无pending；
+6. 部署Worker和Assets；
+7. 确认新版本100%切流；
+8. 对比新旧配置项，任何非预期删除都立即阻断；
+9. 完成第7节验收后才结束维护窗口。
+
+## 6. Dashboard / CI部署
+
+Dashboard菜单会变化，但必须建立与CLI相同的最终状态：
+
+1. 创建/选择D1和私有R2；
+2. Worker绑定`DB`、`ATTACHMENTS`、`ASSETS`；
+3. Root为仓库根目录，build为`npm ci && npm run build`；
+4. 必须部署Worker API＋Workers Static Assets，不能发布成纯Pages；
+5. 以Secret保存`INVITE_CODE`和`PASSKEY_UNLOCK_KEK`；
+6. 以普通变量保存`PASSKEY_RP_ID`和`PASSKEY_ORIGIN`；
+7. 添加`17 * * * *` Cron Trigger；
+8. 添加精确custom domain；若生产不需要公开子域，关闭`workers.dev`；
+9. 部署前从受控终端应用全部D1迁移；
+10. CI中的API token和account ID只能放加密CI secrets，并使用最小权限；
+11. 每次升级前导出/比对Dashboard中全部变量、Secrets名称、bindings、routes和triggers，不能只看代码diff。
+
+## 7. 发布后完整验收
+
+### 7.1 匿名与配置验收
 
 ```bash
 curl -fsS https://<APP_DOMAIN>/api/health
 curl -fsSI https://<APP_DOMAIN>/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://<WORKER_SUBDOMAIN>.workers.dev/api/health
 ```
 
-在浏览器用可清理测试账户验证：正确邀请码可注册；明显错误的占位值被拒绝且不创建账户；随后登录/解锁成功。不要通过 API、日志或截图打印真实邀请码。缺少/无效 `INVITE_CODE` 时注册应为 HTTP 503 `registration_unavailable`，错误值应为 HTTP 403 `invalid_invite`（连续失败可能变为 429），但既有账户仍应能登录。再验证 CSRF 拒绝、密文条目和附件上传/下载/删除、加密备份导入/导出与退出。R2 无需公开访问或公共域名，也无需 bucket CORS。
+预期：正式域健康200；若生产设置`workers_dev:false`，实际workers.dev入口应404。再检查：
 
-### 3.1 轮换与回退
+- 当前deployment只有目标版本承载100%流量；
+- 新版本仍有`INVITE_CODE`、`PASSKEY_UNLOCK_KEK`两个Secret名称；
+- 新版本有`PASSKEY_RP_ID`、`PASSKEY_ORIGIN`普通变量；
+- D1/R2/Assets绑定、custom domain、Cron和compatibility未丢失；
+- 首页、`app.mjs`、`style.css`等固定资源与本地`dist/`哈希一致；
+- 安全头存在，DOM未被Cloudflare Web Analytics自动注入脚本。
 
-轮换只影响**轮换后的新注册**，不会注销既有会话、改变主密码或重新加密已有库。先在安全渠道通知仍需注册的人，再用 Dashboard Secret 保存新值，或重复安全的 `openssl rand -hex 32 | npx wrangler secret put INVITE_CODE --config ...`；随后仅核对 secret 名称，并以可清理账户验收。不要保留两个有效值。
+Passkey服务端探针可以匿名请求authentication options：正确配置应返回WebAuthn challenge，而不是503 `passkey_unlock_unavailable`。该探针会产生短期challenge/限流记录；使用可识别测试来源并按精确范围清理，不能宽泛删除生产数据。
 
-若轮换后注册异常，先确认值长度、目标 Worker/环境和当前部署版本。需要紧急回退时，从密码管理器取回前一个值，通过 Secret 输入界面或 Wrangler 隐藏提示重新写入；**不要**用 Worker 代码回滚代替 secret 回退。前值如果疑似泄露，不得回退，应生成新的强随机值。
+### 7.2 真实浏览器与可清理账户
 
-## 4. 升级、备份、恢复与回滚
+只有拥有合法邀请码和可清理测试账户时才执行：
 
-### 升级到 v1.1.66
+1. 正确邀请码注册；明显错误值返回403 `invalid_invite`且不创建用户；缺失/无效服务端配置返回503 `registration_unavailable`；
+2. 主密码登录/解锁、条目增删改；
+3. 附件上传、下载、替换、删除；
+4. 仅资料备份和完整备份导出/导入；
+5. 安全中心显示认证方式和会话；
+6. 注册服务器辅助Passkey，锁定后在真实设备完成Passkey免主密码解锁，再撤销验证；
+7. 退出后会话失效；
+8. 删除测试条目、附件、会话、Passkey和测试账户，复核无残留。
 
-升级到v1.1.66时，先在同一逻辑时间点备份D1与R2。部署代码前按文件名顺序应用全部待执行迁移；早于v1.1.61的安装仍须包含`0008_session_metadata.sql`，本版本新增`0009_passkey_assisted_unlock.sql`，用于服务器辅助Passkey凭据、challenge和失败限速槽。再配置独立`PASSKEY_UNLOCK_KEK`及精确`PASSKEY_RP_ID`/`PASSKEY_ORIGIN`，最后部署Worker和静态资源。无需重加密现有密文或保险库密钥。
+没有合法邀请码或真实设备时不得伪造成功。服务端返回challenge只证明配置恢复，**不等于已有Passkey真实解锁完成**。
 
-部署后确认首页引用`app.mjs?v=1.1.66`；在有效会话中启用服务器辅助Passkey，锁定后完成用户验证并重新解锁，随后撤销凭据并确认不能再使用。再确认安全中心的当前会话仍有效。
+### 7.3 D1/R2对账
 
-升级前停止写入，并在同一逻辑时间点备份 D1 与 R2。导出 D1，同时用受控工具或 Cloudflare API 将 R2 全量复制到独立的版本化 bucket，保留对象键、大小和校验信息；不要只备份 D1。
+至少核对：
 
-```bash
-cd apps/worker
-npx wrangler d1 export <D1_DATABASE_NAME> --remote --output=<SAFE_BACKUP_PATH>/d1-<TIMESTAMP>.sql
-npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote
-cd ../..
-npm ci && npm run build && npm test && npm run lint && npm run typecheck
-npx wrangler d1 migrations apply <D1_DATABASE_NAME> --remote --config apps/worker/wrangler.jsonc
-npx wrangler deploy --config apps/worker/wrangler.jsonc
-```
+- `attachments`引用数、对象key和`ciphertext_size`；
+- R2对象数、key和size；
+- D1缺失对象=0、R2孤儿=0、大小不匹配=0；
+- `pending_r2_deletions=0`；
+- `r2_inflight_uploads=0`；
+- `backup_import_locks=0`；
+- `r2_storage_usage.reserved_bytes`不得小于Worker管理的物理对象字节。
 
-限制备份权限并异地保存。恢复时新建 D1 和 R2 bucket，导入 SQL、恢复全部对象并核对数量/大小，再将 `DB` 与 `ATTACHMENTS` binding 一起切换，之后才恢复写入：
+少量保守计数余量不等于R2孤儿；应分别报告“物理对象差集”和“配额计数”。Cron会进行有界inventory，但不能替代发布后的人工只读对账。
 
-```bash
-npx wrangler d1 create <RESTORE_DATABASE_NAME>
-npx wrangler d1 execute <RESTORE_DATABASE_NAME> --remote --file=<SAFE_BACKUP_PATH>/<BACKUP_FILE>.sql
-```
+## 8. R2生命周期、Cron与限制
+
+- 普通删除先在D1原子移除引用并登记pending，R2实际删除成功后才释放物理字节配额；
+- R2写入前登记`r2_inflight_uploads`，D1有效引用提交与移除in-flight在同一事务完成；
+- 完整备份导入使用用户级token fencing，防止旧请求或v1/v2并发覆盖；
+- Cron每小时分页对账`attachments + pending + inflight`与R2 inventory；物理删除前再次检查有效引用；
+- 崩溃遗留in-flight和备份锁超过24小时后才由定时维护回收；
+- 固定时间宽限本身不能证明上传结束，不能删除`0013`或停用Cron后仍宣称竞态安全。
+
+Cloudflare应用限制：图片、视频及其他附件均最大20 MiB；一次完整备份中的附件密文总计最大20 MiB。R2应用级保守硬限制为8 GiB存储、每月800,000 Class A、8,000,000 Class B。它只覆盖经此Worker发起的操作；Dashboard、S3 API、其他Worker和同账户其他bucket会绕过应用计数。
+
+## 9. 费用与账户级检查
+
+Workers、Static Assets、D1、R2 Standard、DNS/SSL均有免费层，但不能保证整个账户零账单：
+
+1. Billing → Subscriptions：确认没有意外启用付费产品；
+2. Bills and documents：确认无待付账单；
+3. R2 Overview/Usage：检查账户级存储和Class A/B；
+4. D1 Metrics：检查rows read/written和存储；
+5. Worker Metrics：检查请求和CPU。
+
+Cloudflare Budget Alert只告警、不停止消费。R2免费额度是账户共享，不是每bucket独享。
+
+## 10. 恢复与回滚
 
 代码回滚：
 
 ```bash
-npx wrangler versions list --config apps/worker/wrangler.jsonc
-npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config apps/worker/wrangler.jsonc
+npx wrangler versions list --config <PRODUCTION_CONFIG>
+npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config <PRODUCTION_CONFIG>
 ```
 
-**Worker 版本回滚不会回滚 D1 或 R2。** 对不兼容的 schema/对象变更，必须成对切换到同一备份点恢复的 D1 + R2，或使用经审查的前向修复。
+**Worker回滚不会回滚D1、R2、普通变量或外部资源。** 回滚后必须重新核对Passkey变量、Secrets名称、bindings、routes、Cron和`workers_dev`。
 
-## 5. 费用与限制
+数据恢复应新建D1和R2，从同一备份点导入SQL和全部对象，核对key/数量/大小后同时切换`DB`与`ATTACHMENTS`。不要把旧D1与新R2混搭，也不要直接覆盖仍在写入的生产资源。只有在完整验收后才恢复写入并清理故障现场副本。
 
-- **本部署所需的 Workers、Workers Static Assets、D1、R2 Standard、Cloudflare DNS/代理、通用 SSL 与基础 DDoS 防护都有免费层，不要求为了运行本项目升级 Pro 或 Workers Paid。** 但“产品有免费层”不等于“整个账户永远不会产生账单”：付费订阅、同账户其他项目及 R2 超额仍需在 Billing/Usage 中核对。
-- Workers Free 的请求/CPU 配额以 Cloudflare 当前官方说明为准；达到 Free 限制时请求会受限。D1 Free 当前包含每天 5,000,000 行读取、100,000 行写入及账户总计 5 GB 存储；达到 Free 日限额时相关查询会失败，而不是由本项目自动升级付费计划。
-- Cloudflare 当前 R2 Standard 免费额度为**整个账户合计**每月 10 GB-month 存储、1,000,000 次 Class A、10,000,000 次 Class B；不是每个 bucket 独享。官方 R2 Limits 将每 bucket 存储列为 Unlimited，未提供 bucket 原生硬消费/用量封顶。
-- 本项目因此在 D1 中按 UTC 自然月、于 R2 操作前原子 reservation：密文字节 8 GiB、Class A 800,000/月、Class B 8,000,000/月。达到上限返回 `quota_exceeded`，失败的已尝试操作仍保守计数；删除对象按官方定价为免费操作，成功后释放存储 reservation。
-- 20% 余量用于账户内其他用量及计量差异，但**不能保证零账单**：同账户其他 bucket、Dashboard、S3/API/其他 Worker 访问均绕过本应用计数；GB-month 也不是瞬时字节数。请同时检查账户级用量和账单。
-- Cloudflare Budget Alert 是账户级美元支出通知，只告警、不停止消费；没有 R2 免费额度 80% 的产品级硬告警 API。不要把它当硬上限。
-- 附件会产生 R2 存储与 Class A/B 操作，Worker 请求和 D1 查询分别计量；备份 bucket 也增加存储成本。
-- Cloudflare 应用限制：图片最大 10 MiB，视频和其他文件最大 20 MiB；完整备份中全部附件密文合计最大 20 MiB。共享前端读取会话返回的服务能力后显示并执行这些限制。视频完整下载后在浏览器解密播放，不支持 Range 或断点续传。
+## 11. Web Analytics、CSP与故障排查
 
-### 免费部署检查清单
+Cloudflare Web Analytics的`auto_install`可能注入`static.cloudflareinsights.com/beacon.min.js`并违反本项目严格CSP。不要放宽`script-src 'self'`。为该敏感子域关闭自动注入，或改成仅在其他非敏感站点手动安装snippet；在真实浏览器确认DOM无`data-cf-beacon`且控制台无CSP错误。
 
-1. **Account → Billing → Subscriptions**：确认没有为了本项目启用 Workers Paid、Zone Pro、Argo、Images、Stream 等付费订阅。
-2. **Account → Billing → Bills and documents**：确认没有待付账单。
-3. **Storage & Databases → R2 → Overview/Usage**：检查整个账户（不是单 bucket）的存储、Class A、Class B 月度用量。
-4. **D1 → 目标数据库 → Metrics → Row Metrics**：检查每日 rows read/written 与总存储。
-5. **Workers & Pages → 目标 Worker → Metrics**：检查请求和 CPU 用量。
-
-> 本项目的 8 GiB / 800,000 Class A / 8,000,000 Class B 限制只覆盖经此 Worker 发起的操作。Dashboard、S3 API、其他 Worker 或其他 bucket 不受它约束。Budget Alert 也只提醒，不会自动停止消费。
-
-### Web Analytics 与密码库 CSP
-
-Cloudflare Web Analytics 的 zone 级 `auto_install` 可能把 `static.cloudflareinsights.com/beacon.min.js` 自动注入密码库页面，与本项目严格的 `script-src 'self'` CSP 冲突。**不要为了统计脚本放宽 CSP，也不要把 Beacon 代码手动加入密码库。**
-
-- 免费套餐若不提供按 hostname 排除规则，可在 **Analytics & Logs → Web Analytics → 站点 → Manage site → RUM** 选择 **Enable and install JS snippet / 启用并安装 JS 片段**，使 Cloudflare 停止自动注入；仅在其他非敏感站点手动安装代码。
-- 若整个 zone 都不需要统计，可选择 Disable；不要为了一个子域名贸然删除或关闭仍被其他站点使用的统计。
-- 更新后等待边缘配置传播，并在真实浏览器确认 DOM 不含 `data-cf-beacon`、控制台无 CSP violation。
-
-## 6. 安全与故障排查
-
-- Cloudflare 账户启用 MFA；API token 最小权限、定期轮换；保护 GitHub/CI。
-- 生产仅 HTTPS；备份加密、限权、异地保存并演练恢复。
-- 不记录或分享密码、vault key、条目明文、完整密文、Cookie/token。
-
-| 症状 | 检查 |
+| 症状 | 重点检查 |
 |---|---|
-| `DB` 未定义 | binding 名严格为 `DB`；当前环境/版本绑定到正确 D1 |
-| 注册返回 503 `registration_unavailable` | `INVITE_CODE` 缺失、长度不在 16–256 或设置到了错误 Worker/环境；只核对 Secret 名称/类型，重新安全写入 |
-| 正确值也返回 403/429 | 检查复制时的首尾空白/换行和目标环境；等待限速窗口后用可清理账户重试，勿在日志打印值 |
-| `no such table` | migration 是否对 `--remote` 目标完整执行 |
-| 静态 404/旧页面 | `npm run build`、Assets=`dist/`、部署版本和缓存 |
-| Dashboard 只有静态站 | 改用 Worker + Assets 的 Wrangler/CI，不要用纯 Pages 代替 API |
-| 登录后立即退出 | HTTPS、系统时钟、Cookie/域名是否一致 |
-| 403/CSRF | 同源访问、Cookie 是否发送、自定义域是否一致 |
-| 回滚后异常 | 代码与 D1 schema 兼容性；版本回滚不等于数据库回滚 |
+| Passkey提示“未启用” | 三项Passkey配置是否同时存在；部署是否因缺少`vars`覆盖了RP ID/Origin；精确Origin是否一致 |
+| 注册503 `registration_unavailable` | `INVITE_CODE` Secret名称/目标环境/长度；不要打印值 |
+| 正确邀请码403/429 | 不可见空白、目标环境和限流窗口 |
+| `no such table` | 是否对正确remote D1完整应用`0001`–`0013` |
+| 附件/备份500或缺表 | `0011`–`0013`、R2 binding、Cron和当前版本是否一致 |
+| 静态404/旧页面 | Assets路径、build、100%切流、边缘缓存和资源哈希 |
+| workers.dev意外可访问 | 生产私有配置`workers_dev:false`是否被公共模板覆盖 |
+| Cron不存在 | `triggers.crons`是否在生产配置和当前version中 |
+| 回滚后异常 | 代码/schema/配置版本是否配套；代码回滚不等于数据/变量回滚 |
+
+## 12. 最终发布清单
+
+- [ ] 记录任务开始前版本与完整配置清单
+- [ ] D1＋R2同点备份、校验、限权、仓库外保存
+- [ ] 当前提交的test/lint/docs/typecheck/build全部自然exit 0
+- [ ] 生产私有配置包含全部vars、bindings、routes、Cron、compatibility和期望`workers_dev`
+- [ ] Secrets名称完整，真实值不进入Git/日志
+- [ ] 全部待执行migration已应用，复核无pending
+- [ ] dry-run通过，正式版本100%切流
+- [ ] 正式域200，期望关闭时workers.dev为404
+- [ ] Passkey options正常，真实设备Passkey解锁按条件验收
+- [ ] D1/R2对象差集和临时表均正常
+- [ ] 测试账户和探针数据精确清理
+- [ ] Git diff与提交秘密扫描通过
+
+完成以上全部项目后，才能宣称生产Cloudflare部署闭环。

@@ -9,7 +9,7 @@
 ## 1. 要求与架构
 
 - Ubuntu 22.04+/Debian 12+（其他 systemd 发行版可自行适配）、root/sudo 权限。
-- Node.js **22+**、npm、`sqlite3`、`curl`、`tar`；源码安装另需 Git。
+- Node.js **22+**、npm、`sqlite3`、`curl`、`git`、`jq`、`openssl`、`tar`和`ufw`。
 - 指向服务器的域名、开放的 80/443、Caddy 或 Nginx、异地备份位置。
 - 建议最低 1 vCPU、512 MiB RAM、充足且受监控的持久磁盘。
 
@@ -21,13 +21,13 @@
                          SQLite + attachments/（均为持久密文）
 ```
 
-Node 只监听回环地址；systemd 以专用用户运行。SQLite 及 WAL/SHM 位于持久数据目录，代码位于只读的版本目录。
+Node 只监听回环地址；systemd 以专用用户运行。SQLite 及 WAL/SHM 位于持久数据目录，代码位于只读的版本目录。仓库内`deploy/pass-vault-v2.service`是带占位符的模板；安装时必须替换`@APP_USER@`、`@APP_DIR@`和`@DATA_DIR@`，并按实际代理设置`CLIENT_IP_HEADER`，不能原样复制启动。
 
 ## 2. 专用用户与目录
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl sqlite3 tar
+sudo apt-get install -y ca-certificates curl git jq openssl sqlite3 tar ufw
 node --version   # 必须 >= 22
 npm --version
 
@@ -41,40 +41,38 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 以下用 `/opt/pass-vault-v2/current` 指向当前版本。不要把数据库放进代码目录。
 
-## 3. 安装（任选一种）
+## 3. 获取代码与安装
 
-### 3.1 下载 GitHub Release（推荐）
+### 3.1 当前发布状态
 
-当前稳定版为v1.1.65。在Release页面下载Linux包与`SHA256SUMS`：
+GitHub `v1.1.66` Release当前只有Cloudflare压缩包和`SHA256SUMS`，**没有Linux制品**；`v1.1.65` Release也没有可下载资产。不要使用会返回404的`pass-vault-v2-linux-1.1.66.tar.gz`或`pass-vault-v2-linux-1.1.65.tar.gz`命令，也不要把Cloudflare包部署到Linux。
 
-```bash
-VERSION=1.1.65
-cd /tmp
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
-grep "pass-vault-v2-linux-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
-sudo tar -xzf "pass-vault-v2-linux-$VERSION.tar.gz" -C /opt/pass-vault-v2/releases
-```
-
-### 3.2 从源码安装
+Linux新部署或升级应从当前`main`的已审核提交构建，记录准确commit SHA：
 
 ```bash
-sudo apt-get install -y git
 cd /tmp
-git clone --depth 1 --branch v<VERSION> https://github.com/17sho/pass-vault-v2.git pass-vault-src
+git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
+git checkout main
+git pull --ff-only
 git rev-parse HEAD
-sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>
-sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURITY.md public shared scripts apps/server deploy docs /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>/
 ```
 
-两种方式都先在源码/解压目录完成门禁，然后调用统一原子部署入口。脚本会创建只读版本目录、统一目录 `0755`/文件 `0644`、用临时软链接加 `mv -T` 原子切换；服务命令失败，或健康检查默认每秒一次、连续 30 次仍未通过时，自动恢复旧 `current`，并只写时间、版本、布尔结果和回滚状态到 root-only JSON 证据：
+不得移动旧tag或替换Release资产来伪造Linux包。将来只有当GitHub Release实际列出Linux资产并附带对应`SHA256SUMS`时，才按该Release页面的真实名称下载和校验。
+
+### 3.2 从源码构建并原子安装
+
+不要提前创建`/opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>`或向其中复制文件；原子脚本会安全拒绝覆盖同版本目录。先在源码目录完成门禁，再由脚本唯一负责创建只读版本目录、安装锁定的生产依赖、统一目录`0755`/文件`0644`，并用临时软链接加`mv -T`原子切换。服务命令失败，或健康检查默认每秒一次、连续30次仍未通过时，脚本自动恢复旧`current`，并只写时间、版本、布尔结果和回滚状态到root-only JSON证据：
+
+> **首次安装顺序：** 先运行下方`npm`门禁，但在执行`sudo env ... deploy-linux-atomic.sh`前，先完成第4节环境文件，并按第5节写入unit、执行`systemd-analyze verify`和`systemctl daemon-reload`，此时不要`enable --now`。然后回到这里运行原子脚本；脚本切换`current`后会启动服务并做健康检查。成功后执行`sudo systemctl enable pass-vault-v2`。已有服务的升级可直接执行完整代码块。
 
 ```bash
 npm ci
 npm run build
 npm test
-npm run lint && npm run typecheck
+npm run lint
+npm run lint:docs
+npm run typecheck
 sudo env \
   PV_SOURCE="$PWD" \
   PV_APP_ROOT=/opt/pass-vault-v2 \
@@ -100,6 +98,7 @@ sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<V
 | `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | 持久 SQLite 绝对路径 |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | 附件密文对象目录；必须是持久本地磁盘 |
 | `COOKIE_SECURE` | 不设置 | 默认启用 Secure Cookie；生产绝不能设为 `false` |
+| `CLIENT_IP_HEADER` | 由代理拓扑决定 | Caddy/Nginx直连源站且代理强制覆盖时用`x-forwarded-for`；Cloudflare橙云直达源站并保留其可信头时用`cf-connecting-ip`；错误配置会让限流退化 |
 | `INVITE_CODE` | 必填 | 共享注册邀请码（16–256 字符）；保存在 root:`pass-vault`、`0600` 的环境文件中，绝不记录日志 |
 | `PASSKEY_UNLOCK_KEK` | 启用辅助解锁时必填 | 32 个随机字节的 Base64URL；仅用于 AES-256-GCM 包装 vault key，绝不提交仓库或记录日志 |
 | `PASSKEY_RP_ID` | 启用辅助解锁时必填 | 应用的精确 HTTPS 主机名，例如 `<APP_DOMAIN>` |
@@ -111,6 +110,7 @@ sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<V
 umask 077
 tmp=$(mktemp)
 printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
+  'CLIENT_IP_HEADER=x-forwarded-for' \
   'DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite' \
   'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
@@ -127,6 +127,8 @@ sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVIT
 预期只显示 `root:pass-vault 600` 和变量名确认，**不要**运行 `cat`、非静默 `grep INVITE_CODE` 或把值发到日志。systemd `EnvironmentFile` 不是 shell：推荐使用生成器得到的十六进制值。若必须使用人工值，请限制为不含空白、引号、反斜杠、`#`、`$`、`%`、控制字符或换行的可打印 ASCII；长度 16–256。不要依赖 shell 引号/展开来“转义”复杂值。
 
 三项 Passkey 配置必须同时有效，否则服务器辅助解锁安全关闭，主密码和本机 PRF 解锁不受影响。该功能会把 32 字节 vault key 以独立 KEK 的 AES-256-GCM 密文存入服务器，**改变原纯客户端零知识边界**：服务器配合一次通过用户验证的 Passkey 会话可以恢复 vault key。服务器不保存主密码或明文 vault key。修改主密码/用户名会撤销全部服务器辅助 Passkey。直接轮换或丢失 KEK 会使既有辅助凭据不可用；应先由用户撤销并重新注册，而不是盲目替换。
+
+**升级时不得重建整个环境文件而漏掉旧变量。** 在切换代码前，先生成只含变量名称（不含值）的清单，核对`NODE_ENV`、`HOST`、`PORT`、`CLIENT_IP_HEADER`、`DB_PATH`、`ATTACHMENTS_DIR`、`INVITE_CODE`及三项Passkey配置。保留现有`INVITE_CODE`和`PASSKEY_UNLOCK_KEK`原值；除非执行明确的轮换/重新注册流程，不得重新生成。使用临时文件原子替换环境文件前，逐项迁移全部现网变量。
 
 ## 5. systemd
 
@@ -170,10 +172,13 @@ WantedBy=multi-user.target
 ```bash
 sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now pass-vault-v2
+# 首次安装：回到第3.2节运行原子部署，成功后再启用开机自启
+sudo systemctl enable pass-vault-v2
 sudo systemctl status pass-vault-v2 --no-pager
 curl -fsS http://127.0.0.1:3000/api/health
 ```
+
+`status`和`curl`只应在第3.2节原子部署成功后执行。升级已有安装时，unit已启用，不需要重复本段初始化。
 
 预期健康响应含 `{"ok":true,"backend":"sqlite"}`。
 
@@ -273,11 +278,11 @@ sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 
 ## 9. 升级与回滚
 
-### 升级到 v1.1.65
+### 升级当前 `main`（包含 v1.1.66 功能）
 
-从旧版本升级到v1.1.65前，先做SQLite与附件目录的一致性备份，再安装到新的不可变版本目录并原子切换。本补丁不新增数据库迁移；早于v1.1.61的安装仍会在启动时执行既有的安全中心会话元数据幂等迁移，无需迁移密文或保险库密钥。
+从旧版本升级前，先做SQLite与附件目录的一致性备份，记录当前`current`目标及环境变量名称清单。首次启用辅助Passkey才生成独立`PASSKEY_UNLOCK_KEK`并配置精确`PASSKEY_RP_ID`/`PASSKEY_ORIGIN`；已经启用时必须保留原KEK和两个域变量。安装到新的不可变版本目录并原子切换。服务启动会幂等创建缺失的辅助Passkey、会话元数据和认证方式表；无需重加密现有密文或vault key。
 
-切换版本并重启后，确认日志无迁移错误且首页引用`app.mjs?v=1.1.65`；从第二个浏览器登录，确认安全中心显示其受信任IP、设备/浏览器类别和登录时间，再注销该会话并验证当前会话仍有效。
+切换版本并重启后，确认日志无迁移错误、公开资源与构建版本一致、环境变量名称无非预期减少。若辅助Passkey原本已启用，必须用已有凭据在真实设备完成一次免主密码解锁；若首次启用，则完成注册、锁定、解锁、撤销和重新注册测试。再确认安全中心显示正确认证方式且当前会话有效。
 
 1. 记录当前目标：`readlink -f /opt/pass-vault-v2/current`。
 2. 按第 10 节做 SQLite + 附件一致性备份并通过完整性检查；确认新版本磁盘空间足够。
