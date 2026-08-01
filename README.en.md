@@ -47,7 +47,19 @@ The Cloudflare edition has monthly application-level quotas to reduce R2 overage
 
 ## Screenshots
 
-> Screenshot placeholder: before release, sanitized desktop and mobile screenshots made with empty test data may be added under `docs/images/`. They must contain no real accounts, domains, passwords, cookies, or other sensitive information.
+These screenshots were generated in an isolated local environment with fictional `example.com` / `example.org` test data. They contain no production accounts, passwords, cookies, or real domains.
+
+### Desktop vault
+
+![Desktop vault interface](docs/images/vault-desktop.png)
+
+### Mobile vault
+
+<img src="docs/images/vault-mobile.png" alt="Mobile vault interface" width="390">
+
+### Security Center and Passkey
+
+![Security Center and Passkey settings](docs/images/security-center.png)
 
 ## Local development preview (not a production server deployment)
 
