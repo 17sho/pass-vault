@@ -76,7 +76,8 @@ for (const variant of requestedVariants) {
       d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: '00000000-0000-0000-0000-000000000000', migrations_dir: 'migrations' }],
       r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
       assets: { directory: '../../dist', binding: 'ASSETS', run_worker_first: true },
-      observability: { enabled: true, head_sampling_rate: 1 }
+      observability: { enabled: true, head_sampling_rate: 1 },
+      triggers: { crons: ['17 * * * *'] }
     }, null, 2) + '\n');
   }
   const tarPath = join(out, `${name}.tar.gz`);
