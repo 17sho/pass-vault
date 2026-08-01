@@ -89,7 +89,7 @@ npx wrangler versions list --config apps/worker/wrangler.jsonc
 curl -fsS https://<WORKER_SUBDOMAIN>/api/health
 ```
 
-每次 schema 变更只新增 migration，绝不重写已在远程执行的文件。
+每次 schema 变更只新增 migration，绝不重写已在远程执行的文件。升级到包含 R2 物理配额修复的版本时，必须先依次应用 `0011_r2_cleanup_queue.sql`、`0012_backup_import_locks.sql` 和 `0013_r2_inflight_uploads.sql`，确认没有待执行迁移后再部署 Worker；否则认证请求、附件上传或完整备份导入会因缺表而失败。Worker 在写 R2 前登记 in-flight key，提交 D1 引用时原子清除；每小时运行一次有界 R2 inventory 对账和孤儿清理，删除前再次检查引用。崩溃遗留的 in-flight 上传和完整备份锁仅由定时维护在超过 24 小时后回收。
 
 服务器辅助 Passkey 会把 32 字节 vault key 以独立 KEK 的 AES-256-GCM 密文保存到 D1，**改变原纯客户端零知识边界**：Worker 配合一次通过用户验证的 Passkey 会话可以恢复 vault key。Worker 不保存主密码或明文 vault key。修改主密码/用户名会撤销全部服务器辅助 Passkey。直接轮换或丢失 KEK 会使既有辅助凭据不可用；应先撤销并重新注册。
 
@@ -180,7 +180,7 @@ npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config apps/worker/wrangler.json
 - 20% 余量用于账户内其他用量及计量差异，但**不能保证零账单**：同账户其他 bucket、Dashboard、S3/API/其他 Worker 访问均绕过本应用计数；GB-month 也不是瞬时字节数。请同时检查账户级用量和账单。
 - Cloudflare Budget Alert 是账户级美元支出通知，只告警、不停止消费；没有 R2 免费额度 80% 的产品级硬告警 API。不要把它当硬上限。
 - 附件会产生 R2 存储与 Class A/B 操作，Worker 请求和 D1 查询分别计量；备份 bucket 也增加存储成本。
-- 应用明文限制：图片 10 MiB、视频 100 MiB、其他文件 25 MiB；视频完整下载后在浏览器解密播放，不支持 Range 或断点续传。
+- Cloudflare 应用限制：图片最大 10 MiB，视频和其他文件最大 20 MiB；完整备份中全部附件密文合计最大 20 MiB。共享前端读取会话返回的服务能力后显示并执行这些限制。视频完整下载后在浏览器解密播放，不支持 Range 或断点续传。
 
 ### 免费部署检查清单
 

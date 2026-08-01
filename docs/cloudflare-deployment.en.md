@@ -89,7 +89,7 @@ npx wrangler versions list --config apps/worker/wrangler.jsonc
 curl -fsS https://<WORKER_SUBDOMAIN>/api/health
 ```
 
-Add a new migration for every schema change. Never rewrite a migration already applied remotely.
+Add a new migration for every schema change. Never rewrite a migration already applied remotely. When upgrading to the R2 physical-quota fix, apply `0011_r2_cleanup_queue.sql`, `0012_backup_import_locks.sql`, and `0013_r2_inflight_uploads.sql` in order and confirm that no migration remains pending before deploying the Worker; otherwise authenticated requests, attachment uploads, or full-backup imports can fail because required tables are missing. The Worker records an in-flight key before writing R2 and atomically removes it when committing the D1 reference. A bounded hourly inventory reconciliation rechecks references before orphan deletion. Scheduled maintenance reclaims crash-stale in-flight uploads and full-backup locks only after 24 hours.
 
 Assisted Passkey unlock stores the 32-byte vault key in D1 only as AES-256-GCM ciphertext under an independent KEK, but it **changes the original client-only zero-knowledge boundary**: the Worker, together with a user-verified Passkey session, can recover the vault key. The Worker stores neither the master password nor a plaintext vault key. Changing the master password or username revokes all assisted Passkeys. Replacing or losing the KEK makes existing assisted credentials unusable; revoke and re-enroll them first.
 
@@ -180,7 +180,7 @@ npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config apps/worker/wrangler.json
 - The 20% margin is for other account usage and metering differences, but **does not guarantee a zero bill**. Other buckets, Dashboard, S3/API, and other Workers bypass this application's counters; GB-month also differs from instantaneous bytes. Monitor account-wide usage and billing too.
 - Cloudflare Budget Alerts are account-wide dollar-spend notifications only: they alert but do not stop spend. There is no product-specific API alert at 80% of the R2 free allowance, so do not treat a billing alert as a cap.
 - Attachments incur R2 storage and Class A/B operations; Worker requests and D1 queries are metered separately, and backup buckets add storage cost.
-- Application plaintext limits are 10 MiB per image, 100 MiB per video, and 25 MiB per other file. Video is fully downloaded and decrypted in-browser; no Range streaming or resumable upload is provided.
+- Cloudflare application limits are 10 MiB per image and 20 MiB per video or other file; attachment ciphertext included in one complete backup is limited to 20 MiB in total. The shared frontend reads these service capabilities from the authenticated session and displays/enforces them. Video is fully downloaded and decrypted in-browser; no Range streaming or resumable upload is provided.
 
 ### Free-deployment checklist
 
