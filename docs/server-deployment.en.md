@@ -9,7 +9,7 @@ This guide is exclusively for a Linux VPS or dedicated server. Replace every `<.
 ## 1. Requirements and architecture
 
 - Ubuntu 22.04+/Debian 12+ (adapt as needed for another systemd distribution) and root/sudo.
-- Node.js **22+**, npm, `sqlite3`, `curl`, and `tar`; Git is also needed for a source install.
+- Node.js **22+**, npm, `sqlite3`, `curl`, `git`, `jq`, `openssl`, `tar`, and `ufw`.
 - A domain pointed at the host, ports 80/443, Caddy or Nginx, and independent off-site backup storage.
 - Recommended minimum: 1 vCPU, 512 MiB RAM, and monitored persistent disk capacity.
 
@@ -21,13 +21,13 @@ Browser ──HTTPS──> Caddy/Nginx :443 ──HTTP──> 127.0.0.1:3000
                          SQLite + attachments/ (persistent ciphertext)
 ```
 
-Node binds only to loopback and systemd runs it as a dedicated user. SQLite plus its WAL/SHM files live in a persistent data directory; application releases are read-only.
+Node binds only to loopback and systemd runs it as a dedicated user. SQLite plus its WAL/SHM files live in a persistent data directory; application releases are read-only. Repository file `deploy/pass-vault-v2.service` is a placeholder template: replace `@APP_USER@`, `@APP_DIR@`, and `@DATA_DIR@`, and set `CLIENT_IP_HEADER` for the actual proxy before installation. Do not install it verbatim.
 
 ## 2. Dedicated user and directories
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl sqlite3 tar
+sudo apt-get install -y ca-certificates curl git jq openssl sqlite3 tar ufw
 node --version   # must be >= 22
 npm --version
 sudo useradd --system --home /var/lib/pass-vault-v2 --shell /usr/sbin/nologin pass-vault 2>/dev/null || true
@@ -40,40 +40,38 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 `/opt/pass-vault-v2/current` will point to the active release. Never store the database in the application directory.
 
-## 3. Install (choose one method)
+## 3. Obtain the code and install
 
-### 3.1 Download a GitHub Release (recommended)
+### 3.1 Current artifact status
 
-The current stable release is v1.1.65. Download the Linux archive and `SHA256SUMS`:
+GitHub Release `v1.1.66` currently contains only Cloudflare archives and `SHA256SUMS`; it has **no Linux artifact**. Release `v1.1.65` also has no downloadable assets. Do not use `pass-vault-v2-linux-1.1.66.tar.gz` or `pass-vault-v2-linux-1.1.65.tar.gz` commands that return 404, and never deploy the Cloudflare archive to Linux.
 
-```bash
-VERSION=1.1.65
-cd /tmp
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-linux-$VERSION.tar.gz"
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
-grep "pass-vault-v2-linux-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
-sudo tar -xzf "pass-vault-v2-linux-$VERSION.tar.gz" -C /opt/pass-vault-v2/releases
-```
-
-### 3.2 Install from source
+Build a new or upgraded Linux installation from a reviewed current `main` commit and record its exact SHA:
 
 ```bash
-sudo apt-get install -y git
 cd /tmp
-git clone --depth 1 --branch v<VERSION> https://github.com/17sho/pass-vault-v2.git pass-vault-src
+git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
+git checkout main
+git pull --ff-only
 git rev-parse HEAD
-sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>
-sudo cp -a package.json package-lock.json LICENSE README.md README.en.md SECURITY.md public shared scripts apps/server deploy docs /opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>/
 ```
 
-Run the gates in the source/extracted directory, then use the single atomic deployment entry point. It creates a read-only release, normalizes directories to `0755` and files to `0644`, switches a temporary symlink with `mv -T`, automatically restores the old `current` if service restart fails or if health remains unavailable after 30 checks at one-second intervals, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
+Do not move an old tag or replace Release assets to fabricate a Linux package. Use an archive workflow only after a future GitHub Release actually lists a Linux artifact and matching `SHA256SUMS`.
+
+### 3.2 Build from source and install atomically
+
+Do not pre-create `/opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>` or copy files into it: the atomic script safely refuses to overwrite an existing version. Run gates in the source directory, then let the script be the only component that creates the read-only release, installs locked production dependencies, normalizes directories to `0755` and files to `0644`, and switches a temporary symlink with `mv -T`. It automatically restores the old `current` if service restart fails or health stays unavailable after 30 one-second checks, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
+
+> **First-install order:** run the `npm` gates below, but before `sudo env ... deploy-linux-atomic.sh`, complete the section 4 environment file and write the section 5 unit, run `systemd-analyze verify` and `systemctl daemon-reload`, but do not use `enable --now`. Return here and run the atomic script; it switches `current`, starts the service, and checks health. After success, run `sudo systemctl enable pass-vault-v2`. An existing installation can run the complete block directly for upgrades.
 
 ```bash
 npm ci
 npm run build
 npm test
-npm run lint && npm run typecheck
+npm run lint
+npm run lint:docs
+npm run typecheck
 sudo env \
   PV_SOURCE="$PWD" \
   PV_APP_ROOT=/opt/pass-vault-v2 \
@@ -97,6 +95,7 @@ Never write the environment file, cookies, invitation, user data, ciphertext, or
 | `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | Absolute persistent SQLite path |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | Persistent local directory for encrypted attachment objects |
 | `COOKIE_SECURE` | unset | Secure cookies are on by default; never set `false` in production |
+| `CLIENT_IP_HEADER` | match the proxy topology | Use `x-forwarded-for` when Caddy/Nginx connects directly and forcibly overwrites it; use `cf-connecting-ip` only when Cloudflare orange-cloud reaches the origin with that trusted header; a mismatch degrades rate limiting |
 | `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root:`pass-vault`, `0600` environment file and never log it |
 | `PASSKEY_UNLOCK_KEK` | required when assisted unlock is enabled | Base64URL encoding of 32 random bytes; used only to AES-256-GCM wrap vault keys; never commit or log it |
 | `PASSKEY_RP_ID` | required when assisted unlock is enabled | Exact HTTPS application hostname, such as `<APP_DOMAIN>` |
@@ -108,6 +107,7 @@ Create `/etc/pass-vault-v2/pass-vault-v2.env`. To keep the invitation out of she
 umask 077
 tmp=$(mktemp)
 printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
+  'CLIENT_IP_HEADER=x-forwarded-for' \
   'DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite' \
   'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
@@ -124,6 +124,8 @@ sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVIT
 Expected output contains only `root:pass-vault 600` and the name-presence confirmation. Do **not** use `cat`, non-quiet `grep INVITE_CODE`, or log the value. A systemd `EnvironmentFile` is not a shell; the generated hexadecimal value is safest. If an operator-supplied value is required, restrict it to printable ASCII without whitespace, quotes, backslashes, `#`, `$`, `%`, control characters, or newlines, and keep it 16–256 characters. Do not rely on shell quoting/expansion to encode a complex value.
 
 All three Passkey settings must be valid together. Otherwise assisted unlock fails closed while password and local PRF unlock remain available. Assisted unlock stores the 32-byte vault key only as AES-256-GCM ciphertext under an independent KEK, but it **changes the original client-only zero-knowledge boundary**: the server, together with a user-verified Passkey session, can recover the vault key. The server stores neither the master password nor a plaintext vault key. Changing the master password or username revokes all assisted Passkeys. Replacing or losing the KEK makes existing assisted credentials unusable; revoke and re-enroll them instead of rotating the value blindly.
+
+**Never rebuild the whole environment file during an upgrade and accidentally omit existing variables.** Before switching code, create a names-only inventory (no values) and check `NODE_ENV`, `HOST`, `PORT`, `CLIENT_IP_HEADER`, `DB_PATH`, `ATTACHMENTS_DIR`, `INVITE_CODE`, and all three Passkey settings. Preserve existing `INVITE_CODE` and `PASSKEY_UNLOCK_KEK` values; never regenerate them except through an explicit rotation/re-enrollment procedure. Migrate every live variable into a temporary file before atomically replacing the environment file.
 
 ## 5. systemd
 
@@ -165,10 +167,13 @@ Check `command -v node`; change `ExecStart` to its real absolute path if needed.
 ```bash
 sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now pass-vault-v2
+# First install: return to section 3.2 for atomic deployment, then enable at boot
+sudo systemctl enable pass-vault-v2
 sudo systemctl status pass-vault-v2 --no-pager
 curl -fsS http://127.0.0.1:3000/api/health
 ```
+
+Run `status` and `curl` only after the section 3.2 atomic deployment succeeds. The unit is already enabled during an upgrade, so this initialization need not be repeated.
 
 The health response should contain `{"ok":true,"backend":"sqlite"}`.
 
@@ -264,11 +269,11 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
-### Upgrading to v1.1.65
+### Upgrading current `main` (including v1.1.66 features)
 
-Before upgrading an older installation to v1.1.65, make a consistent SQLite plus attachment-directory backup, install into a new immutable release directory, and switch atomically. This patch adds no database migration. Installations older than v1.1.61 still receive the existing idempotent Security Center session-metadata migration during startup; no ciphertext or vault-key migration is required.
+Before upgrading, make a consistent SQLite plus attachment-directory backup and record the active `current` target and environment-variable names. Generate an independent `PASSKEY_UNLOCK_KEK` and exact `PASSKEY_RP_ID`/`PASSKEY_ORIGIN` only when enabling assisted Passkey for the first time; preserve the original KEK and domain variables when already enabled. Install into a new immutable release directory and switch atomically. Startup idempotently creates missing assisted-Passkey, session-metadata, and authentication-method tables. Existing ciphertext and vault keys need no re-encryption.
 
-After switching and restarting, confirm there is no migration error and the home page references `app.mjs?v=1.1.65`. Sign in from a second browser, verify Security Center shows its trusted IP, device/browser category, and sign-in time, then revoke that session and confirm the current session remains active.
+After switching and restarting, confirm no migration error, public assets match the built version, and the environment-variable name inventory has no unintended deletion. If assisted Passkey was already enabled, complete a real-device passwordless unlock with an existing credential. For first enablement, complete enrollment, lock, unlock, revocation, and re-enrollment acceptance. Confirm Security Center reports the correct authentication method and current session.
 
 1. Record `readlink -f /opt/pass-vault-v2/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.

@@ -71,17 +71,17 @@ The deployment methods are independent. Choose the matching guide:
 - **Cloudflare deployment guide**: [中文](docs/cloudflare-deployment.zh-CN.md) · **[English](docs/cloudflare-deployment.en.md)** — Workers + Static Assets + D1 + R2, including Wrangler CLI and Dashboard. Attachments require R2 to be enabled first.
 - **Linux server deployment guide**: [中文](docs/server-deployment.zh-CN.md) · **[English](docs/server-deployment.en.md)** — VPS/dedicated-server Node.js + SQLite, systemd, Caddy/Nginx, backup and restore.
 
-### Download the latest stable release (v1.1.66)
+### Obtain the current deployable version
 
-Open [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) and download the Cloudflare package:
+Prefer a reviewed current `main` commit for new deployments and production upgrades; record `git rev-parse HEAD` and run every gate. Existing assets on [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) are frozen artifacts:
 
 - Cloudflare: `pass-vault-v2-cloudflare-1.1.66.tar.gz` or `.zip`
-- Linux: the current stable artifact remains [v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65); no v1.1.66 Linux artifact is published yet
+- Linux: neither v1.1.66 nor v1.1.65 currently has a downloadable Linux asset; build reviewed current `main` source using the Linux guide
 - Integrity: also download `SHA256SUMS`, then run `sha256sum -c SHA256SUMS` in the download directory
 
-Read the matching English or Chinese deployment guide inside the extracted package first. The v1.1.66 Cloudflare package ships placeholder D1/R2 configuration that must be replaced with your own resource details before production use; Linux operators should continue using the v1.1.65 artifact and its deployment guide.
+The frozen v1.1.66 Cloudflare package has placeholder D1/R2 configuration and does not contain the later `0011`–`0013` R2 lifecycle fixes on `main`; do not replace the old tag or assets. No matching Linux Release archive exists, so do not use download commands that return 404.
 
-> **Required before deployment:** securely configure `INVITE_CODE` for both production targets. For Cloudflare upgrades, back up D1/R2 and apply every pending migration in `apps/worker/migrations/` in order before deploying code. For Linux upgrades, back up SQLite and the attachment directory first. Never clear or recreate the database, and never expose real invitation codes, resource IDs, or credentials in the repository, command arguments, screenshots, or logs.
+> **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0013`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
 
 Workers, Static Assets, D1, R2 Standard, DNS, and SSL all have free tiers. The Cloudflare guide now documents D1/R2 allowances, conservative application R2 caps, account-wide shared-usage risk, Billing/Usage checks, and how to prevent Web Analytics auto-injection from conflicting with the vault CSP.
 

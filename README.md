@@ -71,17 +71,17 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 - **Cloudflare 部署指南**：**[中文](docs/cloudflare-deployment.zh-CN.md)** · [English](docs/cloudflare-deployment.en.md) — Workers + Static Assets + D1 + R2，含 Wrangler CLI 与 Dashboard 两种方式。附件功能要求先启用 R2。
 - **Linux 服务器部署指南**：**[中文](docs/server-deployment.zh-CN.md)** · [English](docs/server-deployment.en.md) — VPS/独立服务器 Node.js + SQLite、systemd、Caddy/Nginx、备份恢复。
 
-### 下载最新稳定版（v1.1.66）
+### 获取当前可部署版本
 
-前往 [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) 下载 Cloudflare 平台包：
+新部署和生产升级优先从当前`main`的已审核提交构建；记录`git rev-parse HEAD`并完成全部门禁。GitHub [Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) 的现有资产是冻结制品：
 
 - Cloudflare：`pass-vault-v2-cloudflare-1.1.66.tar.gz`或`.zip`
-- Linux：当前稳定制品仍为[v1.1.65](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.65)；v1.1.66 Linux制品暂不发布
+- Linux：v1.1.66及v1.1.65当前均没有可下载Linux资产，请从当前`main`源码按Linux指南构建
 - 完整性校验：同时下载`SHA256SUMS`，在下载目录运行`sha256sum -c SHA256SUMS`
 
-解压后先阅读包内对应的中英文部署指南。当前 v1.1.66 Cloudflare包使用占位D1/R2配置，必须填入你自己的资源信息，不能直接把示例值用于生产；Linux请继续使用v1.1.65制品及其中的部署指南。
+v1.1.66 Cloudflare冻结包使用占位D1/R2配置，且不包含`main`后续加入的`0011`–`0013` R2生命周期修复；不要替换旧tag或Release资产。Linux不存在对应Release包，不能使用会返回404的下载命令。
 
-> **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。Cloudflare升级时先备份D1/R2，并按`apps/worker/migrations/`中的顺序应用所有待处理迁移，再部署代码；Linux升级前先备份SQLite和附件目录。不要清空或重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
+> **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。升级前先记录任务开始前版本和完整配置名称清单，保留现有普通变量、Secrets、资源绑定、路由和触发器。Cloudflare须同点备份D1/R2、应用全部待处理迁移（当前完整链至`0013`）并保留Cron；Linux须同点备份SQLite和附件目录及完整环境变量。不要清空/重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 
 Cloudflare 版使用的 Workers、Static Assets、D1、R2 Standard、DNS/SSL 均有免费层；部署指南已列出 D1/R2 额度、项目 R2 保守硬限制、账户级共享风险、Billing/Usage 检查路径，以及避免 Web Analytics 自动注入破坏密码库 CSP 的设置方法。
 
