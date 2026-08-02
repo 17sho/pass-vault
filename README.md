@@ -51,15 +51,15 @@ Cloudflare 版为避免 R2 超额费用而设有月度应用级配额；Linux �
 
 ### 桌面端密码库
 
-![桌面端密码库界面](docs/images/vault-desktop.png)
+![桌面端密码库界面](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-desktop.png)
 
 ### 移动端密码库
 
-<img src="docs/images/vault-mobile.png" alt="移动端密码库界面" width="390">
+<img src="https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-mobile.png" alt="移动端密码库界面" width="390">
 
 ### 安全中心与 Passkey
 
-![安全中心与 Passkey 设置](docs/images/security-center.png)
+![安全中心与 Passkey 设置](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/security-center.png)
 
 ## 本地开发预览（不是服务器生产部署）
 

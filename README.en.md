@@ -51,15 +51,15 @@ These screenshots were generated in an isolated local environment with fictional
 
 ### Desktop vault
 
-![Desktop vault interface](docs/images/vault-desktop.png)
+![Desktop vault interface](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-desktop.png)
 
 ### Mobile vault
 
-<img src="docs/images/vault-mobile.png" alt="Mobile vault interface" width="390">
+<img src="https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-mobile.png" alt="Mobile vault interface" width="390">
 
 ### Security Center and Passkey
 
-![Security Center and Passkey settings](docs/images/security-center.png)
+![Security Center and Passkey settings](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/security-center.png)
 
 ## Local development preview (not a production server deployment)
 
