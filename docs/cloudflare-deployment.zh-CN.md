@@ -4,7 +4,7 @@
 
 本指南覆盖当前 `main` 的首次部署、生产升级、备份、恢复、回滚和验收。请把所有 `<...>` 替换为自己的值；不得把真实域名、账户/数据库 ID、bucket 名、token、邀请码、KEK、生产备份或私有配置提交到公开仓库。
 
-> **版本说明：** GitHub `v1.1.66` Release 中现有 Cloudflare 压缩包是该 tag 的冻结制品，不包含 `main` 后续加入的 `0011`–`0013` R2 生命周期修复。新部署和升级生产环境应优先从当前 `main` 的已审核提交部署；不要替换旧 tag 或 Release 资产。
+> **版本说明：** GitHub `v1.1.67` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复。
 
 ## 1. 架构、要求与安全边界
 
@@ -48,22 +48,22 @@ npm run build
 
 所有命令必须自然退出0。不要用被中止、超时或旧提交的测试结果代替当前门禁。
 
-### 2.2 冻结的 v1.1.66 Cloudflare 制品
+### 2.2 v1.1.67 Cloudflare 制品
 
-现有Release资产只有：
+本Release的Cloudflare资产包括：
 
-- `pass-vault-v2-cloudflare-1.1.66.tar.gz`
-- `pass-vault-v2-cloudflare-1.1.66.zip`
+- `pass-vault-v2-cloudflare-1.1.67.tar.gz`
+- `pass-vault-v2-cloudflare-1.1.67.zip`
 - `SHA256SUMS`
 
 ```bash
-VERSION=1.1.66
+VERSION=1.1.67
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 
-校验必须显示`OK`。该冻结包不含`main`上的后续R2修复；不要把它误称为当前完整代码，也不要替换原资产。
+校验必须显示`OK`。该包包含v1.1.67 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
 
 ## 3. 配置模型：公共模板与生产私有配置
 

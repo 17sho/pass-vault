@@ -85,13 +85,7 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 
 ### 获取当前可部署版本
 
-新部署和生产升级优先从当前`main`的已审核提交构建；记录`git rev-parse HEAD`并完成全部门禁。GitHub [Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) 的现有资产是冻结制品：
-
-- Cloudflare：`pass-vault-v2-cloudflare-1.1.66.tar.gz`或`.zip`
-- Linux：v1.1.66及v1.1.65当前均没有可下载Linux资产，请从当前`main`源码按Linux指南构建
-- 完整性校验：同时下载`SHA256SUMS`，在下载目录运行`sha256sum -c SHA256SUMS`
-
-v1.1.66 Cloudflare冻结包使用占位D1/R2配置，且不包含`main`后续加入的`0011`–`0013` R2生命周期修复；不要替换旧tag或Release资产。Linux不存在对应Release包，不能使用会返回404的下载命令。
+最新稳定版为 [v1.1.67](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.67)，同时提供隔离的 `pass-vault-v2-cloudflare-1.1.67.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.67.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
 
 > **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。升级前先记录任务开始前版本和完整配置名称清单，保留现有普通变量、Secrets、资源绑定、路由和触发器。Cloudflare须同点备份D1/R2、应用全部待处理迁移（当前完整链至`0013`）并保留Cron；Linux须同点备份SQLite和附件目录及完整环境变量。不要清空/重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 

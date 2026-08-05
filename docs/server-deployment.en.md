@@ -44,7 +44,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Current artifact status
 
-GitHub Release `v1.1.66` currently contains only Cloudflare archives and `SHA256SUMS`; it has **no Linux artifact**. Release `v1.1.65` also has no downloadable assets. Do not use `pass-vault-v2-linux-1.1.66.tar.gz` or `pass-vault-v2-linux-1.1.65.tar.gz` commands that return 404, and never deploy the Cloudflare archive to Linux.
+GitHub Release `v1.1.67` contains separate Cloudflare and Linux archives plus `SHA256SUMS`. Use only the archive for the selected runtime; never deploy the Cloudflare archive to Linux or the Linux archive to Cloudflare.
 
 Build a new or upgraded Linux installation from a reviewed current `main` commit and record its exact SHA:
 
@@ -269,7 +269,7 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
-### Upgrading current `main` (including v1.1.66 features)
+### Upgrading current `main` (including v1.1.67 features)
 
 Before upgrading, make a consistent SQLite plus attachment-directory backup and record the active `current` target and environment-variable names. Generate an independent `PASSKEY_UNLOCK_KEK` and exact `PASSKEY_RP_ID`/`PASSKEY_ORIGIN` only when enabling assisted Passkey for the first time; preserve the original KEK and domain variables when already enabled. Install into a new immutable release directory and switch atomically. Startup idempotently creates missing assisted-Passkey, session-metadata, and authentication-method tables. Existing ciphertext and vault keys need no re-encryption.
 

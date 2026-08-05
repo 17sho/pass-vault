@@ -51,16 +51,10 @@ for (const [file, text] of contents) {
     try { await access(target); } catch { throw new Error(`${file}: broken internal link ${href}`); }
   }
 }
-for (const [file, noLinuxArtifactDisclosure] of [
-  ['README.md', '当前均没有可下载Linux资产'],
-  ['README.en.md', 'currently has a downloadable Linux asset'],
-]) {
+for (const file of ['README.md', 'README.en.md']) {
   const text = contents.get(file);
-  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, noLinuxArtifactDisclosure]) {
+  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, `pass-vault-v2-linux-${pkg.version}.tar.gz`, 'SHA256SUMS']) {
     if (!text.includes(required)) throw new Error(`${file}: missing current release reference ${required}`);
-  }
-  if (text.includes(`pass-vault-v2-linux-${pkg.version}.tar.gz`) || text.includes(`pass-vault-v2-linux-${pkg.version}.zip`)) {
-    throw new Error(`${file}: Linux ${pkg.version} artifact must not be advertised by this Cloudflare-only release`);
   }
   if (text.includes('latest stable release (v1.1.59)') || text.includes('最新稳定版（v1.1.59）')) {
     throw new Error(`${file}: withdrawn v1.1.59 marked as latest stable release`);

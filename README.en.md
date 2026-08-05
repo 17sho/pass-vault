@@ -85,13 +85,7 @@ The deployment methods are independent. Choose the matching guide:
 
 ### Obtain the current deployable version
 
-Prefer a reviewed current `main` commit for new deployments and production upgrades; record `git rev-parse HEAD` and run every gate. Existing assets on [GitHub Release v1.1.66](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) are frozen artifacts:
-
-- Cloudflare: `pass-vault-v2-cloudflare-1.1.66.tar.gz` or `.zip`
-- Linux: neither v1.1.66 nor v1.1.65 currently has a downloadable Linux asset; build reviewed current `main` source using the Linux guide
-- Integrity: also download `SHA256SUMS`, then run `sha256sum -c SHA256SUMS` in the download directory
-
-The frozen v1.1.66 Cloudflare package has placeholder D1/R2 configuration and does not contain the later `0011`–`0013` R2 lifecycle fixes on `main`; do not replace the old tag or assets. No matching Linux Release archive exists, so do not use download commands that return 404.
+The latest stable release is [v1.1.67](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.67), with separate `pass-vault-v2-cloudflare-1.1.67.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.67.tar.gz` / `.zip` assets plus `SHA256SUMS`. Each archive contains only its selected runtime and placeholder configuration; run `sha256sum -c SHA256SUMS` after download.
 
 > **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0013`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
 

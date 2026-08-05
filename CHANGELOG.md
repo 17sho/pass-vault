@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.1.67
+
+### Fixed / 修复
+
+- 加固 Linux 备份导入、附件替换/删除及同账户并发边界，保留当前账户包装材料并使用原子文件切换。
+- 统一 Linux 匿名认证 POST 的同源与 JSON 门禁；记录密码、Passkey 和旧会话认证方式。
+- 锁库清除主密码表单、编辑器敏感 DOM 与附件预览引用，并用保险库代际阻止迟到备份导入/导出继续执行。
+- 明文迁移在任何上传前完成全部本地加密与校验，避免本地失败造成部分导入。
+- Linux systemd 模板增加严格权限、设备/主目录/内核/控制组保护和重启退避。
+
+### Packaging / 打包
+
+- 同时发布经过范围隔离的 Cloudflare 与 Linux tar.gz/zip 制品及统一 SHA256SUMS。
+- Cloudflare 制品包含 `0011`–`0013` R2 生命周期迁移与补偿修复；所有示例配置保持占位和脱敏。
+
 ## v1.1.66
 
 > Release scope: GitHub publishes Cloudflare artifacts only. The stable Linux artifact remains v1.1.65 while Linux packaging is held back for separate verification.
