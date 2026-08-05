@@ -85,7 +85,7 @@ The deployment methods are independent. Choose the matching guide:
 
 ### Obtain the current deployable version
 
-The latest stable release is [v1.1.68](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.68), with separate `pass-vault-v2-cloudflare-1.1.68.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.68.tar.gz` / `.zip` assets plus `SHA256SUMS`. Each archive contains only its selected runtime and placeholder configuration; run `sha256sum -c SHA256SUMS` after download.
+The latest stable release is [v1.1.69](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.69), adding bulk pin, unpin, and move-to-Trash actions within the current filtered result scope. It includes separate `pass-vault-v2-cloudflare-1.1.69.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.69.tar.gz` / `.zip` assets plus `SHA256SUMS`. Each archive contains only its selected runtime and placeholder configuration; run `sha256sum -c SHA256SUMS` after download.
 
 > **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0013`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
 

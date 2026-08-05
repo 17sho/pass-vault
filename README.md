@@ -85,7 +85,7 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 
 ### 获取当前可部署版本
 
-最新稳定版为 [v1.1.68](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.68)，同时提供隔离的 `pass-vault-v2-cloudflare-1.1.68.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.68.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
+最新稳定版为 [v1.1.69](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.69)，新增当前筛选结果范围内的批量置顶、取消置顶和移入回收站，并同时提供隔离的 `pass-vault-v2-cloudflare-1.1.69.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.69.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
 
 > **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。升级前先记录任务开始前版本和完整配置名称清单，保留现有普通变量、Secrets、资源绑定、路由和触发器。Cloudflare须同点备份D1/R2、应用全部待处理迁移（当前完整链至`0013`）并保留Cron；Linux须同点备份SQLite和附件目录及完整环境变量。不要清空/重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 
