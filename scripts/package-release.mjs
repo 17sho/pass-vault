@@ -12,7 +12,7 @@ const snapshot = process.env.RELEASE_SNAPSHOT === '1';
 if (exactTag.status !== 0 && !snapshot) {
   throw new Error(`refusing to regenerate v${pkg.version} artifacts from untagged HEAD; set RELEASE_SNAPSHOT=1 for local verification only`);
 }
-const artifactVersion = exactTag.status === 0 ? pkg.version : `${pkg.version}-snapshot-${gitHead.stdout.trim()}`;
+const artifactVersion = snapshot ? `${pkg.version}-snapshot-${gitHead.stdout.trim()}` : pkg.version;
 const out = join(root, 'release');
 const epoch = Number(process.env.SOURCE_DATE_EPOCH || 1783728000); // 2026-07-11 UTC
 const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md',`release-notes-v${pkg.version}.md`,'public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md'];
