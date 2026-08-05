@@ -66,7 +66,7 @@ for (const base of sites) for (const [engineName, engine] of engines) {
     await dialog.getByRole('button', { name: `删除 ${names.accountRenamed}` }).waitFor(); await dialog.getByRole('button', { name: `删除 ${names.accountRenamed}` }).click();
     await page.getByRole('dialog', { name: '确认删除分组' }).getByRole('button', { name: '确认删除' }).click();
     await page.getByText('分组已删除，资料已移至默认', { exact: true }).waitFor(); await page.getByPlaceholder('搜索当前分类').fill('');
-    await expectActive(page, '账号', '默认'); await page.locator('.item-card').filter({ hasText: item.account }).waitFor(); record.checkpoints.push('account-rename-delete-to-default');
+    await expectActive(page, '账号', '默认'); await page.locator('.item-card').filter({ hasText: item.account }).waitFor(); await dialog.getByRole('button', { name: '关闭' }).click(); record.checkpoints.push('account-rename-delete-to-default');
 
     await page.locator('nav').getByRole('button', { name: '网站', exact: true }).click(); await expectActive(page, '网站', '默认'); await createGroup(page, '网站', names.website, record); await selectGroup(page, '网站', names.website);
     await chooseType(page, '网站'); const websiteEditor = page.locator('#editor'); await websiteEditor.getByLabel('名称').fill(item.website); await websiteEditor.getByLabel('网址').fill('https://website.example.invalid'); await websiteEditor.getByLabel('分组').selectOption({ label: names.website }); await websiteEditor.getByRole('button', { name: '保存' }).click();
