@@ -70,8 +70,8 @@
 | 方法 | 路径 | 请求/响应要点 |
 |---|---|---|
 | `POST` | `/api/register` | `{username,password,inviteCode,kdf,wrappedKey}`；邀请码缺失/配置无效时安全关闭注册 |
-| `POST` | `/api/login` | `{username,password}` → `{csrf,sessionId,kdf,wrappedKey,capabilities}` |
-| `GET` | `/api/session` | `{username,sessionId,kdf,wrappedKey,capabilities}` |
+| `POST` | `/api/login` | `{username,password}` → `{csrf,sessionId,kdf,wrappedKey}`；Cloudflare Worker 额外返回部署能力 `capabilities` |
+| `GET` | `/api/session` | `{username,sessionId,kdf,wrappedKey}`；Cloudflare Worker 额外返回部署能力 `capabilities` |
 | `POST` | `/api/logout` | 撤销当前会话并过期 Cookie |
 | `POST` | `/api/change-username` | `{newUsername,currentPassword}`；成功后撤销该用户全部会话与服务器辅助 Passkey |
 | `POST` | `/api/change-password` | `{currentPassword,newPassword,kdf,wrappedKey}`；成功后撤销全部会话与服务器辅助 Passkey |
@@ -106,7 +106,7 @@
 | `PUT` | `/api/attachments/:id/metadata` | 替换加密 metadata，不改正文 |
 | `DELETE` | `/api/attachments/:id` | 永久删除 metadata 与密文正文对象 |
 
-正文大小与配额由 `/api/session` 返回的 `capabilities` 和部署配置约束。Cloudflare 可返回 `quota_exceeded`；Linux 不应用 R2 月度配额。
+正文大小与配额由部署配置约束。Cloudflare Worker 的 `/api/session` 会返回 `capabilities`，并可返回 `quota_exceeded`；Linux 不返回该能力对象，也不应用 R2 月度配额。
 
 ### 加密备份
 
@@ -115,7 +115,7 @@
 | `GET` | `/api/backup` | v1：KDF、wrapped key 和条目 envelopes |
 | `GET` | `/api/backup?attachments=1` | v2：额外包含附件 metadata 与密文正文 |
 | `PUT` | `/api/backup` | 原子恢复当前用户备份 |
-| `POST` | `/api/backup/import` | `PUT` 的兼容别名 |
+| `POST` | `/api/backup/import` | 仅 Linux Node 后端提供的 `PUT /api/backup` 兼容别名；Cloudflare Worker 只接受 `PUT /api/backup` |
 
 浏览器导入前必须用当前 vault key 解密验证全部条目和附件 metadata，并用当前登录账户的 `kdf` / `wrappedKey` 替换备份内材料，避免旧备份改变当前主密码。
 

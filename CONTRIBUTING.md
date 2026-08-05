@@ -84,6 +84,6 @@ PR 应写明：
 
 ## 安全问题 / Security reports
 
-不要用公开 Issue、Discussion 或 PR 报告可利用漏洞。请按 [`SECURITY.md`](SECURITY.md) 使用 GitHub 私密漏洞报告。
+不要用公开 Issue、Discussion 或 PR 报告可利用漏洞。请使用 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new)；详见 [`SECURITY.md`](SECURITY.md)。
 
 贡献一经合并，将按仓库根目录的 [MIT License](LICENSE) 分发。

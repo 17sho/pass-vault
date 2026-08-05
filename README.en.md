@@ -119,7 +119,7 @@ The legacy combined deployment URL remains as a [short navigation page](docs/dep
 - Use production instances only over HTTPS; protect the host, Cloudflare account, and backups.
 - Never commit databases, backups, `.env`, real domains, account IDs, or secrets.
 - Verify backup provenance; keep multiple encrypted copies and test restoration.
-- Report vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md), not in public issues.
+- Report vulnerabilities privately through [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new), not in public issues.
 
 ## FAQ
 

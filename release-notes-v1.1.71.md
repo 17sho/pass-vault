@@ -4,6 +4,8 @@
 
 ## 中文
 
+本 Release 说明对应仓库 tag `v1.1.71` 的稳定代码与双端制品。文档、依赖安全修复和仓库元数据的后续更新位于 `main`；不要把未打 tag 的 `main` 当作 `v1.1.71` 制品来源。
+
 ### 新功能
 
 - 账号、网站、笔记、TOTP 与附件均支持在当前类型、分组、搜索结果和附件分类范围内批量设置分组。
@@ -47,9 +49,11 @@ curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SH
 sha256sum -c SHA256SUMS
 ```
 
-如果这个项目对你有帮助，欢迎点一个 Star ⭐️；问题和改进建议也欢迎通过 Issues 提交。安全漏洞请使用 GitHub 私密报告，不要公开披露。
+如果这个项目对你有帮助，欢迎点一个 Star ⭐️；问题和改进建议也欢迎通过 Issues 提交。安全漏洞请通过 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new) 私下报告，不要公开披露。
 
 ## English
+
+This release note describes the stable code and dual-runtime artifacts for tag `v1.1.71`. Later documentation, dependency-security, and repository-metadata updates are on `main`; do not treat an untagged `main` commit as the `v1.1.71` artifact source.
 
 ### Features
 
@@ -94,4 +98,4 @@ curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SH
 sha256sum -c SHA256SUMS
 ```
 
-If this project is useful, a Star ⭐️ is appreciated. Issues and improvements are welcome; report vulnerabilities privately through GitHub Security rather than public disclosure.
+If this project is useful, a Star ⭐️ is appreciated. Issues and improvements are welcome; report vulnerabilities through [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new), not public disclosure.
