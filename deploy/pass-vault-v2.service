@@ -20,9 +20,21 @@ Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
 EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
 ExecStart=@APP_DIR@/node apps/server/server.mjs
 Restart=on-failure
+RestartSec=5s
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
 ReadWritePaths=@DATA_DIR@
 
 [Install]

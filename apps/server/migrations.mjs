@@ -6,6 +6,13 @@ export function migrateEntriesForTotp(db){const sql=db.prepare("SELECT sql FROM 
 export function migrateEntriesCreatedAt(db){if(db.prepare("PRAGMA table_info(entries)").all().some(x=>x.name==='created_at'))return false;db.exec('BEGIN IMMEDIATE');try{db.exec('ALTER TABLE entries ADD COLUMN created_at INTEGER;UPDATE entries SET created_at=updated_at WHERE created_at IS NULL;COMMIT');return true}catch(e){db.exec('ROLLBACK');throw e}}
 export function migrateSessionMetadata(db){const columns=new Set(db.prepare("PRAGMA table_info(sessions)").all().map(x=>x.name)),add=[];for(const [name,sql] of [['public_id','TEXT'],['created_at','INTEGER'],['last_seen_at','INTEGER'],['ip_address',"TEXT NOT NULL DEFAULT 'unknown'"],['device_type',"TEXT NOT NULL DEFAULT 'unknown'"],['browser',"TEXT NOT NULL DEFAULT 'unknown'"]])if(!columns.has(name))add.push(`ALTER TABLE sessions ADD COLUMN ${name} ${sql}`);db.exec('BEGIN IMMEDIATE');try{for(const sql of add)db.exec(sql);const rows=db.prepare('SELECT id_hash,expires_at FROM sessions WHERE public_id IS NULL').all(),update=db.prepare('UPDATE sessions SET public_id=?,created_at=?,last_seen_at=? WHERE id_hash=?');for(const row of rows){const created=row.expires_at-28800000;update.run(crypto.randomUUID().replaceAll('-',''),created,created,row.id_hash)}db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_public_id ON sessions(public_id);CREATE INDEX IF NOT EXISTS idx_sessions_user_last_seen ON sessions(user_id,last_seen_at DESC);COMMIT');return add.length>0||rows.length>0}catch(e){db.exec('ROLLBACK');throw e}}
 
+export function migrateSessionAuthMethod(db){
+ const columns=new Set(db.prepare("PRAGMA table_info(sessions)").all().map(x=>x.name));
+ if(columns.has('auth_method'))return false;
+ db.exec("BEGIN IMMEDIATE;ALTER TABLE sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'unknown' CHECK(auth_method IN('password','passkey','unknown'));CREATE INDEX idx_sessions_user_auth_method ON sessions(user_id,auth_method);COMMIT");
+ return true;
+}
+
 export function migratePasskeyAssistedUnlock(db){
  const existing=db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='passkey_credentials'").get()&&db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='passkey_challenges'").get();
  db.exec(`CREATE TABLE IF NOT EXISTS passkey_credentials(
