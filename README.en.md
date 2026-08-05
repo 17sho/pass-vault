@@ -1,5 +1,7 @@
 # Pass Vault V2
 
+[![CI](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+
 [中文](README.md) · [English](README.en.md)
 
 A mobile-first, self-hosted password vault with a zero-knowledge boundary by default. **The same browser frontend source is packaged separately into two independent deployments**: Cloudflare Workers + Static Assets + D1 + R2, or Linux Node.js + SQLite + local attachments. They do not depend on one hosted frontend instance and do not share accounts or production data. Optional server-assisted Passkey unlock explicitly changes the default security boundary.
@@ -36,8 +38,9 @@ In the default mode, the server stores authentication material, a vault key prot
 
 “Shared frontend” means that `public/` is built into `dist/` once and then packaged into both Cloudflare and Linux artifacts. Each deployment serves its own static assets, handles its own API requests, and stores its own accounts and ciphertext. An outage on one target does not require browsers on the other target to load frontend assets from it.
 
-- **Architecture and boundaries**: [中文](docs/ARCHITECTURE.zh-CN.md) · **[English](docs/ARCHITECTURE.en.md)**
-- **Ciphertext API contract**: [`docs/API.md`](docs/API.md)
+- **Architecture and boundaries**: **[中文](docs/ARCHITECTURE.zh-CN.md)** · [English](docs/ARCHITECTURE.en.md)
+- **Development guide**: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- **Encrypted API contract**: [`docs/API.md`](docs/API.md)
 
 ## Cloudflare vs. Linux
 

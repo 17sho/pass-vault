@@ -15,7 +15,7 @@ if (exactTag.status !== 0 && !snapshot) {
 const artifactVersion = snapshot ? `${pkg.version}-snapshot-${gitHead.stdout.trim()}` : pkg.version;
 const out = join(root, 'release');
 const epoch = Number(process.env.SOURCE_DATE_EPOCH || 1783728000); // 2026-07-11 UTC
-const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md',`release-notes-v${pkg.version}.md`,'public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/ARCHITECTURE.zh-CN.md','docs/ARCHITECTURE.en.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md'];
+const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md',`release-notes-v${pkg.version}.md`,'public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/ARCHITECTURE.zh-CN.md','docs/ARCHITECTURE.en.md','docs/DEVELOPMENT.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md'];
 const variants = {
   cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/worker.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
   linux: ['apps/server','deploy/pass-vault-v2.service','deploy/Caddyfile','deploy/nginx.conf','scripts/deploy-linux-atomic.sh','tests/fixtures.mjs','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/server.integration.test.js','docs/server-deployment.zh-CN.md','docs/server-deployment.en.md'],

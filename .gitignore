@@ -47,6 +47,10 @@ playwright-report/
 blob-report/
 *.log
 
+# Generated local runtime data and test leftovers
+.tmp-clean-*.sqlite
+.tmp-clean-*.sqlite-*
+
 # Caches and temporary files
 .cache/
 .tmp/
