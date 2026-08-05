@@ -48,7 +48,7 @@ async function enterBulk(page){
 for(const engine of [chromium,webkit])test(`${engine.name()} 批量置顶、取消置顶和移入回收站`,async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-actions-${engine.name()}-${process.pid}.sqlite`});
   const browser=await engine.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+  const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
   try{
     await register(page,fixture.base);
     await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
@@ -56,6 +56,8 @@ for(const engine of [chromium,webkit])test(`${engine.name()} 批量置顶、取�
     await createNote(page,'批量操作乙');
     await enterBulk(page);
     await page.getByRole('button',{name:'全选当前结果'}).click();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth<=1),true);
+    for(const id of ['bulk-all','bulk-apply','bulk-pin','bulk-delete','bulk-cancel'])assert.ok(await page.locator(`#${id}`).evaluate(el=>el.getBoundingClientRect().height>=44),`${id} touch target`);
     await page.getByRole('button',{name:'置顶所选'}).click();
     await page.getByText('已置顶 2 项资料',{exact:true}).waitFor();
     assert.equal(await page.locator('.pin-badge').count(),2);
@@ -83,7 +85,7 @@ for(const engine of [chromium,webkit])test(`${engine.name()} 批量置顶、取�
 test('批量置顶第二项失败时补偿第一项并保留选择',async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-pin-rollback-${process.pid}.sqlite`});
   const browser=await chromium.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+  const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
   try{
     await register(page,fixture.base);
     await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
@@ -106,7 +108,7 @@ test('批量置顶第二项失败时补偿第一项并保留选择',async()=>{
 test('批量置顶补偿和权威重载都失败时明确要求重新登录',async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-pin-reload-fail-${process.pid}.sqlite`});
   const browser=await chromium.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+  const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
   try{
     await register(page,fixture.base);
     await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
@@ -126,10 +128,36 @@ test('批量置顶补偿和权威重载都失败时明确要求重新登录',asy
   }finally{await browser.close();await fixture.stop()}
 });
 
+test('批量写入等待期间锁库后不得向后续会话发送旧库密文',async()=>{
+  const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-session-race-${process.pid}.sqlite`});
+  const browser=await chromium.launch({headless:true});
+  const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
+  try{
+    await register(page,fixture.base);
+    await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
+    await createNote(page,'会话竞态');
+    await enterBulk(page);await page.getByRole('button',{name:'全选当前结果'}).click();
+    await page.evaluate(()=>{let release;window.__BULK_WRITE_BARRIER=new Promise(resolve=>{release=resolve});window.__releaseBulkWrite=release});
+    let writes=0;page.on('request',request=>{if(request.method()==='PUT'&&/\/api\/entries\//.test(request.url()))writes++});
+    await page.getByRole('button',{name:'置顶所选'}).click();
+    await page.evaluate(()=>window.__lockVaultForTest());
+    await page.locator('#auth').waitFor({state:'visible'});
+    await page.getByRole('button',{name:'创建新库'}).click();
+    await page.getByLabel('邀请码').fill(TEST_INVITE_CODE);
+    await page.locator('#auth-form input[name=username]').fill(`bulk-actions-second-${Date.now()}`);
+    await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
+    await page.getByRole('button',{name:'创建并进入'}).click();
+    await page.locator('#vault').waitFor({state:'visible'});
+    await page.evaluate(()=>window.__releaseBulkWrite());
+    await page.waitForTimeout(100);
+    assert.equal(writes,0);
+  }finally{await browser.close();await fixture.stop()}
+});
+
 test('批量删除笔记时未共享附件随父项进入回收站',async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-note-files-${process.pid}.sqlite`});
   const browser=await chromium.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+  const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
   try{
     await register(page,fixture.base);
     await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
@@ -155,7 +183,7 @@ test('批量删除笔记时未共享附件随父项进入回收站',async()=>{
 test('账号、网站、笔记、TOTP 与附件均支持批量置顶和软删除',async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-action-types-${process.pid}.sqlite`});
   const browser=await chromium.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+  const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
   try{
     await register(page,fixture.base);
     for(const [label,name] of [['账号','批量账号'],['网站','批量网站'],['笔记','批量笔记'],['TOTP','批量动态码'],['附件','批量附件.txt']]){
