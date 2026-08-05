@@ -22,6 +22,10 @@ test('Linux-only release has no Cloudflare files or broken documentation links',
     const root = join(destination, archiveName.slice(0, -'.tar.gz'.length));
     const docs = spawnSync(process.execPath, ['scripts/check-docs.mjs'], { cwd: root, encoding: 'utf8' });
     assert.equal(docs.status, 0, docs.stderr || docs.stdout);
+    const installed = spawnSync('npm', ['ci', '--ignore-scripts'], { cwd: root, encoding: 'utf8' });
+    assert.equal(installed.status, 0, installed.stderr || installed.stdout);
+    const integration = spawnSync(process.execPath, ['--test', 'tests/server.integration.test.js'], { cwd: root, encoding: 'utf8' });
+    assert.equal(integration.status, 0, integration.stderr || integration.stdout);
     const members = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
     assert.equal(members.status, 0, members.stderr || members.stdout);
     assert.doesNotMatch(members.stdout, /(?:^|\/)(?:apps\/worker|docs\/cloudflare-deployment|wrangler\.jsonc)/m);
