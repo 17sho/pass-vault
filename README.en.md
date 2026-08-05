@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-A mobile-first, self-hosted password vault with a zero-knowledge boundary by default. The shared frontend runs with either a **Cloudflare Workers + Static Assets + D1** backend or a **Linux Node.js + SQLite** backend; optional server-assisted Passkey unlock explicitly changes that boundary.
+A mobile-first, self-hosted password vault with a zero-knowledge boundary by default. **The same browser frontend source is packaged separately into two independent deployments**: Cloudflare Workers + Static Assets + D1 + R2, or Linux Node.js + SQLite + local attachments. They do not depend on one hosted frontend instance and do not share accounts or production data. Optional server-assisted Passkey unlock explicitly changes the default security boundary.
 
 > If this project helps you, a Star would mean a lot ❤️. Issues and improvements are welcome too.
 
@@ -10,7 +10,8 @@ A mobile-first, self-hosted password vault with a zero-knowledge boundary by def
 
 - Account, website, secure-note, and TOTP records; TOTP secrets stay in the client-encrypted payload and the browser locally generates default six-digit codes that refresh every 30 seconds
 - An implicit “All” view plus independent encrypted custom groups for accounts, websites, notes, TOTP, and attachments, including empty-group persistence and combined group/fuzzy filtering
-- Tags, category and global fuzzy search, editing, pinning, recents, and an encrypted trash; Chinese fragments and Latin typos are matched entirely in the browser
+- Bulk grouping, pinning, unpinning, and move-to-Trash within the current type, group, search result, and attachment-category scope; failed writes are compensated, and stale operations cannot continue through a newly signed-in account after lock or account switch
+- Tags, category and global fuzzy search, editing, pin ordering, recents, and an encrypted trash; Chinese fragments and Latin typos are matched entirely in the browser
 - Note images and a standalone attachment library with category/group filtering, preview/playback, download, rename, group moves, and deletion
 - Responsive desktop/mobile UI with no native client required
 - Encrypted backup import/export and master-password changes
@@ -30,6 +31,13 @@ Master password (browser only)
 ```
 
 In the default mode, the server stores authentication material, a vault key protected by a master-password-derived key, encrypted item/attachment metadata envelopes, and encrypted attachment objects. It does not receive the master password or hold a server key that can independently recover the vault key. Enabling **server-assisted Passkey unlock** adds a copy of the vault key wrapped by a server KEK. After an anonymous Passkey challenge passes WebAuthn user verification, exact RP ID/Origin, credential ownership, and counter checks, the server can recover that vault key and create a new session. Server-assisted Passkey therefore changes the default zero-knowledge boundary, and a compromised server or frontend may be able to decrypt stored ciphertext. The master password is still never uploaded, and changing the master password or username revokes assisted credentials. No mode replaces a trusted endpoint, HTTPS, prompt updates, and tested backups.
+
+## Architecture: shared source, not a shared runtime or database
+
+“Shared frontend” means that `public/` is built into `dist/` once and then packaged into both Cloudflare and Linux artifacts. Each deployment serves its own static assets, handles its own API requests, and stores its own accounts and ciphertext. An outage on one target does not require browsers on the other target to load frontend assets from it.
+
+- **Architecture and boundaries**: [中文](docs/ARCHITECTURE.zh-CN.md) · **[English](docs/ARCHITECTURE.en.md)**
+- **Ciphertext API contract**: [`docs/API.md`](docs/API.md)
 
 ## Cloudflare vs. Linux
 
@@ -85,7 +93,7 @@ The deployment methods are independent. Choose the matching guide:
 
 ### Obtain the current deployable version
 
-The latest stable release is [v1.1.71](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.71), adding bulk pin, unpin, and move-to-Trash actions within the current filtered result scope. It includes separate `pass-vault-v2-cloudflare-1.1.71.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.71.tar.gz` / `.zip` assets plus `SHA256SUMS`. Each archive contains only its selected runtime and placeholder configuration; run `sha256sum -c SHA256SUMS` after download.
+The latest stable release is [v1.1.71](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.71). It includes bulk grouping, pinning, unpinning, and move-to-Trash for all five data types, and binds forward and compensation writes to the vault key and session generation captured when an operation starts, preventing stale writes from crossing into a newly signed-in account. The Release includes separate `pass-vault-v2-cloudflare-1.1.71.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.71.tar.gz` / `.zip` assets plus `SHA256SUMS`. Each archive contains only its selected runtime and placeholder configuration; run `sha256sum -c SHA256SUMS` after download.
 
 > **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0013`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
 
