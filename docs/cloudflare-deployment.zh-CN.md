@@ -4,7 +4,7 @@
 
 本指南覆盖当前 `main` 的首次部署、生产升级、备份、恢复、回滚和验收。请把所有 `<...>` 替换为自己的值；不得把真实域名、账户/数据库 ID、bucket 名、token、邀请码、KEK、生产备份或私有配置提交到公开仓库。
 
-> **版本说明：** GitHub `v1.1.67` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复。
+> **版本说明：** GitHub `v1.1.68` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复。
 
 ## 1. 架构、要求与安全边界
 
@@ -48,22 +48,22 @@ npm run build
 
 所有命令必须自然退出0。不要用被中止、超时或旧提交的测试结果代替当前门禁。
 
-### 2.2 v1.1.67 Cloudflare 制品
+### 2.2 v1.1.68 Cloudflare 制品
 
 本Release的Cloudflare资产包括：
 
-- `pass-vault-v2-cloudflare-1.1.67.tar.gz`
-- `pass-vault-v2-cloudflare-1.1.67.zip`
+- `pass-vault-v2-cloudflare-1.1.68.tar.gz`
+- `pass-vault-v2-cloudflare-1.1.68.zip`
 - `SHA256SUMS`
 
 ```bash
-VERSION=1.1.67
+VERSION=1.1.68
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 
-校验必须显示`OK`。该包包含v1.1.67 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
+校验必须显示`OK`。该包包含v1.1.68 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
 
 ## 3. 配置模型：公共模板与生产私有配置
 

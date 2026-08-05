@@ -6,5 +6,5 @@
 
 - [Cloudflare 部署指南（中文）](cloudflare-deployment.zh-CN.md) · [English](cloudflare-deployment.en.md)
 - [Linux 服务器部署指南（中文）](server-deployment.zh-CN.md) · [English](server-deployment.en.md)
-- [v1.1.67 Cloudflare/Linux 制品与 SHA256SUMS](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.67)
+- [v1.1.68 Cloudflare/Linux 制品与 SHA256SUMS](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.68)
 - [返回中文 README](../README.md)
