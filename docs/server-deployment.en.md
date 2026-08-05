@@ -46,7 +46,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 GitHub Release `v1.1.71` contains separate Cloudflare and Linux archives plus `SHA256SUMS`. Use only the archive for the selected runtime; never deploy the Cloudflare archive to Linux or the Linux archive to Cloudflare.
 
-Build a new or upgraded Linux installation from a reviewed current `main` commit and record its exact SHA:
+Prefer the Linux artifact published in the Release and verify it first. If building from source, use a reviewed current `main` commit and record its exact SHA:
 
 ```bash
 cd /tmp
@@ -57,7 +57,7 @@ git pull --ff-only
 git rev-parse HEAD
 ```
 
-Do not move an old tag or replace Release assets to fabricate a Linux package. Use an archive workflow only after a future GitHub Release actually lists a Linux artifact and matching `SHA256SUMS`.
+Do not move an old tag or replace Release assets to fabricate a Linux package. `v1.1.71` currently lists Linux tar.gz, zip, and a shared `SHA256SUMS`; download and verify the exact names shown on that Release page. For later versions, use the artifact workflow only when the Release actually lists matching assets.
 
 ### 3.2 Build from source and install atomically
 

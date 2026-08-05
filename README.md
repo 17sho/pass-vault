@@ -119,7 +119,7 @@ Cloudflare 版使用的 Workers、Static Assets、D1、R2 Standard、DNS/SSL 均
 - 只通过 HTTPS 使用生产实例；保护服务器、Cloudflare 账户和备份。
 - 不要把数据库、备份、`.env`、真实域名、账户 ID 或密钥提交到仓库。
 - 导入前验证备份来源；在隔离位置保存多份加密备份并测试恢复。
-- 安全漏洞请按 [`SECURITY.md`](SECURITY.md) 私下报告，不要公开披露。
+- 安全漏洞请通过 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new) 私下报告，不要公开披露。
 
 ## FAQ
 
