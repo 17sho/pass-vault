@@ -150,7 +150,7 @@ test('三类字段隔离、当前分类搜索、编辑锁类型、危险区删�
  await page.getByRole('button',{name:'取消'}).click();
  await page.locator('#editor').waitFor({state:'hidden'});assert.equal(await page.getByRole('button',{name:'删除此条目'}).isVisible(),false);
  await page.getByRole('button',{name:'更多',exact:true}).click();
- assert.equal(await page.getByRole('menuitem').count(),11);assert.equal(await page.getByRole('menuitem',{name:'全站搜索'}).count(),1);assert.equal(await page.getByRole('menuitem',{name:'回收站'}).count(),1);
+ assert.equal(await page.getByRole('menuitem').count(),12);assert.equal(await page.getByRole('menuitem',{name:'全站搜索'}).count(),1);assert.equal(await page.getByRole('menuitem',{name:'回收站'}).count(),1);assert.equal(await page.getByRole('menuitem',{name:'批量设置分组'}).count(),1);
  await page.screenshot({path:'artifacts/desktop-1440.png',fullPage:true});assert.deepEqual(errors,[]);await page.close();
 });
 
