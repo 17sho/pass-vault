@@ -2,7 +2,7 @@
   "name": "pass-vault-v2",
   "version": "1.1.71",
   "private": true,
-  "description": "Zero-knowledge password vault with shared frontend and Cloudflare D1 or Linux SQLite backends",
+  "description": "Mobile-first encrypted vault with one browser frontend packaged for independent Cloudflare D1/R2 and Linux SQLite deployments",
   "license": "MIT",
   "repository": {
     "type": "git",
