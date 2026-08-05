@@ -12,6 +12,7 @@
     "url": "https://github.com/17sho/pass-vault-v2/issues"
   },
   "homepage": "https://github.com/17sho/pass-vault-v2#readme",
+  "packageManager": "npm@11",
   "type": "module",
   "scripts": {
     "pretest": "node scripts/build.mjs",

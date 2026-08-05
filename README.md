@@ -1,5 +1,7 @@
 # Pass Vault V2
 
+[![CI](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+
 [中文](README.md) · [English](README.en.md)
 
 一个移动优先、可自托管、默认采用零知识边界的密码库。**同一套浏览器前端源码会分别打包进两个独立部署版本**：Cloudflare Workers + Static Assets + D1 + R2，或 Linux Node.js + SQLite + 本地附件。它们不依赖同一个在线前端，也不共享账户和生产数据；可选的服务器辅助 Passkey 会明确改变默认安全边界。
@@ -37,6 +39,7 @@
 “共享前端”表示 `public/` 经过同一构建流程生成 `dist/`，再分别装入 Cloudflare 与 Linux 制品。两个部署目标各自托管一份静态资源、各自处理 API、各自保存账户与密文；一端故障不会要求浏览器从另一端加载前端。
 
 - **架构与边界**：**[中文](docs/ARCHITECTURE.zh-CN.md)** · [English](docs/ARCHITECTURE.en.md)
+- **开发指南**：[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - **密文 API 契约**：[`docs/API.md`](docs/API.md)
 
 ## 两个部署版本的区别
