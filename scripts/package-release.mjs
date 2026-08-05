@@ -5,6 +5,14 @@ import { basename, join, resolve } from 'node:path';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const gitHead = spawnSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: root, encoding: 'utf8' });
+if (gitHead.status !== 0) throw new Error('unable to resolve git HEAD');
+const exactTag = spawnSync('git', ['describe', '--tags', '--exact-match', '--match', `v${pkg.version}`], { cwd: root, encoding: 'utf8' });
+const snapshot = process.env.RELEASE_SNAPSHOT === '1';
+if (exactTag.status !== 0 && !snapshot) {
+  throw new Error(`refusing to regenerate v${pkg.version} artifacts from untagged HEAD; set RELEASE_SNAPSHOT=1 for local verification only`);
+}
+const artifactVersion = exactTag.status === 0 ? pkg.version : `${pkg.version}-snapshot-${gitHead.stdout.trim()}`;
 const out = join(root, 'release');
 const epoch = Number(process.env.SOURCE_DATE_EPOCH || 1783728000); // 2026-07-11 UTC
 const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md',`release-notes-v${pkg.version}.md`,'public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md'];
@@ -47,7 +55,7 @@ await mkdir(out, { recursive: true });
 const archives = [];
 for (const variant of requestedVariants) {
   const extra = variants[variant];
-  const name = `${pkg.name}-${variant}-${pkg.version}`;
+  const name = `${pkg.name}-${variant}-${artifactVersion}`;
   const stage = join(out, '.stage', name);
   await mkdir(stage, { recursive: true });
   for (const path of [...common, ...extra]) await copy(path, stage);
@@ -57,11 +65,13 @@ for (const variant of requestedVariants) {
     scripts: variant === 'cloudflare' ? {
       test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
       lint: 'node scripts/check.mjs',
+      'lint:docs': 'node scripts/check-docs.mjs',
       typecheck: 'tsc --noEmit -p apps/worker/tsconfig.json',
       build: 'node scripts/build.mjs'
     } : {
       test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
       lint: 'node scripts/check.mjs',
+      'lint:docs': 'node scripts/check-docs.mjs',
       typecheck: 'node --check apps/server/server.mjs',
       build: 'node scripts/build.mjs',
       start: 'node apps/server/server.mjs'

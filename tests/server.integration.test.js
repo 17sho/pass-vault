@@ -152,3 +152,30 @@ test('Linux 备份 v2 附件往返、v1 兼容并拒绝损坏',async()=>{
   assert.equal((await api('/api/backup',{method:'PUT',cookie,csrf:login.csrf,body:{version:1,kdf,wrappedKey,envelopes:[]}})).status,200);
  }finally{await stop();await rm(dir,{recursive:true,force:true})}
 });
+
+test('Linux 备份导入由服务端保留当前账户包装材料并清理被替换的旧附件对象',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-backup-replace-')),db=join(dir,'vault.sqlite'),metadata={version:1,iv:'bWV0YQ==',ciphertext:'Y2lwaGVy'};
+ const otherKdf={salt:'b3RoZXJzYWx0b3RoZXJzYWx0',iterations:310000,hash:'SHA-256'},otherWrapped={iv:'b3RoZXJpdjEyMzQ1Ng==',ciphertext:'b3RoZXItZW5jcnlwdGVk'};
+ try{
+  await start(db);await api('/api/register',{method:'POST',body:{username:'replace-user',password:'correct horse battery',inviteCode,kdf,wrappedKey}});
+  let r=await api('/api/login',{method:'POST',body:{username:'replace-user',password:'correct horse battery'}});const login=await r.json(),cookie=session(r),bytes=Buffer.alloc(16,7);
+  r=await fetch(origin+'/api/attachments/old_attach',{method:'POST',headers:{origin,cookie,'x-csrf-token':login.csrf,'x-attachment-metadata':JSON.stringify(metadata)},body:bytes});assert.equal(r.status,201);
+  const before=new DatabaseSync(db),oldObject=before.prepare('SELECT object_key FROM attachments WHERE id=?').get('old_attach').object_key;before.close();
+  const replacement=await (await api('/api/backup?attachments=1',{cookie})).json();replacement.kdf=otherKdf;replacement.wrappedKey=otherWrapped;
+  r=await api('/api/backup',{method:'PUT',cookie,csrf:login.csrf,body:replacement});assert.equal(r.status,200,await r.text());
+  const material=await (await api('/api/backup',{cookie})).json();assert.deepEqual(material.kdf,kdf);assert.deepEqual(material.wrappedKey,wrappedKey);
+  const files=await readdir(join(dir,'attachments'),{recursive:true});assert.equal(files.includes(oldObject),false,'被完整备份替换的旧对象必须清理');
+ }finally{await stop();await rm(dir,{recursive:true,force:true})}
+});
+
+test('Linux 所有认证 POST 都要求同源 JSON 请求',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-auth-origin-')),db=join(dir,'vault.sqlite');
+ try{
+  await start(db);
+  let r=await api('/api/register',{method:'POST',requestOrigin:'https://evil.test',body:{username:'evil-origin',password:'correct horse battery',inviteCode,kdf,wrappedKey}});assert.equal(r.status,403);
+  r=await fetch(origin+'/api/register',{method:'POST',headers:{origin,'content-type':'text/plain'},body:JSON.stringify({username:'plain-text',password:'correct horse battery',inviteCode,kdf,wrappedKey})});assert.equal(r.status,415);
+  r=await api('/api/register',{method:'POST',body:{username:'same-origin',password:'correct horse battery',inviteCode,kdf,wrappedKey}});assert.equal(r.status,201);
+  r=await api('/api/login',{method:'POST',requestOrigin:'https://evil.test',body:{username:'same-origin',password:'correct horse battery'}});assert.equal(r.status,403);
+  r=await api('/api/passkeys/authentication/options',{method:'POST',requestOrigin:'https://evil.test',body:{}});assert.equal(r.status,403);
+ }finally{await stop();await rm(dir,{recursive:true,force:true})}
+});
