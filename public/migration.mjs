@@ -11,11 +11,17 @@ export function normalizeMigration(doc){
   });
 }
 
-export async function importMigration(doc,vaultKey,encrypt,upload){
-  const items=normalizeMigration(doc);
+export async function prepareMigration(doc,vaultKey,encrypt){
+  const items=normalizeMigration(doc),prepared=[];
   for(const item of items){
     const envelope=await encrypt(vaultKey,item.data);
-    await upload({id:item.id,type:item.type,version:1,...envelope});
+    prepared.push({id:item.id,type:item.type,version:1,...envelope});
   }
-  return {imported:items.length};
+  return prepared;
+}
+
+export async function importMigration(doc,vaultKey,encrypt,upload){
+  const prepared=await prepareMigration(doc,vaultKey,encrypt);
+  for(const item of prepared)await upload(item);
+  return {imported:prepared.length};
 }

@@ -956,12 +956,21 @@ test('完整加密备份包含附件，导入预览显示数量且恢复保留�
   const upload=page.locator('#attachment-upload');await upload.locator('input[type=file]').setInputFiles({name:'backup-proof.txt',mimeType:'text/plain',buffer:Buffer.from('encrypted attachment proof')});await upload.getByRole('button',{name:'加密并上传'}).click();await page.getByText('附件已上传',{exact:true}).waitFor();
   const backup=await page.evaluate(()=>fetch('/api/backup?attachments=1').then(r=>r.json()));assert.equal(backup.version,2);assert.equal(backup.attachments.length,1);assert.ok(backup.entries.length>=1);
   backup.kdf={salt:'tampered',iterations:310000,hash:'SHA-256'};backup.wrappedKey={iv:'tampered',ciphertext:'tampered'};
-  await page.getByRole('button',{name:'更多'}).click();await page.getByRole('menuitem',{name:'导入加密备份'}).click();
+  await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'导入加密备份'}).click();
   await page.locator('#import-file').setInputFiles({name:'complete.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
   const dialog=page.locator('#backup-import');await dialog.waitFor({state:'visible'});assert.match(await page.locator('#backup-import-summary').textContent(),/\d+ 条资料和 1 个附件/);
   await page.locator('#backup-import-confirm').click();await page.getByText('加密备份已恢复，当前主密码保持不变',{exact:true}).waitFor();assert.equal(requests.length,1);assert.notEqual(requests[0].kdf.salt,'tampered');assert.notEqual(requests[0].wrappedKey.iv,'tampered');
   await page.getByRole('button',{name:'更多'}).click();await page.getByRole('menuitem',{name:'退出并锁定'}).click();await page.locator('#auth').waitFor({state:'visible'});await page.locator('#auth-form input[name="username"]').fill(user);await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');await page.getByRole('button',{name:'登录并解锁'}).click();await page.locator('#vault').waitFor({state:'visible'});assert.deepEqual(errors,[]);
  }finally{await page.close()}
+});
+
+test('完整备份导出响应迟到于锁库时不得创建下载',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:844}}),downloads=[];let seenResolve,releaseResolve;const seen=new Promise(r=>seenResolve=r),release=new Promise(r=>releaseResolve=r);page.on('download',d=>downloads.push(d.suggestedFilename()));
+ try{await register(page);await page.route('**/api/backup?attachments=1',async route=>{seenResolve();await release;await route.continue()});await page.getByRole('button',{name:'更多'}).click();await page.getByRole('menuitem',{name:'导出加密备份'}).click();await page.locator('#export-full').click();await seen;await page.evaluate(()=>window.__lockVaultForTest());releaseResolve();await page.waitForTimeout(250);assert.deepEqual(downloads,[]);assert.equal(await page.getByText('完整加密备份已导出',{exact:true}).count(),0)}finally{releaseResolve?.();await page.close()}
+});
+
+test('备份文件读取迟到于锁库时不得重开导入确认',async()=>{
+ const page=await browser.newPage({viewport:{width:390,height:844}});try{await register(page);await create(page,'笔记',{'标题':'延迟校验','正文':'秘密','标签（逗号分隔）':''});const backup=await page.evaluate(()=>fetch('/api/backup').then(r=>r.json()));backup.format='pass-vault-v2';await page.evaluate(()=>{const native=File.prototype.text;let release;window.__backupReadStarted=false;window.__releaseBackupRead=()=>release?.();File.prototype.text=async function(){window.__backupReadStarted=true;await new Promise(r=>release=r);return native.call(this)}});await page.getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('menuitem',{name:'导入加密备份'}).click();await page.locator('#import-file').setInputFiles({name:'delayed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});await page.waitForFunction(()=>window.__backupReadStarted);await page.evaluate(()=>window.__lockVaultForTest());await page.evaluate(()=>window.__releaseBackupRead());await page.waitForTimeout(250);assert.equal(await page.locator('#backup-import').evaluate(d=>d.open),false)}finally{await page.evaluate(()=>window.__releaseBackupRead?.()).catch(()=>{});await page.close()}
 });
 
 for(const [engine,launcher] of [['Chromium',chromium],['WebKit',webkit]])test(`${engine} 后台冻结超过自动锁定时长后恢复会立即锁库，不重新获得完整周期`,async()=>{
