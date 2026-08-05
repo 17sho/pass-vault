@@ -49,6 +49,19 @@ async function rewriteCloudflareOnlyLinks(stage) {
     await writeFile(path, text);
   }
 }
+async function rewriteLinuxOnlyLinks(stage) {
+  const releaseBase = `https://github.com/17sho/pass-vault-v2/blob/v${pkg.version}`;
+  const files = ['README.md', 'README.en.md', 'docs/DEPLOYMENT.md', 'docs/deployment.zh-CN.md', 'docs/deployment.en.md'];
+  for (const file of files) {
+    const path = join(stage, file);
+    const prefix = file.startsWith('docs/') ? '' : 'docs/';
+    let text = await readFile(path, 'utf8');
+    text = text
+      .replaceAll(`${prefix}cloudflare-deployment.zh-CN.md`, `${releaseBase}/docs/cloudflare-deployment.zh-CN.md`)
+      .replaceAll(`${prefix}cloudflare-deployment.en.md`, `${releaseBase}/docs/cloudflare-deployment.en.md`);
+    await writeFile(path, text);
+  }
+}
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
@@ -89,6 +102,8 @@ for (const variant of requestedVariants) {
       observability: { enabled: true, head_sampling_rate: 1 },
       triggers: { crons: ['17 * * * *'] }
     }, null, 2) + '\n');
+  } else {
+    await rewriteLinuxOnlyLinks(stage);
   }
   const tarPath = join(out, `${name}.tar.gz`);
   run('tar', ['--sort=name', `--mtime=@${epoch}`, '--owner=0', '--group=0', '--numeric-owner', '-czf', tarPath, '-C', join(out,'.stage'), name]);

@@ -5,6 +5,31 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+test('Linux-only release has no Cloudflare files or broken documentation links', async () => {
+  const packed = spawnSync(process.execPath, ['scripts/package-release.mjs'], {
+    env: { ...process.env, RELEASE_VARIANTS: 'linux', RELEASE_SNAPSHOT: '1' },
+    encoding: 'utf8',
+  });
+  assert.equal(packed.status, 0, packed.stderr || packed.stdout);
+  const destination = await mkdtemp(join(tmpdir(), 'pv-linux-package-'));
+  try {
+    const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+    const archiveName = (await readdir('release')).find(name => name.startsWith(`pass-vault-v2-linux-${pkg.version}-snapshot-`) && name.endsWith('.tar.gz'));
+    assert.ok(archiveName, 'snapshot archive missing');
+    const archive = join('release', archiveName);
+    const extracted = spawnSync('tar', ['-xzf', archive, '-C', destination], { encoding: 'utf8' });
+    assert.equal(extracted.status, 0, extracted.stderr || extracted.stdout);
+    const root = join(destination, archiveName.slice(0, -'.tar.gz'.length));
+    const docs = spawnSync(process.execPath, ['scripts/check-docs.mjs'], { cwd: root, encoding: 'utf8' });
+    assert.equal(docs.status, 0, docs.stderr || docs.stdout);
+    const members = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
+    assert.equal(members.status, 0, members.stderr || members.stdout);
+    assert.doesNotMatch(members.stdout, /(?:^|\/)(?:apps\/worker|docs\/cloudflare-deployment|wrangler\.jsonc)/m);
+  } finally {
+    await rm(destination, { recursive: true, force: true });
+  }
+});
+
 test('Cloudflare-only release has no Linux files or broken documentation links', async () => {
   const packed = spawnSync(process.execPath, ['scripts/package-release.mjs'], {
     env: { ...process.env, RELEASE_VARIANTS: 'cloudflare', RELEASE_SNAPSHOT: '1' },

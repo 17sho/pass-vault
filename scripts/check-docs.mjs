@@ -74,6 +74,7 @@ for (const [file, trustBoundary] of [
   ['docs/cloudflare-deployment.en.md', ['wrapped under an independent KEK', 'changes the default zero-knowledge boundary', 'can recover the vault key', 'nor a plaintext vault key']],
 ]) {
   const text = contents.get(file);
+  if (!text) continue;
   for (const required of [`v${pkg.version}`,'SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0008_session_metadata.sql','0009_passkey_assisted_unlock.sql','PASSKEY_UNLOCK_KEK','PASSKEY_RP_ID','PASSKEY_ORIGIN',...trustBoundary,'registration_unavailable','invalid_invite']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
@@ -86,7 +87,7 @@ for (const phrase of [
   'passkey_unlock_unavailable',
 ]) {
   for (const file of ['docs/cloudflare-deployment.zh-CN.md', 'docs/cloudflare-deployment.en.md']) {
-    if (!contents.get(file).includes(phrase)) throw new Error(`${file}: missing deployment regression guard ${phrase}`);
+    if (contents.has(file) && !contents.get(file).includes(phrase)) throw new Error(`${file}: missing deployment regression guard ${phrase}`);
   }
 }
 
