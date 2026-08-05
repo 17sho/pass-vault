@@ -27,3 +27,13 @@ test('migration accepts canonical and legacy accounts and uploads canonical plai
   await importMigration({format:'pass-vault-v2-plaintext-migration',version:1,items:[canonical,legacy]},'key',async(_key,data)=>{seen.push(data);return{iv:'iv',ciphertext:'cipher'}},async()=>{});
   assert.deepEqual(seen,[canonical.data,{platform:'B',loginUrl:'',notes:'',tags:[],credentials:[{username:'old',password:'secret'}]}]);
 });
+
+test('plaintext migration encrypts and validates every item before the first upload',async()=>{
+  const doc={format:'pass-vault-v2-plaintext-migration',version:1,items:[
+    {id:'legacy-ok',type:'note',data:{title:'First',body:'secret one',tags:[]}},
+    {id:'legacy-fail',type:'note',data:{title:'Second',body:'secret two',tags:[]}},
+  ]};
+  const uploaded=[];
+  await assert.rejects(importMigration(doc,'key',async(_key,data)=>{if(data.title==='Second')throw Error('encrypt failed');return{iv:'iv',ciphertext:'cipher'}},async item=>uploaded.push(item)),/encrypt failed/);
+  assert.deepEqual(uploaded,[],'本地准备失败前不得产生部分远程导入');
+});
