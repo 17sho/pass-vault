@@ -6,5 +6,5 @@ This legacy URL remains as a short navigation page to prevent broken links. Choo
 
 - [Cloudflare deployment guide](cloudflare-deployment.en.md) · [中文](cloudflare-deployment.zh-CN.md)
 - [Linux server deployment guide](server-deployment.en.md) · [中文](server-deployment.zh-CN.md)
-- [Frozen v1.1.66 Cloudflare assets and SHA256SUMS](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.66) (does not contain later `0011`–`0013` on `main`; no current Linux Release asset exists)
+- [v1.1.67 Cloudflare/Linux assets and SHA256SUMS](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.67)
 - [Back to the English README](../README.en.md)

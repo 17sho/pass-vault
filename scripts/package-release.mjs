@@ -37,7 +37,7 @@ async function hash(path) {
   return createHash('sha256').update(await readFile(path)).digest('hex');
 }
 async function rewriteCloudflareOnlyLinks(stage) {
-  const releaseBase = 'https://github.com/17sho/pass-vault-v2/blob/v1.1.65';
+  const releaseBase = `https://github.com/17sho/pass-vault-v2/blob/v${pkg.version}`;
   const files = ['README.md', 'README.en.md', 'docs/DEPLOYMENT.md', 'docs/deployment.zh-CN.md', 'docs/deployment.en.md'];
   for (const file of files) {
     const path = join(stage, file);
