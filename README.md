@@ -98,7 +98,7 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 
 最新稳定版为 [v1.1.71](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.71)。本版本包含五类资料的批量设置分组、置顶、取消置顶与移入回收站，并将批量操作的正向/补偿写入绑定到操作发起时的 vault key 与会话代际，防止锁库后切换账户时旧操作跨会话继续写入。Release 同时提供隔离的 `pass-vault-v2-cloudflare-1.1.71.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.71.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
 
-> **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。升级前先记录任务开始前版本和完整配置名称清单，保留现有普通变量、Secrets、资源绑定、路由和触发器。Cloudflare须同点备份D1/R2、应用全部待处理迁移（当前完整链至`0013`）并保留Cron；Linux须同点备份SQLite和附件目录及完整环境变量。不要清空/重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
+> **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。升级前先记录任务开始前版本和完整配置名称清单，保留现有普通变量、Secrets、资源绑定、路由和触发器。Cloudflare须同点备份D1/R2、应用全部待处理迁移（当前`main`完整链至`0016`）并保留Cron；Linux须同点备份SQLite和附件目录及完整环境变量。不要清空/重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 
 Cloudflare 版使用的 Workers、Static Assets、D1、R2 Standard、DNS/SSL 均有免费层；部署指南已列出 D1/R2 额度、项目 R2 保守硬限制、账户级共享风险、Billing/Usage 检查路径，以及避免 Web Analytics 自动注入破坏密码库 CSP 的设置方法。
 
