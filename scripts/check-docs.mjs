@@ -82,7 +82,9 @@ for (const [file, trustBoundary] of [
 
 for (const phrase of [
   '0011_r2_cleanup_queue.sql', '0012_backup_import_locks.sql',
-  '0013_r2_inflight_uploads.sql', '17 * * * *', 'workers_dev',
+  '0013_r2_inflight_uploads.sql', '0014_entries_revision.sql',
+  '0015_attachments_revision.sql', '0016_revision_tombstones.sql',
+  '17 * * * *', 'workers_dev',
   '--keep-vars', 'run_worker_first', 'migrations_dir', '100%',
   'passkey_unlock_unavailable',
 ]) {
