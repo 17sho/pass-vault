@@ -57,7 +57,7 @@ Wrangler普通deploy默认删除旧plain vars后只写配置中的`vars`；Secre
 2. 复制全部R2对象到独立版本化备份bucket，保存key/size/checksum清单；
 3. 把备份放在仓库外并异地保存；
 4. 运行`d1 migrations list`；
-5. 按账本应用全部待执行迁移，当前完整链至`0013_r2_inflight_uploads.sql`；
+5. 按账本应用全部待执行迁移，当前`main`完整链至`0016_revision_tombstones.sql`；
 6. 再次list并确认无pending。
 
 不能只备份D1，不能跳过R2，也不能重写已执行migration。

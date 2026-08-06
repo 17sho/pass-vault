@@ -153,7 +153,7 @@ Do not enable `set -x`, use `echo 'real-value'`, or expose values in arguments, 
 
 ### 4.3 Apply the complete migration chain
 
-The migration ledger is in `apps/worker/migrations/`. A first deployment applies entries `0001` through `0013`; an upgrade applies only pending entries:
+The migration ledger is in `apps/worker/migrations/`. A first deployment from current `main` applies entries `0001` through `0016`; an upgrade applies only pending entries:
 
 ```bash
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
@@ -169,6 +169,9 @@ The final command must show no pending migration. Add a new migration for each s
 - `0011_r2_cleanup_queue.sql`: durable R2 deletion queue and physical quota;
 - `0012_backup_import_locks.sql`: per-user backup import lock;
 - `0013_r2_inflight_uploads.sql`: durable pre-R2-write in-flight fencing.
+- `0014_entries_revision.sql`: optimistic-concurrency revision for entries;
+- `0015_attachments_revision.sql`: optimistic-concurrency revision for attachments;
+- `0016_revision_tombstones.sql`: monotonic revisions across delete/restore cycles to prevent ABA.
 
 ### 4.4 Dry-run and deploy
 
@@ -316,7 +319,7 @@ A small conservative counter margin is not an R2 orphan. Report physical object 
 - Upload records `r2_inflight_uploads` before R2 write; committing the D1 reference and removing in-flight occur in one transaction.
 - Complete backup import uses per-user token fencing against old requests and v1/v2 concurrency.
 - Hourly Cron reconciles `attachments + pending + inflight` with paginated R2 inventory and rechecks references before physical deletion.
-- Crash-stale in-flight uploads and backup locks are reclaimed by scheduled maintenance only after 24 hours.
+- Active backup imports renew a 10-minute token-fenced lease around every R2 upload. A new import may atomically take over an expired lease; scheduled maintenance separately reclaims crash-stale in-flight uploads and lock rows after 24 hours.
 - A fixed grace period alone cannot prove upload completion; do not remove `0013` or disable Cron while claiming race safety.
 
 Cloudflare application limits are 20 MiB per image, video, or other attachment, and 20 MiB total attachment ciphertext in one complete backup. Conservative application caps are 8 GiB storage, 800,000 Class A/month, and 8,000,000 Class B/month. They cover only operations through this Worker; Dashboard, S3 API, other Workers, and other account buckets bypass them.
@@ -355,8 +358,8 @@ Cloudflare Web Analytics `auto_install` may inject `static.cloudflareinsights.co
 | Passkey says unavailable | All three Passkey settings; whether deployment deleted RP ID/Origin because `vars` were omitted; exact Origin |
 | Registration 503 `registration_unavailable` | `INVITE_CODE` Secret name, environment, and length; never print its value |
 | Correct invitation gets 403/429 | Hidden whitespace, target environment, rate-limit window |
-| `no such table` | Full `0001`–`0013` chain on the correct remote D1 |
-| Attachment/backup 500 or missing table | `0011`–`0013`, R2 binding, Cron, and active version |
+| `no such table` or `no such column: revision` | Full `0001`–`0016` chain on the correct remote D1 |
+| Attachment/backup 500 or missing table | `0011`–`0016`, R2 binding, Cron, and active version |
 | Static 404/stale UI | Assets path, build, 100% traffic, cache, asset hashes |
 | workers.dev unexpectedly public | Private config `workers_dev:false` was not replaced by public template |
 | Cron missing | `triggers.crons` exists in private config and active version |

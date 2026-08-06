@@ -153,7 +153,7 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | \
 
 ### 4.3 应用完整迁移链
 
-迁移账本位于`apps/worker/migrations/`。首次部署应按账本应用`0001`到`0013`；升级只应用待执行项：
+迁移账本位于`apps/worker/migrations/`。当前`main`首次部署应按账本应用`0001`到`0016`；升级只应用待执行项：
 
 ```bash
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
@@ -169,6 +169,9 @@ npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION
 - `0011_r2_cleanup_queue.sql`：持久R2待删队列和物理配额；
 - `0012_backup_import_locks.sql`：用户级备份导入锁；
 - `0013_r2_inflight_uploads.sql`：R2写入前持久in-flight fencing。
+- `0014_entries_revision.sql`：条目乐观并发revision；
+- `0015_attachments_revision.sql`：附件乐观并发revision；
+- `0016_revision_tombstones.sql`：删除/恢复后保持revision单调递增，防止ABA。
 
 ### 4.4 Dry-run与部署
 
@@ -316,7 +319,7 @@ Passkey服务端探针可以匿名请求authentication options：正确配置应
 - R2写入前登记`r2_inflight_uploads`，D1有效引用提交与移除in-flight在同一事务完成；
 - 完整备份导入使用用户级token fencing，防止旧请求或v1/v2并发覆盖；
 - Cron每小时分页对账`attachments + pending + inflight`与R2 inventory；物理删除前再次检查有效引用；
-- 崩溃遗留in-flight和备份锁超过24小时后才由定时维护回收；
+- 活跃完整导入会在每次R2上传前后按token续租10分钟；新导入可原子接管已过期租约，定时维护则另行回收超过24小时的崩溃遗留in-flight和锁记录；
 - 固定时间宽限本身不能证明上传结束，不能删除`0013`或停用Cron后仍宣称竞态安全。
 
 Cloudflare应用限制：图片、视频及其他附件均最大20 MiB；一次完整备份中的附件密文总计最大20 MiB。R2应用级保守硬限制为8 GiB存储、每月800,000 Class A、8,000,000 Class B。它只覆盖经此Worker发起的操作；Dashboard、S3 API、其他Worker和同账户其他bucket会绕过应用计数。
@@ -355,8 +358,8 @@ Cloudflare Web Analytics的`auto_install`可能注入`static.cloudflareinsights.
 | Passkey提示“未启用” | 三项Passkey配置是否同时存在；部署是否因缺少`vars`覆盖了RP ID/Origin；精确Origin是否一致 |
 | 注册503 `registration_unavailable` | `INVITE_CODE` Secret名称/目标环境/长度；不要打印值 |
 | 正确邀请码403/429 | 不可见空白、目标环境和限流窗口 |
-| `no such table` | 是否对正确remote D1完整应用`0001`–`0013` |
-| 附件/备份500或缺表 | `0011`–`0013`、R2 binding、Cron和当前版本是否一致 |
+| `no such table`或`no such column: revision` | 是否对正确remote D1完整应用`0001`–`0016` |
+| 附件/备份500或缺表 | `0011`–`0016`、R2 binding、Cron和当前版本是否一致 |
 | 静态404/旧页面 | Assets路径、build、100%切流、边缘缓存和资源哈希 |
 | workers.dev意外可访问 | 生产私有配置`workers_dev:false`是否被公共模板覆盖 |
 | Cron不存在 | `triggers.crons`是否在生产配置和当前version中 |
