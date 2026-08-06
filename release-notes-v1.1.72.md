@@ -25,7 +25,7 @@
 
 - 最终完整串行门禁：`359/359`通过，0失败、0跳过，自然exit 0。
 - Lint、文档检查、TypeScript、Build、Node语法、`public/`与`dist/`一致性及三路独立审查通过。
-- GitHub `Verify`通过；Cloudflare已应用`0014`–`0016`并100%切流；Linux已使用不可变版本目录原子部署。
+- 发布候选完成串行门禁与双端独立审查；Cloudflare已应用`0014`–`0016`并100%切流；Linux已使用不可变版本目录原子部署。
 - Cloudflare Chromium与Linux WebKit生产烟测均为7个检查点、0错误；临时账户、子记录及附件对象已精确清理。
 
 ### 升级建议
@@ -70,7 +70,7 @@ This Release corresponds to tag `v1.1.72` and provides separate artifacts for Cl
 
 - Final serialized gate: `359/359` passed, 0 failed, 0 skipped, natural exit 0.
 - Lint, documentation checks, TypeScript, build, Node syntax, `public/`/`dist/` parity, and three independent reviews passed.
-- GitHub `Verify` passed. Cloudflare applied migrations `0014`–`0016` and shifted 100% traffic; Linux deployed through a new immutable version directory.
+- The release candidate completed its serialized gate and independent reviews for both runtimes. Cloudflare applied migrations `0014`–`0016` and shifted 100% traffic; Linux deployed through a new immutable version directory.
 - Cloudflare Chromium and Linux WebKit production smoke tests each passed seven checkpoints with zero errors. Temporary principals, child rows, and attachment objects were removed exactly.
 
 ### Upgrade guidance

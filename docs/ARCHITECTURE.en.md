@@ -73,6 +73,10 @@ The backends do not provide a transaction spanning multiple records. The browser
 
 Forward and compensation writes remain bound to the originating session. A stale operation cannot continue through a newly signed-in account after the vault is locked or switched.
 
+## Per-resource concurrency consistency
+
+The backend maintains a monotonically increasing `revision` for every record and attachment. Updates must submit the current revision, and permanent deletion must carry it in `If-Match`; a mismatch returns `409 conflict` with `currentRevision`. Deletion, backup replacement, and recreation under the same ID continue the revision through a tombstone, preventing stale pages from exploiting an ABA change to overwrite or resurrect an object. A revision describes server write order only and contains no plaintext business fields.
+
 ## Release artifacts
 
 Each stable version publishes:

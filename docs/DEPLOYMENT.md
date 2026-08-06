@@ -27,7 +27,7 @@ git diff --check
 
 ## 2. 版本与Release资产真实性
 
-- 当前`v1.1.72` Release提供隔离的Cloudflare与Linux tar/zip及`SHA256SUMS`，并包含截至tag的`0011`–`0013` R2生命周期修复。
+- 当前`v1.1.72` Release提供隔离的Cloudflare与Linux tar/zip及`SHA256SUMS`，并包含截至tag的`0011`–`0013` R2生命周期修复及`0014`–`0016` revision CAS/tombstone迁移。
 - Linux可使用v1.1.72 Linux制品，或从同一tag/已审核main提交构建。
 - 不移动旧tag、不替换Release资产、不在文档中提供不存在的下载文件名。
 - 新部署和生产升级优先使用当前`main`的明确commit SHA，并在部署前审核diff。

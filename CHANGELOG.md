@@ -16,7 +16,7 @@
 
 ### Verification / 验证
 
-- 最终完整串行门禁`359/359`通过；GitHub Verify、三路独立审查、双端部署和Cloudflare Chromium/Linux WebKit生产烟测通过。
+- 最终完整串行门禁`359/359`通过；三路独立审查、双端部署和Cloudflare Chromium/Linux WebKit生产烟测通过。
 - 发布临时账户、子记录及附件对象已精确清理；生产配置与秘密不进入仓库或制品。
 
 ## v1.1.71

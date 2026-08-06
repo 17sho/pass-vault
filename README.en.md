@@ -1,6 +1,6 @@
 # Pass Vault V2
 
-[![CI](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
@@ -20,6 +20,7 @@ A mobile-first, self-hosted password vault with a zero-knowledge boundary by def
 - Optional device quick unlock after an automatic lock using platform WebAuthn user verification (such as Face ID, Touch ID, or Windows Hello); enabled only when the browser supports the PRF extension, with the local ciphertext bound to the current account and session and the master password always retained as fallback
 - Optional server-assisted Passkey unlock: registration starts from an authenticated session; later, even with no existing session, an anonymous challenge plus platform user verification can recover a server-wrapped vault key and create a new session, changing the default zero-knowledge boundary described below
 - Authentication, sessions, CSRF protection, origin checks, and rate limiting
+- Server-side revision CAS and deletion tombstones for records and attachments, so stale pages receive explicit conflicts instead of silently overwriting or recreating data
 - One encrypted API contract with two independent deployment options
 
 ## Zero-knowledge architecture
@@ -96,9 +97,11 @@ The deployment methods are independent. Choose the matching guide:
 
 ### Obtain the current deployable version
 
-The latest stable release is [v1.1.72](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.72). It includes bulk grouping, pinning, unpinning, and move-to-Trash for all five data types, and binds forward and compensation writes to the vault key and session generation captured when an operation starts, preventing stale writes from crossing into a newly signed-in account. The Release includes separate `pass-vault-v2-cloudflare-1.1.72.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.72.tar.gz` / `.zip` assets plus `SHA256SUMS`. Each archive contains only its selected runtime and placeholder configuration; run `sha256sum -c SHA256SUMS` after download.
+The latest stable release is [v1.1.72](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.72). Building on v1.1.71 bulk operations across all five data types, it adds record/attachment revision CAS, deletion tombstones, backup-lock renewal and fencing, exact Cloudflare R2 compensation, and a durable Linux attachment-deletion outbox. Stale pages now receive conflicts while retaining unsaved input instead of silently overwriting newer data, and late operations after lock or account switch cannot write through a new session. The Release provides separate `pass-vault-v2-cloudflare-1.1.72.tar.gz` / `.zip` and `pass-vault-v2-linux-1.1.72.tar.gz` / `.zip` archives plus `SHA256SUMS`; each archive contains only its selected runtime and placeholder configuration. Run `sha256sum -c SHA256SUMS` after downloading the matching target archive.
 
-> **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0013`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
+> **Version boundary:** Release tags and assets remain immutable; `main` may contain documentation corrections made after the tag. Whether any third-party or self-hosted site has upgraded must be established from that deployment’s own release record and static-asset hashes, not inferred from GitHub’s Latest Release alone.
+
+> **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0016`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
 
 Workers, Static Assets, D1, R2 Standard, DNS, and SSL all have free tiers. The Cloudflare guide now documents D1/R2 allowances, conservative application R2 caps, account-wide shared-usage risk, Billing/Usage checks, and how to prevent Web Analytics auto-injection from conflicting with the vault CSP.
 

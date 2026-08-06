@@ -1,6 +1,6 @@
 # Pass Vault V2
 
-[![CI](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/17sho/pass-vault-v2/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
@@ -20,6 +20,7 @@
 - 可选的设备级快速解锁：自动锁定后可通过平台WebAuthn用户验证（如Face ID、Touch ID或Windows Hello）解锁；仅在浏览器支持PRF扩展时启用，本机密文绑定当前账户与会话，主密码始终作为回退
 - 可选的服务器辅助Passkey：先在已认证会话中注册；后续即使没有现有会话，也可通过匿名challenge和平台用户验证恢复服务器包装的vault key并创建新会话，因此会改变下述默认零知识边界
 - 完整认证、会话、CSRF、同源检查和限速
+- 条目和附件使用服务端 revision CAS 与删除 tombstone：并发旧页面会得到明确冲突，不会静默覆盖新数据或在删除后复活对象
 - 同一密文 API 契约、两种独立部署方式
 
 ## 零知识架构
@@ -96,7 +97,9 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 
 ### 获取当前可部署版本
 
-最新稳定版为 [v1.1.72](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.72)。本版本包含五类资料的批量设置分组、置顶、取消置顶与移入回收站，并将批量操作的正向/补偿写入绑定到操作发起时的 vault key 与会话代际，防止锁库后切换账户时旧操作跨会话继续写入。Release 同时提供隔离的 `pass-vault-v2-cloudflare-1.1.72.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.72.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
+最新稳定版为 [v1.1.72](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.72)。本版本在 v1.1.71 的五类资料批量操作基础上，新增条目/附件 revision CAS、删除 tombstone、备份锁续租与 fencing、Cloudflare R2 精确补偿，以及 Linux 附件删除持久 outbox。过期页面会收到冲突并保留未保存内容，不再静默覆盖新数据；锁库或切换账户后的迟到操作不能借用新会话写入。Release 提供隔离的 `pass-vault-v2-cloudflare-1.1.72.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.72.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
+
+> **版本边界：** Release 的 tag 与资产保持不可变；`main` 可能包含 tag 之后的文档修正。第三方或自行托管网站是否已升级，应由部署者通过其发布记录和静态资源哈希确认，不能仅凭 GitHub Latest Release 推断。
 
 > **部署前必做：** 两种生产部署都必须安全设置`INVITE_CODE`。升级前先记录任务开始前版本和完整配置名称清单，保留现有普通变量、Secrets、资源绑定、路由和触发器。Cloudflare须同点备份D1/R2、应用全部待处理迁移（当前`main`完整链至`0016`）并保留Cron；Linux须同点备份SQLite和附件目录及完整环境变量。不要清空/重建数据库，也不要把真实邀请码、资源ID或凭据写入仓库、命令参数、截图或日志。
 

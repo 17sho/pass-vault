@@ -73,6 +73,10 @@ Cloudflare 与 Linux 的用户、会话、条目、附件和配额彼此独立�
 
 正向写入和补偿均绑定原会话；锁库或切换账户后，旧操作不得借用新会话继续发送。
 
+## 单条资源的并发一致性
+
+条目和附件由后端维护单调递增的 `revision`。更新必须提交当前 revision，永久删除必须通过 `If-Match` 携带当前 revision；不匹配时返回 `409 conflict` 与 `currentRevision`。删除、备份替换和同 ID 重建都会通过 tombstone 延续 revision，避免旧页面利用 ABA 变化覆盖或复活对象。revision 只描述服务端写入顺序，不包含明文业务字段。
+
 ## 发布物
 
 每个稳定版本分别提供：

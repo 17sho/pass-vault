@@ -39,7 +39,8 @@
   "type": "account | website | note | totp | settings",
   "version": 1,
   "iv": "<base64url>",
-  "ciphertext": "<base64url>"
+  "ciphertext": "<base64url>",
+  "revision": 3
 }
 ```
 
@@ -47,6 +48,7 @@
 - `settings` 仅允许保留 ID `settings_registry` 和 `recents_registry`。
 - 分组名、分组归属、置顶、`pinRank`、`deletedAt`、最近查看和业务字段都位于 `ciphertext` 中。
 - `PUT /api/entries/:id` 的路径 ID 必须与 envelope ID 一致；未知字段应拒绝。
+- `revision` 由服务端维护。新建时省略；更新时必须提交列表返回的当前值。成功响应返回递增后的 revision。
 
 ### 附件记录
 
@@ -93,20 +95,22 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `GET` | `/api/entries` | `{items: Envelope[]}` |
-| `PUT` | `/api/entries/:id` | 创建或替换当前用户的一条密文 envelope |
-| `DELETE` | `/api/entries/:id` | 永久删除密文记录；普通回收站操作不调用此端点 |
+| `PUT` | `/api/entries/:id` | 新建时省略 `revision`；更新时在 JSON 中携带当前 `revision`。过期写入返回 `409 {error:"conflict",currentRevision}` |
+| `DELETE` | `/api/entries/:id` | 永久删除时以 `If-Match` 携带当前 revision；普通回收站操作不调用此端点 |
 
 ### 附件
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `GET` | `/api/attachments` | 返回当前用户的加密 metadata 记录列表 |
-| `POST` | `/api/attachments/:id` | 创建附件：请求头 `X-Attachment-Metadata` 携带加密 metadata envelope，请求正文为 `application/octet-stream` 加密正文 |
+| `POST` | `/api/attachments/:id` | 创建附件：请求头 `X-Attachment-Metadata` 携带加密 metadata envelope，请求正文为 `application/octet-stream` 加密正文；成功响应返回初始 revision |
 | `GET` | `/api/attachments/:id/content` | 下载加密正文对象 |
-| `PUT` | `/api/attachments/:id/metadata` | 替换加密 metadata，不改正文 |
-| `DELETE` | `/api/attachments/:id` | 永久删除 metadata 与密文正文对象 |
+| `PUT` | `/api/attachments/:id/metadata` | JSON 同时携带当前 `revision`；只替换加密 metadata，不改正文；过期写入返回冲突 |
+| `DELETE` | `/api/attachments/:id` | 以 `If-Match` 携带当前 revision，永久删除 metadata 与密文正文对象 |
 
 正文大小与配额由部署配置约束。Cloudflare Worker 的 `/api/session` 会返回 `capabilities`，并可返回 `quota_exceeded`；Linux 不返回该能力对象，也不应用 R2 月度配额。
+
+浏览器还使用 `DELETE /api/attachments/:id/compensation` 清理“附件已上传、所属条目却未成功保存”的对象。该端点不是普通管理删除：它必须同源，并绑定上传发起时捕获的公开 session ID、CSRF token 与 revision；后端只允许删除该旧会话所属用户的精确附件，不能借用后来登录账户的 Cookie。
 
 ### 加密备份
 
@@ -140,7 +144,7 @@
 | `401` | `invalid_credentials`, `unauthorized`, `invalid_current_password` | 凭据或会话无效 |
 | `403` | `origin`, `csrf`, `invalid_invite` | 同源、CSRF 或邀请码校验失败 |
 | `404` | `not_found`, `session_not_found`, `passkey_not_found` | 目标不存在或不属于当前用户 |
-| `409` | `username_taken`, `current_session` | 唯一性或当前会话冲突 |
+| `409` | `conflict`, `username_taken`, `current_session`, `attachment_exists`, `backup_import_in_progress` | revision、唯一性、当前会话或导入锁冲突；`conflict` 可同时返回 `currentRevision` |
 | `413` | `too_large` | 请求或备份超过限制 |
 | `429` | `rate_limited` | 认证尝试过多 |
 | `503` | `registration_unavailable`, `passkey_unlock_unavailable`, `quota_exceeded` | 功能未配置或应用安全配额阻断 |
