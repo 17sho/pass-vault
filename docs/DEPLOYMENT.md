@@ -27,8 +27,8 @@ git diff --check
 
 ## 2. 版本与Release资产真实性
 
-- 当前`v1.1.71` Release提供隔离的Cloudflare与Linux tar/zip及`SHA256SUMS`，并包含截至tag的`0011`–`0013` R2生命周期修复。
-- Linux可使用v1.1.71 Linux制品，或从同一tag/已审核main提交构建。
+- 当前`v1.1.72` Release提供隔离的Cloudflare与Linux tar/zip及`SHA256SUMS`，并包含截至tag的`0011`–`0013` R2生命周期修复。
+- Linux可使用v1.1.72 Linux制品，或从同一tag/已审核main提交构建。
 - 不移动旧tag、不替换Release资产、不在文档中提供不存在的下载文件名。
 - 新部署和生产升级优先使用当前`main`的明确commit SHA，并在部署前审核diff。
 
@@ -100,7 +100,7 @@ npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config <PRODUCTION_CONFIG>
 - 记录`readlink -f /opt/pass-vault-v2/current`和当前commit/version；
 - 生成仅含名称的环境变量清单，保留`INVITE_CODE`、原`PASSKEY_UNLOCK_KEK`、RP ID/Origin、数据库/附件路径和`CLIENT_IP_HEADER`；
 - 停止服务后用SQLite `.backup`和附件tar生成同点备份并验证完整性；
-- 使用v1.1.71 Linux制品或从审核过的明确commit构建到新不可变版本目录。
+- 使用v1.1.72 Linux制品或从审核过的明确commit构建到新不可变版本目录。
 
 不能在升级时重建环境文件并漏掉变量，也不能无意重新生成已有KEK。`deploy/pass-vault-v2.service`是带占位符模板，安装前必须替换用户/路径并按代理拓扑设置可信客户端IP头。
 

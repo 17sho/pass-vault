@@ -28,7 +28,7 @@ npm run typecheck
 npm run build
 npm test
 npm audit
-npm run package:release -- --tag v1.1.71
+npm run package:release -- --tag v1.1.72
 ```
 
 `npm test` is intentionally serial because many browser and integration tests start local services and temporary databases.

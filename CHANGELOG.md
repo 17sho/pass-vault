@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.1.72
+
+### Security / 安全
+
+- 条目和附件新增服务端revision CAS与删除tombstone，过期页面不能静默覆盖或在删除后复活对象。
+- 上传、重命名、删除及补偿绑定发起时的session、CSRF、revision和vault key；锁库或切换账户后的迟到响应不能借用新会话继续写入。
+- Cloudflare R2写入后失锁、D1失败与跨账户清理使用精确且限权的补偿路径。
+
+### Reliability / 可靠性
+
+- Cloudflare新增`0014`–`0016`迁移；Linux SQLite和Cloudflare D1均使用原子条件写入。
+- 备份导入锁增加续租、所有权校验与fencing，并在成功或显式错误响应前释放。
+- Linux附件删除改为持久化outbox，进程异常后可恢复清理。
+
+### Verification / 验证
+
+- 最终完整串行门禁`359/359`通过；GitHub Verify、三路独立审查、双端部署和Cloudflare Chromium/Linux WebKit生产烟测通过。
+- 发布临时账户、子记录及附件对象已精确清理；生产配置与秘密不进入仓库或制品。
+
 ## v1.1.71
 
 ### Added / 新增
