@@ -17,6 +17,8 @@ test.beforeEach(async () => {
 });
 test.afterEach(stopFixture);
 
+test('注册页在发送请求前明确校验主密码长度',async()=>{const page=await browser.newPage();try{await page.goto(base);await page.getByRole('button',{name:'创建新库'}).click();await page.getByLabel('邀请码').fill(TEST_INVITE_CODE);await page.locator('#auth-form input[name="username"]').fill('11');await page.getByLabel('主密码',{exact:true}).fill('123456789');let requests=0;page.on('request',r=>{if(r.url().endsWith('/api/register'))requests++});await page.getByRole('button',{name:'创建并进入'}).click();assert.equal(requests,0);assert.match(await page.locator('#auth-error').textContent(),/主密码至少12个字符/)}finally{await page.close()}});
+
 async function register(page) {
   await page.goto(base);
   assert.equal(await page.getByLabel('邀请码').isHidden(),true);
