@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 
 const mod=()=>import('../apps/admin-worker/src/index.ts?test='+Date.now());
 
@@ -15,3 +16,4 @@ test('未经过Cloudflare Access的请求一律拒绝且不泄露页面',async()
 test('Access邮箱必须与唯一管理员邮箱完全匹配',async()=>{const {default:worker}=await mod();const r=await worker.fetch(req('/api/overview',{'cf-access-authenticated-user-email':'other@example.com'}),env);assert.equal(r.status,403)});
 test('只读概览仅返回用户元数据和资源统计且不包含任何敏感字段',async()=>{const {default:worker}=await mod();const r=await worker.fetch(req('/api/overview',{'cf-access-authenticated-user-email':'admin@example.com'}),env);assert.equal(r.status,200);const text=await r.text();const data=JSON.parse(text);assert.equal(data.users.length,2);assert.equal(data.resources.r2.objects,1);for(const secret of ['password_hash','password_salt','wrapped_key','object_key','SECRET_HASH','SECRET_KEY'])assert.equal(text.includes(secret),false);assert.match(r.headers.get('content-security-policy'),/default-src 'none'/);assert.match(r.headers.get('cache-control'),/no-store/)});
 test('管理Worker拒绝所有非GET/HEAD方法',async()=>{const {default:worker}=await mod();const r=await worker.fetch(new Request('https://admin.example.com/api/overview',{method:'POST',headers:{'cf-access-authenticated-user-email':'admin@example.com'}}),env);assert.equal(r.status,405)});
+test('容量指标先格式化数值再拼接单位且不显示NaN',async()=>{const {default:worker}=await mod();let rendered='';const root={set innerHTML(v){rendered=v},get innerHTML(){return rendered}};const fetch=async()=>({ok:true,json:async()=>({summary:{users:2,entries:256,attachments:5,attachmentBytes:1406248,activeSessions:1,pendingDeletions:0,inflightUploads:0,backupLocks:0},resources:{r2:{objects:5,bytes:1406248},d1:{bytes:0}},users:[],runtime:{version:'v'}})});const r=await worker.fetch(req('/app.js',{'cf-access-authenticated-user-email':'admin@example.com'}),env);vm.runInNewContext(await r.text(),{Intl,Date,fetch,document:{querySelector:()=>root}});await new Promise(resolve=>setTimeout(resolve,0));assert.doesNotMatch(rendered,/NaN/);assert.match(rendered,/1,406,248 B/);assert.match(rendered,/D1 大小<\/span><b>0 B<\/b>/)});
