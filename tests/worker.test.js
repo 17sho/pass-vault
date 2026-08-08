@@ -15,6 +15,7 @@ class Statement {
   bind(...args){return new Statement(this.db,this.sql,args)}
   async first(){return (await this.all()).results[0]??null}
   async all(){const[d,s,a]=[this.db,this.sql,this.args];
+    if(s.startsWith("SELECT key,value FROM admin_settings"))return new Result([]);
     if(s.startsWith('SELECT 1 FROM backup_import_locks WHERE user_id=? AND token=?'))return new Result(d.backupLocks.some(x=>x.user_id===a[0]&&x.token===a[1])?[{ok:1}]:[]);
     if(s.includes('FROM users WHERE username = ?'))return new Result(d.users.filter(x=>x.username===a[0]));
     if(s.startsWith('SELECT id,transports,device_type,backed_up,created_at,updated_at FROM passkey_credentials'))return new Result(d.passkeyCredentials.filter(x=>x.user_id===a[0]).sort((x,y)=>y.created_at-x.created_at).map(({id,transports,device_type,backed_up,created_at,updated_at})=>({id,transports,device_type,backed_up,created_at,updated_at})));
