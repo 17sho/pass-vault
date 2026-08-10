@@ -96,3 +96,16 @@ nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;pa
 .custom-field-row .cf-value-wrap textarea{min-height:72px;resize:vertical}
 .custom-field-row .cf-secret-toggle,.custom-field-row .cf-copy{white-space:nowrap}
 .custom-fields-editor .add-field{margin-top:.25rem;justify-self:start}
+
+/* 隐私模式 */
+.privacy-check{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.9rem;color:var(--ink);cursor:pointer}
+.privacy-check input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.privacy-note{font-size:.82rem;color:var(--muted);line-height:1.55;margin:12px 0 0}
+#privacy-options small{display:block;margin-top:2px;color:var(--muted);font-weight:400;font-size:.78rem;line-height:1.4}
+.privacy-shield{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:var(--bg,#0f1216);padding:20px}
+.privacy-shield-card{max-width:380px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.privacy-shield-card h2{margin:0 0 8px;font-size:1.2rem;color:var(--ink)}
+.privacy-shield-card p{margin:0 0 20px;color:var(--muted);font-size:.9rem;line-height:1.5}
+.privacy-shield-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.privacy-shield-actions button{padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:var(--input-bg,var(--surface));color:var(--ink);font-size:.9rem;cursor:pointer}
+.privacy-shield-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
