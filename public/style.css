@@ -67,12 +67,12 @@ body,.auth-shell{background:var(--bg);color:var(--ink)}.auth-card,header,nav,.co
 nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;padding-left:6px;padding-right:6px}.totp-card-code{display:flex;align-items:baseline;gap:8px;min-height:25px}.totp-card-code strong,.totp-detail>[data-totp-code]{font:700 1.22rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:0;font-variant-numeric:tabular-nums;color:var(--accent2)}.totp-card-code span,.totp-detail>[data-totp-remaining]{font-size:.78rem;color:var(--muted)}.item-content>.totp-card-code+span{display:none}.totp-detail{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin:18px 24px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--surface-soft)}.totp-detail>[data-totp-code]{font-size:1.8rem}.totp-detail button{min-height:44px}@media(max-width:650px){nav [data-type]{font-size:.88rem}.totp-detail{grid-template-columns:1fr auto;margin:14px 16px}.totp-detail button{grid-column:1/-1;width:100%}}@media(max-width:340px){nav [data-type]{font-size:.8rem;padding-left:3px;padding-right:3px}}
 
 /* 自定义资料弹窗 — 参照 CF 版 #favorites/#tag-picker 等其他二级菜单 */
-.custom-view-dialog,.custom-template-dialog{width:min(520px,calc(100% - 24px));max-height:min(720px,calc(100dvh - 24px));padding:0;overflow:hidden}
+.custom-view-dialog,.custom-template-dialog{width:min(520px,calc(100% - 24px));max-height:min(860px,calc(100dvh - 24px));padding:0;overflow:hidden}
 .custom-view-dialog[open],.custom-template-dialog[open]{display:flex;flex-direction:column}
 .custom-view-dialog .dialog-head{flex:none;align-items:flex-start;padding:20px 28px 16px;border-bottom:1px solid var(--line)}
 .custom-view-dialog .dialog-head h2{margin:0;line-height:1.25}
 .custom-view-dialog .dialog-head button{min-height:0;padding:6px 12px;font-size:22px;line-height:1;background:transparent;border:0;border-radius:9px;margin:0 0 0 auto}
-.custom-view-dialog form>p{margin:20px 28px 0;color:var(--muted)}
+.custom-view-dialog form{flex:1 1 auto;display:flex;flex-direction:column;min-height:min(340px,calc(100dvh - 48px))}.custom-view-dialog form>p{margin:auto 28px;text-align:center;color:var(--muted)}
 .custom-view-dialog .dialog-actions{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0;padding:20px 28px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 .custom-view-dialog .dialog-actions button{width:100%;min-height:44px;margin:0;padding:13px 22px;font-size:1rem}
 .custom-template-dialog>form{padding:28px;display:flex;flex-direction:column}
