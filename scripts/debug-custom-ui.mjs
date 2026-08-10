@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({headless:true});
+const page = await browser.newPage();
+const errors=[]; page.on('pageerror', e=>errors.push(`pageerror: ${e.message}`)); page.on('console', m=>{if(m.type()==='error') errors.push(`console: ${m.text()}`)});
+await page.goto('https://passkey.23cm.me/', {waitUntil:'networkidle'});
+await page.evaluate(()=>{document.querySelector('#vault').hidden=false; document.querySelector('#auth').hidden=true});
+await page.locator('#menu').click({force:true});
+const before=await page.locator('#menu-panel').evaluate(e=>({hidden:e.hidden,display:getComputedStyle(e).display,rect:e.getBoundingClientRect().toJSON()}));
+await page.locator('#custom-open').click({force:true});
+const after=await page.evaluate(()=>({type:document.querySelector('#search')?.placeholder,menuHidden:document.querySelector('#menu-panel')?.hidden,list:document.querySelector('#list')?.textContent,errors:[]}));
+console.log(JSON.stringify({before,after,errors},null,2));
+await browser.close();

@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { mkdir, rm } from 'node:fs/promises';
+import { fillTestInvite, withTestInviteEnv } from '../tests/fixtures.mjs';
+const port=4397, dir=`/tmp/custom-click-${process.pid}`; await rm(dir,{recursive:true,force:true}); await mkdir(dir,{recursive:true});
+const server=spawn(process.execPath,['apps/server/server.mjs'],{env:{...withTestInviteEnv(),PORT:String(port),DB_PATH:`${dir}/vault.sqlite`,ATTACHMENTS_DIR:`${dir}/attachments`,COOKIE_SECURE:'false'},stdio:'ignore'});
+try {for(let i=0;i<100;i++){try{if((await fetch(`http://127.0.0.1:${port}/`)).ok)break}catch{} await new Promise(r=>setTimeout(r,100))}
+const browser=await chromium.launch({headless:true}); const page=await browser.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message)); page.on('console',m=>m.type()==='error'&&errors.push(m.text()));
+const user=`custom-${Date.now()}`; await page.goto(`http://127.0.0.1:${port}/`); await page.getByRole('button',{name:'创建新库'}).click(); await fillTestInvite(page); await page.getByLabel('用户名').fill(user); await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple'); await page.getByRole('button',{name:'创建并进入'}).click(); await page.locator('#vault').waitFor({state:'visible',timeout:15000});
+await page.getByRole('button',{name:'更多'}).click(); await page.getByRole('menuitem',{name:'自定义资料'}).click();
+const result={errors, type:await page.evaluate(()=>({type:window.document.querySelector('#search')?.placeholder, menuHidden:document.querySelector('#menu-panel')?.hidden, nav:document.querySelector('nav')?.innerText, list:document.querySelector('#list')?.innerText})), customCount:await page.getByRole('button',{name:'自定义资料'}).count()}; console.log(JSON.stringify(result)); await browser.close();
+} finally {server.kill('SIGTERM'); await rm(dir,{recursive:true,force:true})}
