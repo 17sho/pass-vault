@@ -82,3 +82,17 @@ nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;pa
 .custom-template-dialog .type-grid button b{font-size:15px}
 .custom-template-dialog .type-grid button span{overflow-wrap:anywhere;word-break:break-word}
 .custom-template-dialog form>button[type=submit]{margin-top:16px;min-height:44px;width:100%;padding:13px 22px}
+
+/* 自定义字段编辑器（账号等类型） */
+.custom-fields-editor{display:grid;gap:.7rem;min-width:0}
+.custom-fields-editor .cf-heading{margin:0;font-size:.95rem;font-weight:700;color:var(--ink,inherit)}
+.custom-fields-editor .cf-hint{color:var(--muted,#68737e);font-size:.78rem;line-height:1.45}
+.custom-fields-list{display:grid;gap:.6rem}
+.custom-field-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:.5rem;align-items:center;margin:0;padding:.75rem;border:1px solid var(--input-line,var(--border,#d8dee8));border-radius:10px;background:var(--input-bg,var(--surface));min-width:0}
+.custom-field-row .cf-name{min-width:0;width:100%}
+.custom-field-row .cf-value{min-width:0}
+.custom-field-row .cf-type{min-width:0;width:100%;padding:10px 12px;border:1px solid var(--input-line,#b8c3cc);border-radius:9px;background:var(--input-bg,#fff);color:var(--input-ink,#111);cursor:pointer}
+.custom-field-row .cf-value-wrap{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:.5rem;min-width:0}
+.custom-field-row .cf-value-wrap textarea{min-height:72px;resize:vertical}
+.custom-field-row .cf-secret-toggle,.custom-field-row .cf-copy{white-space:nowrap}
+.custom-fields-editor .add-field{margin-top:.25rem;justify-self:start}
