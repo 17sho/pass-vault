@@ -109,3 +109,13 @@ nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;pa
 .privacy-shield-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .privacy-shield-actions button{padding:10px 18px;border-radius:10px;border:1px solid var(--line);background:var(--input-bg,var(--surface));color:var(--ink);font-size:.9rem;cursor:pointer}
 .privacy-shield-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+
+/* privacy dialog padding 对齐其他 dialog（head/actions 不贴边框） */
+#privacy-dialog>.dialog-head{flex:none;align-items:flex-start;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+#privacy-dialog>.dialog-head>div{min-width:0}
+#privacy-dialog>.dialog-head h2{margin:0;line-height:1.25}
+#privacy-dialog>.dialog-head p{margin:4px 0 0;color:var(--muted);font-size:.88rem;font-weight:400}
+#privacy-dialog .dialog-actions{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0;padding:14px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+#privacy-dialog .dialog-actions button{width:100%;min-width:0;margin:0;padding:11px 22px;min-height:44px}
+#privacy-dialog .privacy-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
