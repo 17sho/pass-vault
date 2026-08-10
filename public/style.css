@@ -69,9 +69,9 @@ nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;pa
 /* 自定义资料弹窗 — 参照 CF 版 #favorites/#tag-picker 等其他二级菜单 */
 .custom-view-dialog,.custom-template-dialog{width:min(520px,calc(100% - 24px));max-height:min(720px,calc(100dvh - 24px));padding:0;overflow:hidden}
 .custom-view-dialog[open],.custom-template-dialog[open]{display:flex;flex-direction:column}
-.custom-view-dialog>.dialog-head{flex:none;align-items:flex-start;padding:20px 28px 16px;border-bottom:1px solid var(--line)}
-.custom-view-dialog>.dialog-head h2{margin:0;line-height:1.25}
-.custom-view-dialog>.dialog-head button{min-height:0;padding:4px 8px;font-size:22px;line-height:1;background:transparent;border:0}
+.custom-view-dialog .dialog-head{flex:none;align-items:flex-start;padding:20px 28px 16px;border-bottom:1px solid var(--line)}
+.custom-view-dialog .dialog-head h2{margin:0;line-height:1.25}
+.custom-view-dialog .dialog-head button{min-height:0;padding:6px 12px;font-size:22px;line-height:1;background:transparent;border:0;border-radius:9px;margin:0 0 0 auto}
 .custom-view-dialog form>p{margin:20px 28px 0;color:var(--muted)}
 .custom-view-dialog .dialog-actions{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0;padding:20px 28px calc(20px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 .custom-view-dialog .dialog-actions button{width:100%;min-height:44px;margin:0;padding:13px 22px;font-size:1rem}
