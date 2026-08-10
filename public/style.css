@@ -65,6 +65,48 @@ body,.auth-shell{background:var(--bg);color:var(--ink)}.auth-card,header,nav,.co
 /* TOTP：等宽数字避免刷新跳动，五分类在窄屏保持单行。 */
 nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;padding-left:6px;padding-right:6px}.totp-card-code{display:flex;align-items:baseline;gap:8px;min-height:25px}.totp-card-code strong,.totp-detail>[data-totp-code]{font:700 1.22rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:0;font-variant-numeric:tabular-nums;color:var(--accent2)}.totp-card-code span,.totp-detail>[data-totp-remaining]{font-size:.78rem;color:var(--muted)}.item-content>.totp-card-code+span{display:none}.totp-detail{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin:18px 24px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--surface-soft)}.totp-detail>[data-totp-code]{font-size:1.8rem}.totp-detail button{min-height:44px}@media(max-width:650px){nav [data-type]{font-size:.88rem}.totp-detail{grid-template-columns:1fr auto;margin:14px 16px}.totp-detail button{grid-column:1/-1;width:100%}}@media(max-width:340px){nav [data-type]{font-size:.8rem;padding-left:3px;padding-right:3px}}
 
+/* 新建/编辑表单统一布局：只调整尺寸、间距和滚动，不改变任何交互。 */
+#picker,#editor{width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:hidden}
+#picker[open],#editor[open]{display:flex;flex-direction:column}
+#picker form,#editor form{min-width:0;max-width:100%;min-height:0}
+#picker form{overflow-y:auto}
+#editor form{display:flex;flex-direction:column;max-height:calc(100dvh - 24px);padding:0}
+#editor .dialog-head{flex:none;padding:18px 20px 14px}
+#editor #fields{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 20px 8px}
+#editor #fields>label,#editor #fields>.group-picker-field,#editor #fields>.tag-select{display:grid;gap:6px;margin:12px 0;min-width:0}
+#editor #fields input,#editor #fields textarea,#editor #fields select{width:100%;min-width:0;max-width:100%;min-height:44px}
+#editor #fields>.credential-editor{display:grid;gap:10px;margin:12px 0}
+#editor #fields>.credential-editor>.credential-list{display:grid;gap:10px;min-width:0}
+#editor #fields>.credential-editor>.add-credential{width:100%;min-height:44px}
+.group-picker-field,.tag-select{display:grid;gap:6px;min-width:0;margin:12px 0}
+.group-picker-label,.tag-picker-label{font-weight:650}
+.group-picker-trigger,.tag-picker-trigger{width:100%;min-width:0;min-height:44px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#editor #form-error{flex:none;margin:0 20px}
+#editor #danger-zone{flex:none;margin:8px 20px 0;padding:12px}
+#editor .dialog-actions{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0;padding:12px 20px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+#editor .dialog-actions button{width:100%;min-height:44px;margin:0}
+#group-picker-dialog,#attachment-filter-dialog,#security-choice-dialog{max-height:calc(100dvh - 24px)}
+#group-picker-options,#attachment-filter-options,#security-choice-options{max-height:min(55dvh,440px);overflow-y:auto;padding:10px 14px}
+.group-picker-option,.choice-picker-option,.tag-picker-trigger{min-height:44px}
+@media(max-width:430px){
+  #picker,#editor{width:calc(100% - 16px);max-height:calc(100dvh - 16px);border-radius:12px}
+  #picker form{padding:18px 14px calc(14px + env(safe-area-inset-bottom))}
+  #picker .type-grid{grid-template-columns:1fr;gap:8px}
+  #picker .type-grid button{min-height:56px}
+  #editor form{max-height:calc(100dvh - 16px)}
+  #editor .dialog-head{padding:15px 14px 11px}
+  #editor #fields{padding:2px 14px 6px}
+  #editor #fields>label,#editor #fields>.group-picker-field,#editor #fields>.tag-select{margin:9px 0}
+  #editor #fields input,#editor #fields textarea,#editor #fields select{min-height:44px}
+  #editor #form-error{margin:0 14px}
+  #editor #danger-zone{margin:7px 14px 0}
+  #editor .dialog-actions{gap:8px;padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+  .group-picker-field,.tag-select{margin:9px 0}
+  #group-picker-dialog,#attachment-filter-dialog,#security-choice-dialog{width:calc(100% - 16px)}
+  #group-picker-dialog>.dialog-head,#attachment-filter-dialog>.dialog-head,#security-choice-dialog>.dialog-head{padding:15px 14px 11px}
+  #group-picker-options,#attachment-filter-options,#security-choice-options{max-height:60dvh;padding:8px 10px}
+}
+
 /* 自定义资料：保留之前的模板选择布局，不影响账号编辑器。 */
 dialog.custom-template-dialog{max-height:calc(100dvh - 20px);overflow:auto}
 dialog.custom-template-dialog form{min-width:0}
