@@ -74,10 +74,7 @@ nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;pa
 #editor .dialog-head{flex:none;padding:18px 20px 14px}
 #editor #fields{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 20px 8px}
 #editor #fields>label,#editor #fields>.group-picker-field,#editor #fields>.tag-select{display:grid;gap:6px;margin:12px 0;min-width:0}
-#editor #fields input,#editor #fields textarea,#editor #fields select{width:100%;min-width:0;max-width:100%;min-height:44px}
-#editor #fields>.credential-editor{display:grid;gap:10px;margin:12px 0}
-#editor #fields>.credential-editor>.credential-list{display:grid;gap:10px;min-width:0}
-#editor #fields>.credential-editor>.add-credential{width:100%;min-height:44px}
+#editor #fields>label>input,#editor #fields>label>textarea,#editor #fields>label>select,#editor #fields>.group-picker-field input,#editor #fields>.tag-select input{width:100%;min-width:0;max-width:100%;min-height:44px}
 .group-picker-field,.tag-select{display:grid;gap:6px;min-width:0;margin:12px 0}
 .group-picker-label,.tag-picker-label{font-weight:650}
 .group-picker-trigger,.tag-picker-trigger{width:100%;min-width:0;min-height:44px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
