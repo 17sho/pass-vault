@@ -119,3 +119,10 @@ nav{grid-template-columns:repeat(5,minmax(0,1fr))}nav [data-type]{min-width:0;pa
 #privacy-dialog .dialog-actions{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0;padding:14px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 #privacy-dialog .dialog-actions button{width:100%;min-width:0;margin:0;padding:11px 22px;min-height:44px}
 #privacy-dialog .privacy-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+
+
+/* privacy dialog 选项勾号垂直居中 + name/desc 分行 + 标题focus去蓝框 */
+#privacy-title:focus{outline:none;box-shadow:none}
+#privacy-dialog .idle-lock-option{padding-right:36px}
+#privacy-dialog .idle-lock-option small{display:block;margin-top:4px;font-weight:400;color:var(--muted);font-size:.82rem;line-height:1.45}
+#privacy-dialog .idle-lock-option.is-current::after{top:50%;transform:translateY(-50%)}
