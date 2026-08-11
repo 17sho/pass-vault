@@ -1,0 +1,1 @@
+(()=>{const sync=()=>{const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=document.documentElement.dataset.theme==='dark'?'#0d141a':'#f4f6f8'};sync();new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']})})();

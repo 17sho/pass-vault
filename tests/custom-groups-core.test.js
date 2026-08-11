@@ -7,10 +7,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { GROUP_TYPES, SETTINGS_ID, normalizeGroupRegistry, validEnvelope, validatePlain, validateAttachmentMetadata, legacyVisibleEnvelopes } from '../shared/contract.mjs';
 import { migrateEntriesForSettings } from '../apps/server/migrations.mjs';
 
-const empty=()=>({account:[],website:[],note:[],totp:[],attachment:[]});
+const empty=()=>({account:[],website:[],note:[],totp:[],attachment:[],custom:[]});
 test('group registry normalizes trimmed names and enforces exact bounded schema',()=>{
  const input=empty();input.account=[{id:'group_123',name:'  Work  '}];
- assert.deepEqual(normalizeGroupRegistry(input),{account:[{id:'group_123',name:'Work'}],website:[],note:[],totp:[],attachment:[]});
+ assert.deepEqual(normalizeGroupRegistry(input),{account:[{id:'group_123',name:'Work'}],website:[],note:[],totp:[],attachment:[],custom:[]});
  for(const bad of [
   {...empty(),extra:[]},
   {...empty(),account:[{id:'bad id',name:'Work'}]},
@@ -21,7 +21,7 @@ test('group registry normalizes trimmed names and enforces exact bounded schema'
   {...empty(),account:[{id:'group_123',name:'Work'},{id:'group_456',name:' Work '}]},
   {...empty(),account:Array.from({length:51},(_,i)=>({id:`group_${String(i).padStart(3,'0')}`,name:`G${i}`}))},
  ]) assert.equal(normalizeGroupRegistry(bad),null);
- assert.deepEqual(GROUP_TYPES,['account','website','note','totp','attachment']);
+ assert.deepEqual(GROUP_TYPES,['account','website','note','totp','attachment','custom']);
  assert.match(SETTINGS_ID,/^[A-Za-z0-9_-]{8,80}$/);
  assert.deepEqual(normalizeGroupRegistry({...empty(),account:[{id:'group_123',name:'Work'},{id:'group_456',name:'work'}]}).account.map(x=>x.name),['Work','work']);
 });

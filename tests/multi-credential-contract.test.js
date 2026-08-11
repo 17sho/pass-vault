@@ -7,6 +7,9 @@ test('legacy account normalizes to canonical credentials',()=>assert.deepEqual(n
 test('canonical account accepts bounded credential rows',()=>assert.equal(validatePlain('account',{...base,credentials:[{username:'a',password:'x'},{username:'b',password:'y'}]}),true));
 test('deletedAt is optional encrypted plaintext metadata with strict timestamps',()=>{const at=Date.now();assert.equal(validatePlain('account',{...base,credentials:[{username:'a',password:'x'}],deletedAt:at}),true);assert.equal(validatePlain('website',{name:'n',url:'',description:'',tags:[],deletedAt:at}),true);assert.equal(validatePlain('note',{title:'n',body:'',tags:[],deletedAt:at}),true);assert.equal(validateAttachmentMetadata({name:'a.txt',mime:'text/plain',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA',deletedAt:at}),true);assert.equal(validateAttachmentMetadata({name:'a.txt',mime:'text/plain',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA',deletedAt:at,trashOwnerId:'note-owner-123'}),true);assert.equal(validateAttachmentMetadata({name:'a.txt',mime:'text/plain',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA',trashOwnerId:'note-owner-123'}),false);for(const bad of [0,-1,1.5,'now']){assert.equal(validatePlain('note',{title:'n',body:'',tags:[],deletedAt:bad}),false);assert.equal(validateAttachmentMetadata({name:'a.txt',mime:'text/plain',size:1,category:'other',contentIv:'AAAAAAAAAAAAAAAA',deletedAt:bad}),false)}});
 
+test('account accepts bounded encrypted custom fields and preserves order',()=>{const customFields=[{id:'field_0001',label:'安全答案',type:'secret',value:'学校'},{id:'field_0002',label:'到期日期',type:'date',value:'2027-08-09'},{id:'field_0003',label:'管理后台',type:'url',value:'https://admin.example.com'}];assert.equal(validatePlain('account',{...base,credentials:[{username:'a',password:'x'}],customFields}),true)});
+test('all encrypted record types accept custom fields but reject malformed rows',()=>{const field={id:'field_0001',label:'客户编号',type:'text',value:'A102938'};assert.equal(validatePlain('website',{name:'n',url:'',description:'',tags:[],customFields:[field]}),true);assert.equal(validatePlain('note',{title:'n',body:'',tags:[],customFields:[field]}),true);assert.equal(validatePlain('totp',{account:'a',secret:'JBSWY3DPEHPK3PXP',tags:[],customFields:[field]}),true);for(const customFields of [[{...field,type:'unknown'}],[{...field,label:''}],[{...field,token:'leak'}],Array.from({length:21},(_,i)=>({...field,id:`field_${String(i).padStart(4,'0')}`})),[{...field,id:'short'}],[{...field,value:'x'.repeat(10001)}]])assert.equal(validatePlain('account',{...base,credentials:[{username:'a',password:'x'}],customFields}),false)});
+
 test('account rejects malformed, excessive and unknown sensitive fields',()=>{for(const value of [{...base,credentials:[]},{...base,credentials:Array.from({length:21},()=>({username:'a',password:'b'}))},{...base,credentials:[{username:'a',password:'b',token:'leak'}]},{...base,credentials:[{username:'a'.repeat(257),password:'b'}]},{...base,credentials:[{username:'a',password:'b'}],password:'leak'}])assert.equal(validatePlain('account',value),false)});
 test('account permits a sole empty row but rejects half-empty and extra empty rows',()=>{assert.equal(validatePlain('account',{...base,credentials:[{username:'',password:''}]}),true);for(const credentials of [[{username:'only-user',password:''}],[{username:'',password:'only-password'}],[{username:'a',password:'b'},{username:'',password:''}]])assert.equal(validatePlain('account',{...base,credentials}),false)});
 test('website still rejects credential containers',()=>assert.equal(validatePlain('website',{name:'n',url:'u',description:'',tags:[],credentials:[{username:'a',password:'b'}]}),false));
@@ -34,10 +37,12 @@ test('website/note reject password history fields',()=>{
 });
 
 // 功能7: 最近访问注册表
-test('validEnvelope permits both reserved settings ids, rejects other settings ids',()=>{
+test('validEnvelope permits reserved encrypted settings ids, rejects other settings ids',()=>{
   const base2={type:'settings',version:1,iv:'aa',ciphertext:'bb'};
   assert.equal(validEnvelope({...base2,id:'settings_registry'}),true);
   assert.equal(validEnvelope({...base2,id:'recents_registry'}),true);
+  assert.equal(validEnvelope({...base2,id:'tags_registry'}),true);
+  assert.equal(validEnvelope({...base2,id:'custom_templates_registry'}),true);
   assert.equal(validEnvelope({...base2,id:'evil_registry'}),false);
 });
 test('normalizeRecents dedupes, sorts desc, caps at 20, drops malformed',()=>{

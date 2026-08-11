@@ -4,7 +4,7 @@
 
 This guide covers first deployment, production upgrades, backup, restore, rollback, and acceptance checks for current `main`. Replace every `<...>` placeholder. Never commit real domains, account/database IDs, bucket names, tokens, invitation codes, KEKs, production backups, or private deployment configuration to the public repository.
 
-> **Version note:** the Cloudflare archives attached to GitHub Release `v1.1.72` contain the complete code through that tag, including R2 lifecycle migrations `0011`–`0013` and revision CAS/tombstone migrations `0014`–`0016`.
+> **Version note:** the Cloudflare archives attached to GitHub Release `v2.1.0` contain the complete code through that tag, including R2 lifecycle migrations `0011`–`0013` and revision CAS/tombstone migrations `0014`–`0016`.
 
 ## 1. Architecture, requirements, and trust boundary
 
@@ -48,22 +48,22 @@ npm run build
 
 Every command must naturally exit 0. Do not substitute interrupted, timed-out, or older-commit results.
 
-### 2.2 v1.1.72 Cloudflare artifacts
+### 2.2 v2.1.0 Cloudflare artifacts
 
 The Cloudflare assets in this Release are:
 
-- `pass-vault-v2-cloudflare-1.1.72.tar.gz`
-- `pass-vault-v2-cloudflare-1.1.72.zip`
+- `pass-vault-v2-cloudflare-2.1.0.tar.gz`
+- `pass-vault-v2-cloudflare-2.1.0.zip`
 - `SHA256SUMS`
 
 ```bash
-VERSION=1.1.72
+VERSION=2.1.0
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 
-The check must report `OK`. The package contains the complete Cloudflare code through tag `v1.1.72`; still inspect and apply every pending migration during upgrades.
+The check must report `OK`. The package contains the complete Cloudflare code through tag `v2.1.0`; still inspect and apply every pending migration during upgrades.
 
 ## 3. Configuration model: public template vs. private production config
 

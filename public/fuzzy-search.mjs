@@ -3,7 +3,8 @@ export const searchableFields={
  website:['name','url','description','tags'],
  note:['title','body','tags'],
  totp:['account','tags'],
- attachment:['name','mime','category','size'],
+ custom:['title','template','notes','tags','customSafeFields'],
+ attachment:['name','mime','category','size','tags'],
 };
 
 export function normalizeSearchText(value){
@@ -54,5 +55,6 @@ function fieldScore(query,raw){
 export function rankSearchResults(items,query,fields){
  const normalized=normalizeSearchText(query);
  if(!normalized)return items.slice();
- return items.map((item,index)=>({item,index,score:Math.min(...fields.flatMap(field=>field==='credentials'?(Array.isArray(item.credentials)?item.credentials:[]).map(row=>fieldScore(normalized,row?.username)):[fieldScore(normalized,item[field])]))})).filter(x=>Number.isFinite(x.score)).sort((a,b)=>a.score-b.score||a.index-b.index).map(x=>x.item);
+ const values=(item,field)=>field==='credentials'?(Array.isArray(item.credentials)?item.credentials:[]).map(row=>row?.username):field==='customSafeFields'?(Array.isArray(item.fields)?item.fields.filter(row=>row?.type!=='secret').flatMap(row=>[row.label,row.value]):[]):[item[field]];
+ return items.map((item,index)=>({item,index,score:Math.min(...fields.flatMap(field=>values(item,field).map(value=>fieldScore(normalized,value))))})).filter(x=>Number.isFinite(x.score)).sort((a,b)=>a.score-b.score||a.index-b.index).map(x=>x.item);
 }

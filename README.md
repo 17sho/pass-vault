@@ -97,7 +97,7 @@ INVITE_CODE='<仅本地使用的 16–256 字符测试值>' COOKIE_SECURE=false 
 
 ### 获取当前可部署版本
 
-最新稳定版为 [v1.1.72](https://github.com/17sho/pass-vault-v2/releases/tag/v1.1.72)。本版本在 v1.1.71 的五类资料批量操作基础上，新增条目/附件 revision CAS、删除 tombstone、备份锁续租与 fencing、Cloudflare R2 精确补偿，以及 Linux 附件删除持久 outbox。过期页面会收到冲突并保留未保存内容，不再静默覆盖新数据；锁库或切换账户后的迟到操作不能借用新会话写入。Release 提供隔离的 `pass-vault-v2-cloudflare-1.1.72.tar.gz` / `.zip` 与 `pass-vault-v2-linux-1.1.72.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
+最新稳定版为 [v2.1.0](https://github.com/17sho/pass-vault-v2/releases/tag/v2.1.0)。本版本在 v1.1.71 的五类资料批量操作基础上，新增条目/附件 revision CAS、删除 tombstone、备份锁续租与 fencing、Cloudflare R2 精确补偿，以及 Linux 附件删除持久 outbox。过期页面会收到冲突并保留未保存内容，不再静默覆盖新数据；锁库或切换账户后的迟到操作不能借用新会话写入。Release 提供隔离的 `pass-vault-v2-cloudflare-2.1.0.tar.gz` / `.zip` 与 `pass-vault-v2-linux-2.1.0.tar.gz` / `.zip`，以及统一的 `SHA256SUMS`。两个包仅含对应运行时，配置均为占位值；下载后运行 `sha256sum -c SHA256SUMS`。
 
 > **版本边界：** Release 的 tag 与资产保持不可变；`main` 可能包含 tag 之后的文档修正。第三方或自行托管网站是否已升级，应由部署者通过其发布记录和静态资源哈希确认，不能仅凭 GitHub Latest Release 推断。
 

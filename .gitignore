@@ -21,6 +21,7 @@ node_modules/
 
 # Databases, exports, backups, deployment records, and user data
 data/
+backups/
 **/deployment-records/
 **/d1-export*/
 *.sqlite

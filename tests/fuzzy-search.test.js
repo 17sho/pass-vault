@@ -34,6 +34,13 @@ test('uses only visible fields for each category and never leaks across categori
  assert.deepEqual(rankSearchResults(items.filter(x=>x.type==='note'),'cloudflare',searchableFields.note).map(x=>x.id),['note']);
 });
 
+test('custom search indexes non-sensitive fields but never secret labels or values',()=>{
+ const rows=[{id:'custom',type:'custom',title:'香港服务器',template:'服务器',notes:'生产环境',tags:['cloudflare'],fields:[{label:'IP地址',type:'text',value:'192.0.2.10'},{label:'密码',type:'secret',value:'never-search-secret'}]}];
+ assert.deepEqual(rankSearchResults(rows,'192.0.2.10',searchableFields.custom).map(x=>x.id),['custom']);
+ assert.deepEqual(rankSearchResults(rows,'never-search-secret',searchableFields.custom),[]);
+ assert.deepEqual(rankSearchResults(rows,'密码',searchableFields.custom),[]);
+});
+
 test('attachment search is limited to visible metadata and rejects irrelevant fuzzy matches',()=>{
  const files=[
   {id:'a',type:'attachment',name:'cloudflare-report.pdf',mime:'application/pdf',category:'other',size:42,contentIv:'secret'},
