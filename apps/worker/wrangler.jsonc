@@ -19,6 +19,9 @@
       "bucket_name": "your-r2-attachments-bucket"
     }
   ],
+  "vars": {
+    "APP_VERSION": "2.2.0"
+  },
   "assets": {
     "directory": "../../dist",
     "binding": "ASSETS",

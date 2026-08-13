@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.2.0
+
+### Added / 新增
+
+- 加密条目与附件历史、浏览器内差异比较、版本恢复和完整恢复中心。
+- 安全分享 v2：多资料包、附件、可选密码、精确到期/查看限制和匿名加密对象读取。
+- 加密收藏/置顶注册表及跨标签页字段级冲突合并。
+- 独立 Cloudflare Admin Worker：用户/资源概览、安全事件、维护任务、四维用户配额、分级预警、风险筛选及配额调整历史。
+
+### Security / 安全
+
+- 主 Worker 在条目、附件、替换和备份导入写路径原子执行配额，消除 Admin-only 与 TOCTOU 绕过。
+- 分享 manifest/对象采用随机 package key、AES-GCM、token/object AAD；密码通过 PBKDF2-SHA-256（310,000 次）包装密钥且不离开浏览器。
+- 管理审计仅展示非敏感字段；安全事件仅保存聚合分类与计数。
+- R2 回收检查当前附件、历史附件及分享引用，并用条件更新避免并发重复记账。
+
+### Changed / 变更
+
+- 回收站升级为支持预览、批量恢复和批量永久删除的恢复中心。
+- Cloudflare 包现在同时包含主 Worker、D1 migrations 与脱敏 Admin Worker 配置模板。
+- 新增 D1 migrations `0021`–`0028`。
+
+### Compatibility / 兼容性
+
+- 旧安全分享 v1 保持兼容。
+- 新增 migrations 与 Admin/分享/历史能力属于 Cloudflare 运行时；Linux 包继续独立提供，但本轮未部署或生产验证 Linux 新路径。
+
 ## v2.1.0
 
 ### Added / 新增

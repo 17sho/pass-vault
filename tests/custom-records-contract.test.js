@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUP_TYPES, normalizeGroupRegistry, normalizeRecents, validatePlain, validEnvelope } from '../shared/contract.mjs';
-import { CUSTOM_RECORD_TEMPLATES, customRecordSearchValues, customRecordSummary, cloneCustomRecord } from '../public/custom-records.mjs';
+import { CUSTOM_RECORD_TEMPLATES, cloneCustomRecordFields, customRecordFieldVisible, customRecordFieldsFromTemplate, customRecordTemplateFields, customRecordSearchValues, customRecordSummary, cloneCustomRecord } from '../public/custom-records.mjs';
 
 const fields=[
  {id:'field_ip01',label:'IP地址',type:'text',value:'192.0.2.10'},
@@ -33,6 +33,32 @@ test('custom明文严格验证标题、模板、备注、标签、状态与六�
 });
 
 test('custom rejects duplicate stable field ids',()=>{const item={...record,fields:[{id:'duplicate_1',label:'一',type:'text',value:'a'},{id:'duplicate_1',label:'二',type:'number',value:'2'}]};assert.equal(validatePlain('custom',item),false)});
+
+test('条件字段只引用前置字段并按本地等值规则决定显隐',()=>{
+ const conditional={...record,fields:[
+  {id:'field_kind',label:'环境',type:'text',value:'生产'},
+  {id:'field_host',label:'堡垒机',type:'text',value:'jump.example.com',condition:{fieldId:'field_kind',operator:'equals',value:'生产'}},
+ ]};
+ assert.equal(validatePlain('custom',conditional),true);
+ assert.equal(customRecordFieldVisible(conditional.fields[1],conditional.fields),true);
+ conditional.fields[0].value='测试';
+ assert.equal(customRecordFieldVisible(conditional.fields[1],conditional.fields),false);
+ for(const condition of [
+  {fieldId:'field_host',operator:'equals',value:'x'},
+  {fieldId:'missing_01',operator:'equals',value:'x'},
+  {fieldId:'field_kind',operator:'unknown',value:'x'},
+  {fieldId:'field_kind',operator:'equals',value:'x',extra:true},
+ ])assert.equal(validatePlain('custom',{...conditional,fields:[conditional.fields[0],{...conditional.fields[1],condition}]}),false);
+ assert.equal(customRecordSearchValues({...conditional,fields:[{...conditional.fields[0],value:'测试'},conditional.fields[1]]}).includes('jump.example.com'),false);
+ const chained=[
+  {id:'field_root',label:'总开关',type:'text',value:'关闭'},
+  {id:'field_kind',label:'环境',type:'text',value:'生产',condition:{fieldId:'field_root',operator:'equals',value:'开启'}},
+  {id:'field_host',label:'堡垒机',type:'text',value:'jump.example.com',condition:{fieldId:'field_kind',operator:'equals',value:'生产'}},
+ ];
+ assert.equal(customRecordFieldVisible(chained[2],chained),false);
+});
+
+test('克隆与个人模板会重建稳定ID引用而不是丢失条件',()=>{const source=[{id:'source_001',label:'环境',type:'text',value:'生产'},{id:'target_001',label:'堡垒机',type:'text',value:'jump',condition:{fieldId:'source_001',operator:'equals',value:'生产'}}],cloned=cloneCustomRecordFields(source);assert.notEqual(cloned[0].id,'source_001');assert.equal(cloned[1].condition.fieldId,cloned[0].id);assert.equal(customRecordFieldVisible(cloned[1],cloned),true);const template=customRecordTemplateFields(source);assert.deepEqual(template[1].condition,{fieldIndex:0,operator:'equals',value:'生产'});assert.equal(JSON.stringify(template).includes('jump'),false);const restored=customRecordFieldsFromTemplate(template);assert.equal(restored[1].condition.fieldId,restored[0].id);assert.equal(customRecordFieldVisible(restored[1],[{...restored[0],value:'生产'},restored[1]]),true)});
 
 test('六个模板只预填字段且字段实例拥有新稳定ID',()=>{
  assert.deepEqual(Object.keys(CUSTOM_RECORD_TEMPLATES),['blank','bank-card','identity','api','server','software-license']);

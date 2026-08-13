@@ -17,7 +17,7 @@ const out = join(root, 'release');
 const epoch = Number(process.env.SOURCE_DATE_EPOCH || 1783728000); // 2026-07-11 UTC
 const common = ['package-lock.json','LICENSE','README.md','README.en.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md',`release-notes-v${pkg.version}.md`,'public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/ARCHITECTURE.zh-CN.md','docs/ARCHITECTURE.en.md','docs/DEVELOPMENT.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md'];
 const variants = {
-  cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/worker.test.js','tests/custom-records-contract.test.js','tests/custom-records-migration.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
+  cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','apps/admin-worker/src','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/worker.test.js','tests/custom-records-contract.test.js','tests/custom-records-migration.test.js','tests/admin-worker.test.js','tests/admin-responsive-ui.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
   linux: ['apps/server','deploy/pass-vault-v2.service','deploy/Caddyfile','deploy/nginx.conf','scripts/deploy-linux-atomic.sh','tests/fixtures.mjs','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/server.integration.test.js','docs/server-deployment.zh-CN.md','docs/server-deployment.en.md'],
 };
 const requestedVariants = (process.env.RELEASE_VARIANTS || Object.keys(variants).join(','))
@@ -93,14 +93,24 @@ for (const variant of requestedVariants) {
   await writeFile(join(stage, 'package.json'), JSON.stringify(releasePackage, null, 2) + '\n');
   if (variant === 'cloudflare') {
     await rewriteCloudflareOnlyLinks(stage);
+    const placeholderDatabaseId = '00000000-0000-0000-0000-000000000000';
     await writeFile(join(stage, 'apps/worker/wrangler.jsonc'), JSON.stringify({
       name: 'pass-vault-v2', workers_dev: true, main: 'src/index.ts',
       compatibility_date: '2026-07-11', compatibility_flags: ['nodejs_compat'],
-      d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: '00000000-0000-0000-0000-000000000000', migrations_dir: 'migrations' }],
+      d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: placeholderDatabaseId, migrations_dir: 'migrations' }],
       r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
       assets: { directory: '../../dist', binding: 'ASSETS', run_worker_first: true },
       observability: { enabled: true, head_sampling_rate: 1 },
       triggers: { crons: ['17 * * * *'] }
+    }, null, 2) + '\n');
+    await mkdir(join(stage, 'apps/admin-worker'), { recursive: true });
+    await writeFile(join(stage, 'apps/admin-worker/wrangler.jsonc'), JSON.stringify({
+      name: 'pass-vault-admin', workers_dev: true, main: 'src/index.ts',
+      compatibility_date: '2026-07-11', compatibility_flags: ['nodejs_compat'],
+      d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: placeholderDatabaseId }],
+      r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
+      vars: { ADMIN_EMAILS: 'admin@example.com', R2_LIMIT_BYTES: '10737418240', D1_LIMIT_BYTES: '500000000' },
+      observability: { enabled: true, head_sampling_rate: 1 }
     }, null, 2) + '\n');
   } else {
     await rewriteLinuxOnlyLinks(stage);

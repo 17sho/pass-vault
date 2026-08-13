@@ -47,7 +47,7 @@ function requireJson(req){if(String(req.headers['content-type']||'').split(';',1
 async function body(req){requireJson(req);let size=0,chunks=[];for await(const c of req){size+=c.length;if(size>MAX_BODY)throw Object.assign(new Error('too_large'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}')}catch{throw Object.assign(new Error('invalid_json'),{status:400})}}
 async function backupBody(req){requireJson(req);let size=0,chunks=[];for await(const c of req){size+=c.length;if(size>MAX_BACKUP_JSON)throw Object.assign(new Error('too_large'),{status:413});chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}')}catch{throw Object.assign(new Error('invalid_json'),{status:400})}}
 const validWrapped=validWrappedKey;
-const validPassword=x=>typeof x==='string'&&x.length>=12&&x.length<=1024;
+const validPassword=x=>typeof x==='string'&&x.length>=1&&x.length<=1024;
 function requestOrigin(req){const proto=(req.headers['x-forwarded-proto']||'').split(',')[0].trim()||'http';return `${proto}://${req.headers.host}`}
 function sameOrigin(req){return req.headers.origin===requestOrigin(req)}
 function csrf(req,s){const supplied=req.headers['x-csrf-token'];return typeof supplied==='string'&&digest(supplied)===s.csrf_hash&&req.headers.origin===requestOrigin(req)}

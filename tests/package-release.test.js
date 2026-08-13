@@ -60,7 +60,13 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     assert.equal(npmDocs.status, 0, npmDocs.stderr || npmDocs.stdout);
     const members = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
     assert.equal(members.status, 0, members.stderr || members.stdout);
-    assert.doesNotMatch(members.stdout, /(?:^|\/)(?:apps\/server|docs\/server-deployment|scripts\/deploy-linux)/m);
+  assert.match(members.stdout, /apps\/admin-worker\/src\/index\.ts/);
+  assert.match(members.stdout, /apps\/admin-worker\/wrangler\.jsonc/);
+  const adminWrangler = JSON.parse(await readFile(join(root, 'apps/admin-worker/wrangler.jsonc'), 'utf8'));
+  assert.match(adminWrangler.d1_databases[0].database_id, /^0{8}-0{4}-0{4}-0{4}-0{12}$/);
+  assert.equal(JSON.stringify(adminWrangler).includes('23cm.me'), false);
+  assert.equal(JSON.stringify(adminWrangler).includes('@gmail.com'), false);
+  assert.doesNotMatch(members.stdout, /(?:^|\/)(?:apps\/server|docs\/server-deployment|scripts\/deploy-linux)/m);
   } finally {
     await rm(destination, { recursive: true, force: true });
   }

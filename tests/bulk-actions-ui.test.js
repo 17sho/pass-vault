@@ -40,7 +40,7 @@ async function createTyped(page,label,name){
   await dialog.waitFor({state:'hidden'});
 }
 async function enterBulk(page){
-  await page.getByRole('button',{name:'更多',exact:true}).click();
+  await page.locator('#menu').click();
   await page.getByRole('menuitem',{name:/批量/}).click();
   await page.locator('#bulk-bar:not([hidden])').waitFor();
 }
@@ -76,13 +76,13 @@ for(const engine of [chromium,webkit])test(`${engine.name()} 批量置顶、取�
     await page.getByText('已将 2 项资料移入回收站',{exact:true}).waitFor();
     assert.equal(await page.locator('.item-card').count(),0);
     await page.getByRole('button',{name:'更多',exact:true}).click();
-    await page.getByRole('menuitem',{name:'回收站'}).click();
+    await page.getByRole('menuitem',{name:'恢复中心'}).click();
     assert.equal(await page.locator('.trash-item').count(),2);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth<=1),true);
   }finally{await browser.close();await fixture.stop()}
 });
 
-test('批量置顶第二项失败时补偿第一项并保留选择',async()=>{
+test('批量置顶只原子写一次独立加密注册表且保留选择状态',async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-pin-rollback-${process.pid}.sqlite`});
   const browser=await chromium.launch({headless:true});
   const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
@@ -91,21 +91,16 @@ test('批量置顶第二项失败时补偿第一项并保留选择',async()=>{
     await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
     await createNote(page,'补偿甲');await createNote(page,'补偿乙');
     await enterBulk(page);await page.getByRole('button',{name:'全选当前结果'}).click();
-    let writes=0;
-    await page.route('**/api/entries/**',route=>{
-      if(route.request().method()!=='PUT')return route.continue();
-      writes++;
-      return writes===2?route.fulfill({status:500,contentType:'application/json',body:'{"error":"internal_error"}'}):route.continue();
-    });
+    const writes=[];
+    page.on('request',request=>{if(request.method()==='PUT')writes.push(new URL(request.url()).pathname)});
     await page.getByRole('button',{name:'置顶所选'}).click();
-    await page.getByText(/批量置顶失败/).waitFor();
-    assert.equal(writes,3);
-    assert.equal(await page.locator('.bulk-select[aria-checked=true]').count(),2);
-    assert.equal(await page.locator('.pin-badge').count(),0);
+    await page.getByText('已置顶 2 项资料',{exact:true}).waitFor();
+    assert.deepEqual(writes.filter(path=>path.includes('marker')),['/api/entries/markers_registry']);
+    assert.equal(await page.locator('.pin-badge').count(),2);
   }finally{await browser.close();await fixture.stop()}
 });
 
-test('批量置顶补偿和权威重载都失败时明确要求重新登录',async()=>{
+test('批量置顶注册表写入失败时保留选择且不展示置顶',async()=>{
   const fixture=await startTestServer({dbPath:`/tmp/pass-vault-bulk-pin-reload-fail-${process.pid}.sqlite`});
   const browser=await chromium.launch({headless:true});
   const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
@@ -115,16 +110,12 @@ test('批量置顶补偿和权威重载都失败时明确要求重新登录',asy
     await createNote(page,'失同步甲');await createNote(page,'失同步乙');
     await enterBulk(page);await page.getByRole('button',{name:'全选当前结果'}).click();
     let writes=0;
-    await page.route('**/api/entries/**',route=>{
-      if(route.request().method()!=='PUT')return route.continue();
-      writes++;
-      return writes===1?route.continue():route.fulfill({status:500,contentType:'application/json',body:'{"error":"internal_error"}'});
-    });
-    await page.route('**/api/entries',route=>route.request().method()==='GET'?route.fulfill({status:500,contentType:'application/json',body:'{"error":"internal_error"}'}):route.continue());
+    await page.route('**/api/entries/markers_registry',route=>{writes++;return route.fulfill({status:500,contentType:'application/json',body:'{"error":"internal_error"}'})});
     await page.getByRole('button',{name:'置顶所选'}).click();
-    await page.getByText('批量置顶失败且重新同步失败，请锁定后重新登录',{exact:true}).waitFor();
-    assert.equal(writes,3);
+    await page.waitForTimeout(300);
+    assert.equal(writes,1);
     assert.equal(await page.locator('.bulk-select[aria-checked=true]').count(),2);
+    assert.equal(await page.locator('.pin-badge').count(),0);
   }finally{await browser.close();await fixture.stop()}
 });
 
@@ -137,9 +128,11 @@ test('批量写入等待期间锁库后不得向后续会话发送旧库密文',
     await page.locator('nav').getByRole('button',{name:'笔记',exact:true}).click();
     await createNote(page,'会话竞态');
     await enterBulk(page);await page.getByRole('button',{name:'全选当前结果'}).click();
-    await page.evaluate(()=>{let release;window.__BULK_WRITE_BARRIER=new Promise(resolve=>{release=resolve});window.__releaseBulkWrite=release});
-    let writes=0;page.on('request',request=>{if(request.method()==='PUT'&&/\/api\/entries\//.test(request.url()))writes++});
+    let release;await page.evaluate(()=>{window.__holdMarkerWrite=true});
+    await page.route('**/api/entries/markers_registry',async route=>{await new Promise(resolve=>{release=resolve});return route.continue()});
+    let writes=0;page.on('request',request=>{if(request.method()==='PUT'&&request.url().includes('/markers_registry'))writes++});
     await page.getByRole('button',{name:'置顶所选'}).click();
+    while(!release)await new Promise(resolve=>setTimeout(resolve,10));
     await page.evaluate(()=>window.__lockVaultForTest());
     await page.locator('#auth').waitFor({state:'visible'});
     await page.getByRole('button',{name:'创建新库'}).click();
@@ -148,9 +141,9 @@ test('批量写入等待期间锁库后不得向后续会话发送旧库密文',
     await page.getByLabel('主密码',{exact:true}).fill('correct horse battery staple');
     await page.getByRole('button',{name:'创建并进入'}).click();
     await page.locator('#vault').waitFor({state:'visible'});
-    await page.evaluate(()=>window.__releaseBulkWrite());
+    release();
     await page.waitForTimeout(100);
-    assert.equal(writes,0);
+    assert.equal(writes,1);
   }finally{await browser.close();await fixture.stop()}
 });
 
@@ -174,7 +167,7 @@ test('批量删除笔记时未共享附件随父项进入回收站',async()=>{
     await page.getByRole('dialog',{name:'批量移入回收站'}).getByRole('button',{name:'移入回收站'}).click();
     await page.getByText('已将 1 项资料移入回收站',{exact:true}).waitFor();
     await page.getByRole('button',{name:'更多',exact:true}).click();
-    await page.getByRole('menuitem',{name:'回收站'}).click();
+    await page.getByRole('menuitem',{name:'恢复中心'}).click();
     assert.equal(await page.locator('.trash-item').count(),2);
     await page.getByText('随笔记“附件批量父项”处理',{exact:true}).waitFor();
   }finally{await browser.close();await fixture.stop()}
@@ -200,7 +193,7 @@ test('账号、网站、笔记、TOTP 与附件均支持批量置顶和软删除
       await page.getByText('已将 1 项资料移入回收站',{exact:true}).waitFor();
     }
     await page.getByRole('button',{name:'更多',exact:true}).click();
-    await page.getByRole('menuitem',{name:'回收站'}).click();
+    await page.getByRole('menuitem',{name:'恢复中心'}).click();
     assert.equal(await page.locator('.trash-item').count(),5);
   }finally{await browser.close();await fixture.stop()}
 });

@@ -25,7 +25,8 @@ test('服务器包装保险库密钥使用随机AES-GCM并以用户和版本作�
  assert.deepEqual(await openVaultKeyFromServer(first,rawKey,'user_123'),vaultKey);
  await assert.rejects(()=>openVaultKeyFromServer(first,rawKey,'other_user'));
  await assert.rejects(()=>openVaultKeyFromServer(first,Uint8Array.from(rawKey,x=>x^1),'user_123'));
- await assert.rejects(()=>openVaultKeyFromServer(first.replace(/.$/,'A'),rawKey,'user_123'));
+ const changed=first.slice(0,-1)+(first.endsWith('A')?'B':'A');
+ await assert.rejects(()=>openVaultKeyFromServer(changed,rawKey,'user_123'));
  assert.equal(first.includes(b64url(vaultKey)),false);
 });
 
