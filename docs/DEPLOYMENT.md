@@ -27,7 +27,7 @@ git diff --check
 
 ## 2. 版本与Release资产真实性
 
-- 当前`v2.2.0` Release提供隔离的Cloudflare与Linux tar/zip及`SHA256SUMS`，并包含截至tag的`0011`–`0013` R2生命周期修复及`0014`–`0016` revision CAS/tombstone迁移。
+- 当前`v2.2.0` Release提供隔离的Cloudflare与Linux tar/zip及`SHA256SUMS`，并包含完整迁移链；升级到v2.2.0必须应用`0021`–`0028`（安全分享、历史恢复、安全事件、Admin运维与用户配额）。
 - Linux可使用v2.2.0 Linux制品，或从同一tag/已审核main提交构建。
 - 不移动旧tag、不替换Release资产、不在文档中提供不存在的下载文件名。
 - 新部署和生产升级优先使用当前`main`的明确commit SHA，并在部署前审核diff。
@@ -57,7 +57,7 @@ Wrangler普通deploy默认删除旧plain vars后只写配置中的`vars`；Secre
 2. 复制全部R2对象到独立版本化备份bucket，保存key/size/checksum清单；
 3. 把备份放在仓库外并异地保存；
 4. 运行`d1 migrations list`；
-5. 按账本应用全部待执行迁移，当前`main`完整链至`0016_revision_tombstones.sql`；
+5. 按账本应用全部待执行迁移，当前`main`完整链至`0028_admin_quota_history_index.sql`；
 6. 再次list并确认无pending。
 
 不能只备份D1，不能跳过R2，也不能重写已执行migration。

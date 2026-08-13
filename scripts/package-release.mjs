@@ -100,16 +100,17 @@ for (const variant of requestedVariants) {
       d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: placeholderDatabaseId, migrations_dir: 'migrations' }],
       r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
       assets: { directory: '../../dist', binding: 'ASSETS', run_worker_first: true },
+      vars: { APP_VERSION: pkg.version },
       observability: { enabled: true, head_sampling_rate: 1 },
       triggers: { crons: ['17 * * * *'] }
     }, null, 2) + '\n');
     await mkdir(join(stage, 'apps/admin-worker'), { recursive: true });
     await writeFile(join(stage, 'apps/admin-worker/wrangler.jsonc'), JSON.stringify({
-      name: 'pass-vault-admin', workers_dev: true, main: 'src/index.ts',
+      name: 'pass-vault-admin', workers_dev: false, main: 'src/index.ts',
       compatibility_date: '2026-07-11', compatibility_flags: ['nodejs_compat'],
       d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: placeholderDatabaseId }],
       r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
-      vars: { ADMIN_EMAILS: 'admin@example.com', R2_LIMIT_BYTES: '10737418240', D1_LIMIT_BYTES: '500000000' },
+      vars: { ADMIN_EMAILS: 'admin@example.com', MAIN_SITE_URL: 'https://pass.example.com', ACCESS_ISSUER: 'https://example.cloudflareaccess.com', ACCESS_AUD: 'YOUR_ACCESS_APPLICATION_AUD', R2_LIMIT_BYTES: '10737418240', D1_LIMIT_BYTES: '500000000' },
       observability: { enabled: true, head_sampling_rate: 1 }
     }, null, 2) + '\n');
   } else {

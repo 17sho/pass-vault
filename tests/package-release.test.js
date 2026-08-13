@@ -52,6 +52,7 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     const root = join(destination, archiveName.slice(0, -'.tar.gz'.length));
   const wrangler = JSON.parse(await readFile(join(root, 'apps/worker/wrangler.jsonc'), 'utf8'));
   assert.deepEqual(wrangler.triggers?.crons, ['17 * * * *']);
+  assert.equal(wrangler.vars?.APP_VERSION, '2.2.0');
   assert.match(await readFile(join(root, 'apps/worker/migrations/0012_backup_import_locks.sql'), 'utf8'), /CREATE TABLE backup_import_locks/);
   assert.match(await readFile(join(root, 'apps/worker/migrations/0013_r2_inflight_uploads.sql'), 'utf8'), /CREATE TABLE r2_inflight_uploads/);
     const docs = spawnSync(process.execPath, ['scripts/check-docs.mjs'], { cwd: root, encoding: 'utf8' });
@@ -63,6 +64,12 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   assert.match(members.stdout, /apps\/admin-worker\/src\/index\.ts/);
   assert.match(members.stdout, /apps\/admin-worker\/wrangler\.jsonc/);
   const adminWrangler = JSON.parse(await readFile(join(root, 'apps/admin-worker/wrangler.jsonc'), 'utf8'));
+  assert.equal(adminWrangler.workers_dev, false);
+  assert.equal(adminWrangler.vars?.MAIN_SITE_URL, 'https://pass.example.com');
+  assert.equal(adminWrangler.vars?.ACCESS_ISSUER, 'https://example.cloudflareaccess.com');
+  assert.equal(adminWrangler.vars?.ACCESS_AUD, 'YOUR_ACCESS_APPLICATION_AUD');
+  assert.equal(adminWrangler.d1_databases[0].database_name, 'your-d1-database-name');
+  assert.equal(adminWrangler.r2_buckets[0].bucket_name, 'your-r2-attachments-bucket');
   assert.match(adminWrangler.d1_databases[0].database_id, /^0{8}-0{4}-0{4}-0{4}-0{12}$/);
   assert.equal(JSON.stringify(adminWrangler).includes('23cm.me'), false);
   assert.equal(JSON.stringify(adminWrangler).includes('@gmail.com'), false);

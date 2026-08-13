@@ -10,19 +10,22 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "pass-vault-v2",
+      "database_name": "your-d1-database-name",
       "database_id": "[REDACTED]"
     }
   ],
   "r2_buckets": [
     {
       "binding": "ATTACHMENTS",
-      "bucket_name": "vault-attachments-prod"
+      "bucket_name": "your-r2-attachments-bucket"
     }
   ],
   "vars": {
     "ADMIN_EMAILS": "admin@example.com",
-    "MAIN_SITE_URL": "https://pass.example.com"
+    "MAIN_SITE_URL": "https://pass.example.com",
+    "ACCESS_ISSUER": "https://example.cloudflareaccess.com",
+    "ACCESS_AUD": "YOUR_ACCESS_APPLICATION_AUD",
+    "R2_LIMIT_BYTES": "10737418240"
   },
   "version_metadata": {
     "binding": "CF_VERSION_METADATA"
