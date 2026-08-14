@@ -63,7 +63,7 @@ for (const file of ['README.md', 'README.en.md']) {
 }
 for (const [file, required] of [
   ['README.md', ['服务器辅助 Passkey 会改变默认零知识边界', '默认模式下，主密码与资料明文不上传', '项目尚未经过独立第三方安全审计']],
-  ['README.en.md', ['Server-assisted Passkey changes the default zero-knowledge boundary', 'master passwords and record plaintext are not uploaded in the default mode', 'has not undergone an independent third-party security audit']],
+  ['README.en.md', ['Server-assisted Passkey changes the default zero-knowledge boundary', 'In the default mode, master passwords and record plaintext are not uploaded', 'has not undergone an independent third-party security audit']],
 ]) {
   const text = contents.get(file);
   for (const disclosure of required) {
