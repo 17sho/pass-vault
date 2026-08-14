@@ -151,9 +151,11 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | \
 
 不要开启`set -x`，不要用`echo '真实值'`，不要把值放进参数、仓库、工单、截图或日志。若需要可恢复的固定值，在密码管理器生成/保存，再通过Wrangler隐藏提示输入。
 
+启用Admin创建邀请码时，`INVITE_CODE_PEPPER`是两个Worker共享的必需Secret。主Worker和Admin Worker必须配置**完全相同的值**；验证时只确认两个Worker均存在该Secret名称，绝不输出其值。两端不一致会导致新邀请码无法验证。
+
 ### 4.3 应用完整迁移链
 
-迁移账本位于`apps/worker/migrations/`。当前`main`首次部署应按账本应用`0001`到`0016`；升级只应用待执行项：
+迁移账本位于`apps/worker/migrations/`。当前`main`首次部署应按账本应用`0001`到`0029`；升级只应用待执行项：
 
 ```bash
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
@@ -171,7 +173,10 @@ npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION
 - `0013_r2_inflight_uploads.sql`：R2写入前持久in-flight fencing。
 - `0014_entries_revision.sql`：条目乐观并发revision；
 - `0015_attachments_revision.sql`：附件乐观并发revision；
-- `0016_revision_tombstones.sql`：删除/恢复后保持revision单调递增，防止ABA。
+- `0016_revision_tombstones.sql`：删除/恢复后保持revision单调递增，防止ABA；
+- `0027_reset_user_quota_audit.sql`：在配额结构升级后重置旧配额审计状态；
+- `0028_admin_quota_history_index.sql`：增加Admin配额历史查询索引；
+- `0029_f3_r2_consistency.sql`：回填R2生命周期归属、重建带用户归属的历史清理触发器，并增加维护/备份租约。
 
 ### 4.4 Dry-run与部署
 
@@ -358,8 +363,8 @@ Cloudflare Web Analytics的`auto_install`可能注入`static.cloudflareinsights.
 | Passkey提示“未启用” | 三项Passkey配置是否同时存在；部署是否因缺少`vars`覆盖了RP ID/Origin；精确Origin是否一致 |
 | 注册503 `registration_unavailable` | `INVITE_CODE` Secret名称/目标环境/长度；不要打印值 |
 | 正确邀请码403/429 | 不可见空白、目标环境和限流窗口 |
-| `no such table`或`no such column: revision` | 是否对正确remote D1完整应用`0001`–`0016` |
-| 附件/备份500或缺表 | `0011`–`0016`、R2 binding、Cron和当前版本是否一致 |
+| `no such table`或`no such column: revision` | 是否对正确remote D1完整应用`0001`–`0029` |
+| 附件/备份500或缺表 | 完整`0001`–`0029`、R2 binding、Cron和当前版本是否一致 |
 | 静态404/旧页面 | Assets路径、build、100%切流、边缘缓存和资源哈希 |
 | workers.dev意外可访问 | 生产私有配置`workers_dev:false`是否被公共模板覆盖 |
 | Cron不存在 | `triggers.crons`是否在生产配置和当前version中 |

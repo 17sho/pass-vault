@@ -24,8 +24,7 @@
     "ADMIN_EMAILS": "admin@example.com",
     "MAIN_SITE_URL": "https://pass.example.com",
     "ACCESS_ISSUER": "https://example.cloudflareaccess.com",
-    "ACCESS_AUD": "YOUR_ACCESS_APPLICATION_AUD",
-    "R2_LIMIT_BYTES": "10737418240"
+    "ACCESS_AUD": "YOUR_ACCESS_APPLICATION_AUD"
   },
   "version_metadata": {
     "binding": "CF_VERSION_METADATA"

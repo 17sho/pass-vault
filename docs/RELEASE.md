@@ -18,7 +18,7 @@
 - Cloudflare 制品只包含 Cloudflare 中英文部署指南；
 - Linux 制品只包含 Linux 中英文部署指南；
 - README、License、Security、API、Architecture 与 Release 文档可进入两种制品；
-- 旧综合部署导航页只留在仓库，不进入制品。
+- 综合部署导航页随两种制品保留，用于指向各自独立指南；
 
 ### 正式发布流程
 
@@ -63,7 +63,7 @@ Each release provides `.tar.gz`, `.zip`, and a common `SHA256SUMS`. Archives exc
 - Cloudflare archives contain only the Cloudflare deployment guides in both languages;
 - Linux archives contain only the Linux deployment guides in both languages;
 - shared README, License, Security, API, Architecture, and Release documents may appear in both;
-- legacy combined deployment navigation pages remain repository-only.
+- combined deployment navigation pages remain in both archives to route readers to the platform-specific guides.
 
 ### Publication flow
 

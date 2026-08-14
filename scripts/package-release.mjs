@@ -9,6 +9,9 @@ const gitHead = spawnSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: roo
 if (gitHead.status !== 0) throw new Error('unable to resolve git HEAD');
 const exactTag = spawnSync('git', ['describe', '--tags', '--exact-match', '--match', `v${pkg.version}`], { cwd: root, encoding: 'utf8' });
 const snapshot = process.env.RELEASE_SNAPSHOT === '1';
+const worktree = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: root, encoding: 'utf8' });
+if (worktree.status !== 0) throw new Error('unable to inspect git worktree');
+if (worktree.stdout.trim()) throw new Error('refusing to package a dirty or untracked worktree; commit the reviewed candidate first');
 if (exactTag.status !== 0 && !snapshot) {
   throw new Error(`refusing to regenerate v${pkg.version} artifacts from untagged HEAD; set RELEASE_SNAPSHOT=1 for local verification only`);
 }
@@ -31,7 +34,15 @@ function run(command, args, cwd=root) {
   if (result.status !== 0) throw new Error(`${command} failed (${result.status})`);
 }
 async function copy(relative, stage) {
-  await cp(join(root, relative), join(stage, relative), { recursive: true, preserveTimestamps: false });
+  const tracked = spawnSync('git', ['ls-files', '-z', '--', relative], { cwd: root, encoding: 'buffer' });
+  if (tracked.status !== 0) throw new Error(`unable to enumerate tracked files for ${relative}`);
+  const files = tracked.stdout.toString().split('\0').filter(Boolean);
+  if (!files.length) throw new Error(`no tracked release files for ${relative}`);
+  for (const file of files) {
+    const destination = join(stage, file);
+    await mkdir(resolve(destination, '..'), { recursive: true });
+    await cp(join(root, file), destination, { preserveTimestamps: false });
+  }
 }
 async function hash(path) {
   return createHash('sha256').update(await readFile(path)).digest('hex');
@@ -107,10 +118,12 @@ for (const variant of requestedVariants) {
     await mkdir(join(stage, 'apps/admin-worker'), { recursive: true });
     await writeFile(join(stage, 'apps/admin-worker/wrangler.jsonc'), JSON.stringify({
       name: 'pass-vault-admin', workers_dev: false, main: 'src/index.ts',
+      routes: [{ pattern: 'admin.example.com', custom_domain: true }],
       compatibility_date: '2026-07-11', compatibility_flags: ['nodejs_compat'],
       d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: placeholderDatabaseId }],
       r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
-      vars: { ADMIN_EMAILS: 'admin@example.com', MAIN_SITE_URL: 'https://pass.example.com', ACCESS_ISSUER: 'https://example.cloudflareaccess.com', ACCESS_AUD: 'YOUR_ACCESS_APPLICATION_AUD', R2_LIMIT_BYTES: '10737418240', D1_LIMIT_BYTES: '500000000' },
+      vars: { ADMIN_EMAILS: 'admin@example.com', MAIN_SITE_URL: 'https://pass.example.com', ACCESS_ISSUER: 'https://example.cloudflareaccess.com', ACCESS_AUD: 'YOUR_ACCESS_APPLICATION_AUD' },
+      version_metadata: { binding: 'CF_VERSION_METADATA' },
       observability: { enabled: true, head_sampling_rate: 1 }
     }, null, 2) + '\n');
   } else {

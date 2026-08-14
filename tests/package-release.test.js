@@ -5,7 +5,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-test('Linux-only release has no Cloudflare files or broken documentation links', async () => {
+const worktreeDirty = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { encoding: 'utf8' }).stdout.trim().length > 0;
+
+async function assertDirtyPackagingRejected(variant) {
+  const packed = spawnSync(process.execPath, ['scripts/package-release.mjs'], { env: { ...process.env, RELEASE_VARIANTS: variant, RELEASE_SNAPSHOT: '1' }, encoding: 'utf8' });
+  assert.notEqual(packed.status, 0);
+  assert.match(packed.stderr || packed.stdout, /dirty or untracked worktree/);
+}
+
+test('发行脚本仅复制Git跟踪文件并拒绝ignored秘密进入递归目录',async()=>{const source=await readFile(new URL('../scripts/package-release.mjs',import.meta.url),'utf8');assert.match(source,/git', \['ls-files', '-z'/);assert.doesNotMatch(source,/recursive: true, preserveTimestamps/)});
+
+test('发行脚本拒绝从dirty或untracked工作树制作误标HEAD的快照',async()=>{const source=await readFile(new URL('../scripts/package-release.mjs',import.meta.url),'utf8');assert.match(source,/git', \['status', '--porcelain=v1', '--untracked-files=all'\]/);assert.match(source,/refusing to package a dirty or untracked worktree/)});
+
+test('Linux-only release has no Cloudflare files or broken documentation links', async (t) => {
+  if (worktreeDirty) { await assertDirtyPackagingRejected('linux'); t.skip('clean-worktree archive checks run after reviewed commit'); return; }
   const packed = spawnSync(process.execPath, ['scripts/package-release.mjs'], {
     env: { ...process.env, RELEASE_VARIANTS: 'linux', RELEASE_SNAPSHOT: '1' },
     encoding: 'utf8',
@@ -34,7 +47,8 @@ test('Linux-only release has no Cloudflare files or broken documentation links',
   }
 });
 
-test('Cloudflare-only release has no Linux files or broken documentation links', async () => {
+test('Cloudflare-only release has no Linux files or broken documentation links', async (t) => {
+  if (worktreeDirty) { await assertDirtyPackagingRejected('cloudflare'); t.skip('clean-worktree archive checks run after reviewed commit'); return; }
   const packed = spawnSync(process.execPath, ['scripts/package-release.mjs'], {
     env: { ...process.env, RELEASE_VARIANTS: 'cloudflare', RELEASE_SNAPSHOT: '1' },
     encoding: 'utf8',
@@ -68,6 +82,11 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   assert.equal(adminWrangler.vars?.MAIN_SITE_URL, 'https://pass.example.com');
   assert.equal(adminWrangler.vars?.ACCESS_ISSUER, 'https://example.cloudflareaccess.com');
   assert.equal(adminWrangler.vars?.ACCESS_AUD, 'YOUR_ACCESS_APPLICATION_AUD');
+  assert.equal(adminWrangler.version_metadata?.binding, 'CF_VERSION_METADATA');
+  assert.equal(adminWrangler.routes?.[0]?.pattern, 'admin.example.com');
+  assert.equal('APP_VERSION' in adminWrangler.vars, false);
+  assert.equal('R2_LIMIT_BYTES' in adminWrangler.vars, false);
+  assert.equal('D1_LIMIT_BYTES' in adminWrangler.vars, false);
   assert.equal(adminWrangler.d1_databases[0].database_name, 'your-d1-database-name');
   assert.equal(adminWrangler.r2_buckets[0].bucket_name, 'your-r2-attachments-bucket');
   assert.match(adminWrangler.d1_databases[0].database_id, /^0{8}-0{4}-0{4}-0{4}-0{12}$/);

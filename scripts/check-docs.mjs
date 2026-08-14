@@ -31,7 +31,7 @@ for (const file of guideCandidates) {
     // Platform-specific release archives intentionally omit the other backend's guide.
   }
 }
-const markdown = [...guides, `release-notes-v${pkg.version}.md`];
+const markdown = [...guides, 'CHANGELOG.md', 'docs/RELEASE.md', `release-notes-v${pkg.version}.md`];
 const contents = new Map();
 for (const file of markdown) {
   const text = await readFile(resolve(root, file), 'utf8');
@@ -84,6 +84,8 @@ for (const phrase of [
   '0011_r2_cleanup_queue.sql', '0012_backup_import_locks.sql',
   '0013_r2_inflight_uploads.sql', '0014_entries_revision.sql',
   '0015_attachments_revision.sql', '0016_revision_tombstones.sql',
+  '0027_reset_user_quota_audit.sql', '0028_admin_quota_history_index.sql',
+  '0029_f3_r2_consistency.sql', '0001`–`0029',
   '17 * * * *', 'workers_dev',
   '--keep-vars', 'run_worker_first', 'migrations_dir', '100%',
   'passkey_unlock_unavailable',
@@ -91,6 +93,19 @@ for (const phrase of [
   for (const file of ['docs/cloudflare-deployment.zh-CN.md', 'docs/cloudflare-deployment.en.md']) {
     if (contents.has(file) && !contents.get(file).includes(phrase)) throw new Error(`${file}: missing deployment regression guard ${phrase}`);
   }
+}
+
+for (const [file, phrase] of [
+  ['README.md','当前`main`完整链至`0029`'],
+  ['README.en.md','currently through `0029`'],
+  ['docs/deployment.zh-CN.md','当前`main`全部迁移至`0029`'],
+  ['docs/deployment.en.md','current `main` chain through `0029`'],
+  ['docs/DEPLOYMENT.md','完整链至`0029_f3_r2_consistency.sql`'],
+  [`release-notes-v${pkg.version}.md`,'`0021`–`0028`'],
+  ['CHANGELOG.md','`0021`–`0028`'],
+  ['docs/RELEASE.md','combined deployment navigation pages remain in both archives'],
+]) {
+  if (!contents.get(file)?.includes(phrase)) throw new Error(`${file}: stale Cloudflare migration-chain entry point`);
 }
 
 for (const phrase of ['CLIENT_IP_HEADER', 'INVITE_CODE', 'PASSKEY_UNLOCK_KEK']) {
