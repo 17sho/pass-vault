@@ -24,7 +24,7 @@ A mobile-first, browser-encrypted, self-hosted open-source password vault.
 | Linux deployment | [Deployment guide](docs/server-deployment.en.md) | [部署指南](docs/server-deployment.zh-CN.md) |
 | API contract | [API](docs/API.md) | [API](docs/API.md) |
 | Local development and testing | [Development](docs/DEVELOPMENT.md) | [开发指南](docs/DEVELOPMENT.md) |
-| Security | [Security](SECURITY.md) | [安全设计](docs/SECURITY.md) |
+| Security | [Security](SECURITY.md) | [安全政策](SECURITY.md) |
 | Contributing | [Contributing](CONTRIBUTING.md) | [贡献指南](CONTRIBUTING.md) |
 
 ## Get a release
