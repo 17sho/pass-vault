@@ -4,149 +4,46 @@
 
 [中文](README.md) · [English](README.en.md)
 
-A mobile-first, self-hosted password vault with a zero-knowledge boundary by default. **The same browser frontend source is packaged separately into two independent deployments**: Cloudflare Workers + Static Assets + D1 + R2, or Linux Node.js + SQLite + local attachments. They do not depend on one hosted frontend instance and do not share accounts or production data. Optional server-assisted Passkey unlock explicitly changes the default security boundary.
+A mobile-first, browser-encrypted, self-hosted open-source password vault.
 
-> If this project helps you, a Star would mean a lot ❤️. Issues and improvements are welcome too.
+- Accounts, websites, secure notes, TOTP, attachments, and encrypted backups
+- Client-side WebCrypto encryption; master passwords and record plaintext are not uploaded in the default mode
+- Device quick unlock and optional server-assisted Passkey unlock
+- Cloudflare Workers + D1 + R2, or Linux + SQLite
+- Independent deployments with no shared accounts, sessions, or production data
 
-## Features
+> Server-assisted Passkey changes the default zero-knowledge boundary. Read the [architecture and security boundaries](docs/ARCHITECTURE.en.md) before deployment.
 
-- Account, website, secure-note, and TOTP records; TOTP secrets stay in the client-encrypted payload and the browser locally generates default six-digit codes that refresh every 30 seconds
-- An implicit “All” view plus independent encrypted custom groups for accounts, websites, notes, TOTP, and attachments, including empty-group persistence and combined group/fuzzy filtering
-- Bulk grouping, pinning, unpinning, and move-to-Trash within the current type, group, search result, and attachment-category scope; failed writes are compensated, and stale operations cannot continue through a newly signed-in account after lock or account switch
-- Tags, category and global fuzzy search, editing, pin ordering, recents, and an encrypted trash; Chinese fragments and Latin typos are matched entirely in the browser
-- Note images and a standalone attachment library with category/group filtering, preview/playback, download, rename, group moves, and deletion
-- Responsive desktop/mobile UI with no native client required
-- Encrypted backup import/export and master-password changes
-- Optional device quick unlock after an automatic lock using platform WebAuthn user verification (such as Face ID, Touch ID, or Windows Hello); enabled only when the browser supports the PRF extension, with the local ciphertext bound to the current account and session and the master password always retained as fallback
-- Optional server-assisted Passkey unlock: registration starts from an authenticated session; later, even with no existing session, an anonymous challenge plus platform user verification can recover a server-wrapped vault key and create a new session, changing the default zero-knowledge boundary described below
-- Authentication, sessions, CSRF protection, origin checks, and rate limiting
-- Server-side revision CAS and deletion tombstones for records and attachments, so stale pages receive explicit conflicts instead of silently overwriting or recreating data
-- One encrypted API contract with two independent deployment options
+## Quick links
 
-## Zero-knowledge architecture
-
-```text
-Master password (browser only)
-  └─ PBKDF2-SHA-256 (random salt, 310,000 iterations) → KEK
-       └─ unwraps a random AES-256-GCM vault key
-            ├─ each item/attachment metadata encrypted in browser → ciphertext envelope → backend
-            └─ each attachment encrypted with a unique IV + authenticated AAD → ciphertext object → R2/server disk
-```
-
-In the default mode, the server stores authentication material, a vault key protected by a master-password-derived key, encrypted item/attachment metadata envelopes, and encrypted attachment objects. It does not receive the master password or hold a server key that can independently recover the vault key. Enabling **server-assisted Passkey unlock** adds a copy of the vault key wrapped by a server KEK. After an anonymous Passkey challenge passes WebAuthn user verification, exact RP ID/Origin, credential ownership, and counter checks, the server can recover that vault key and create a new session. Server-assisted Passkey therefore changes the default zero-knowledge boundary, and a compromised server or frontend may be able to decrypt stored ciphertext. The master password is still never uploaded, and changing the master password or username revokes assisted credentials. No mode replaces a trusted endpoint, HTTPS, prompt updates, and tested backups.
-
-## Architecture: shared source, not a shared runtime or database
-
-“Shared frontend” means that `public/` is built into `dist/` once and then packaged into both Cloudflare and Linux artifacts. Each deployment serves its own static assets, handles its own API requests, and stores its own accounts and ciphertext. An outage on one target does not require browsers on the other target to load frontend assets from it.
-
-- **Architecture and boundaries**: **[中文](docs/ARCHITECTURE.zh-CN.md)** · [English](docs/ARCHITECTURE.en.md)
-- **Development guide**: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
-- **Encrypted API contract**: [`docs/API.md`](docs/API.md)
-
-## Cloudflare vs. Linux
-
-| | Cloudflare edition | Linux edition |
+| Topic | English | 中文 |
 |---|---|---|
-| Runtime | Workers + Static Assets | Node.js 22+ |
-| Database / attachment storage | D1 + R2 (R2 must be enabled and bound before using attachments) | SQLite + Linux server disk (attachments supported) |
-| Operations | Wrangler / Cloudflare Dashboard | systemd + Caddy/Nginx |
-| Best for | Serverless edge deployment | Full host and data-file control |
-| Data sync | **No automatic sync with Linux** | **No automatic sync with Cloudflare** |
+| Architecture, encryption, and Passkey boundaries | [Architecture](docs/ARCHITECTURE.en.md) | [架构说明](docs/ARCHITECTURE.zh-CN.md) |
+| Cloudflare deployment | [Deployment guide](docs/cloudflare-deployment.en.md) | [部署指南](docs/cloudflare-deployment.zh-CN.md) |
+| Linux deployment | [Deployment guide](docs/server-deployment.en.md) | [部署指南](docs/server-deployment.zh-CN.md) |
+| API contract | [API](docs/API.md) | [API](docs/API.md) |
+| Local development and testing | [Development](docs/DEVELOPMENT.md) | [开发指南](docs/DEVELOPMENT.md) |
+| Security | [Security](SECURITY.md) | [安全设计](docs/SECURITY.md) |
+| Contributing | [Contributing](CONTRIBUTING.md) | [贡献指南](CONTRIBUTING.md) |
 
-Accounts and data are independent. To migrate, export an **encrypted backup** from the source, create and unlock an account at the destination, then import it. Keep the source data until verification succeeds.
+## Get a release
 
-The Cloudflare edition has monthly application-level quotas to reduce R2 overage risk. The Linux edition does not use R2, so those monthly quotas do not apply; total capacity is governed by server storage and administrator configuration. The two editions do not need identical resource policies.
+Latest stable release: [**v2.2.0**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.0)
 
-## Screenshots
+Current public assets:
 
-These screenshots were generated in an isolated local environment with fictional `example.com` / `example.org` test data. They contain no production accounts, passwords, cookies, or real domains.
+- `pass-vault-v2-cloudflare-2.2.0.tar.gz`
+- `pass-vault-v2-cloudflare-2.2.0.zip`
+- `SHA256SUMS`
 
-### Desktop vault
+Verify downloads with `SHA256SUMS`. For Linux, install from source using the matching deployment guide.
 
-![Desktop vault interface](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-desktop.png)
+## Security note
 
-### Mobile vault
+This is security-sensitive software. Review the source and threat model before deployment, use HTTPS, and keep tested encrypted backups. The project has not undergone an independent third-party security audit.
 
-<img src="https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-mobile.png" alt="Mobile vault interface" width="390">
+Report vulnerabilities privately through [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new).
 
-### Security Center and Passkey
+If the project helps you, a Star is appreciated ⭐️.
 
-![Security Center and Passkey settings](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/security-center.png)
-
-## Local development preview (not a production server deployment)
-
-Prerequisites: Node.js 22+, npm, and a modern browser with WebCrypto.
-
-```bash
-git clone https://github.com/17sho/pass-vault-v2.git
-cd pass-vault-v2
-npm ci
-npm test
-npm run lint && npm run typecheck && npm run build
-INVITE_CODE='<16–256-character local-only test value>' COOKIE_SECURE=false HOST=127.0.0.1 PORT=3000 DB_PATH=./data/dev.sqlite npm start
-```
-
-Open `http://127.0.0.1:3000`. In the current release, `INVITE_CODE` is **required for registration**; missing or invalid configuration fails registration closed while existing users can still sign in. This value is only for local preview—never reuse it in production. `COOKIE_SECURE=false` is **only for local HTTP development**.
-
-## Deployment guides
-
-The deployment methods are independent. Choose the matching guide:
-
-- **Cloudflare deployment guide**: [中文](docs/cloudflare-deployment.zh-CN.md) · **[English](docs/cloudflare-deployment.en.md)** — Workers + Static Assets + D1 + R2, including Wrangler CLI and Dashboard. Attachments require R2 to be enabled first.
-- **Linux server deployment guide**: [中文](docs/server-deployment.zh-CN.md) · **[English](docs/server-deployment.en.md)** — VPS/dedicated-server Node.js + SQLite, systemd, Caddy/Nginx, backup and restore.
-
-### Obtain the current deployable version
-
-The latest stable release is [v2.2.0](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.0). Building on v2.1.0 custom records, it adds encrypted record/attachment history and a Recovery Center, Secure Share v2 (multiple records, attachments, optional passwords, and precise consumption policies), cross-tab favorite/pin state, and an independent Cloudflare Access-protected Admin Worker. The admin platform adds user/resource overviews, aggregate security events, maintenance tasks, four-dimensional quotas, quota alerts, risk filters, and non-sensitive quota audit history; the main Worker enforces quotas atomically on write paths. Release assets include isolated `pass-vault-v2-cloudflare-2.2.0.tar.gz` / `.zip` and `pass-vault-v2-linux-2.2.0.tar.gz` / `.zip`, plus `SHA256SUMS`. The Cloudflare package includes the main Worker, D1 migrations, and Admin Worker; both packages contain only their target runtime and sanitized placeholder configuration. Run `sha256sum -c SHA256SUMS` after downloading.
-
-> **Version boundary:** Release tags and assets remain immutable; `main` may contain documentation corrections made after the tag. Whether any third-party or self-hosted site has upgraded must be established from that deployment’s own release record and static-asset hashes, not inferred from GitHub’s Latest Release alone.
-
-> **Required before deployment:** securely configure `INVITE_CODE` for both production targets. Before an upgrade, record the pre-task version and a complete names-only configuration inventory, preserving plain vars, Secrets, resource bindings, routes, and triggers. Cloudflare must back up D1/R2 at one point, apply the complete pending chain (currently through `0029`), and retain Cron. Linux must back up SQLite plus attachments and retain the complete environment. Never clear/recreate the database or expose real invitation codes, resource IDs, or credentials in Git, arguments, screenshots, or logs.
-
-Workers, Static Assets, D1, R2 Standard, DNS, and SSL all have free tiers. The Cloudflare guide now documents D1/R2 allowances, conservative application R2 caps, account-wide shared-usage risk, Billing/Usage checks, and how to prevent Web Analytics auto-injection from conflicting with the vault CSP.
-
-The legacy combined deployment URL remains as a [short navigation page](docs/deployment.en.md) to avoid breaking external links.
-
-## Repository layout
-
-- `public/` — shared frontend and browser WebCrypto
-- `shared/` — encrypted API contract shared by both backends
-- `apps/worker/` — Cloudflare Worker, D1 migrations, and Wrangler config
-- `apps/server/` — Linux Node.js + SQLite backend
-- `scripts/` — build, validation, and migration tools
-- `deploy/` — systemd example
-- `tests/` — contract, backend, and UI tests
-- `docs/` — API and deployment documentation
-
-## Security warnings
-
-- This is security-sensitive software; review it and assess your threat model before deployment.
-- A forgotten master password cannot be recovered without a usable backup.
-- Use production instances only over HTTPS; protect the host, Cloudflare account, and backups.
-- Never commit databases, backups, `.env`, real domains, account IDs, or secrets.
-- Verify backup provenance; keep multiple encrypted copies and test restoration.
-- Report vulnerabilities privately through [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new), not in public issues.
-
-## FAQ
-
-**Do the Cloudflare and Linux editions synchronize?**  No. They are independent backends sharing a frontend and contract.
-
-**Can the server read item plaintext?**  In the default mode, the server has no independent material for recovering the vault key and encryption occurs in the browser, although a compromised frontend or endpoint can still read unlocked data. With server-assisted Passkey enabled, the server holds a KEK and an additional wrapped key and can recover the vault key and create a new session after anonymous Passkey authentication succeeds; this expands the impact of a server compromise.
-
-**Can my master password be recovered?**  No. Store it safely and maintain tested encrypted backups.
-
-**How do I migrate between editions?**  Export an encrypted backup at the source, then register/sign in, unlock, and import at the destination. Accounts are not copied automatically.
-
-**Should I expose `npm start` directly in production?**  No. Use a dedicated user, systemd, loopback binding, and an HTTPS Caddy/Nginx reverse proxy.
-
-## Contributing
-
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). Before submitting, run:
-
-```bash
-npm test && npm run lint && npm run typecheck && npm run build
-```
-
-## License
-
-This project is open source under the [MIT License](LICENSE). You may use, modify, and redistribute it while retaining the license and copyright notice.
+[MIT License](LICENSE)

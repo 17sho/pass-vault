@@ -31,12 +31,13 @@ for (const file of guideCandidates) {
     // Platform-specific release archives intentionally omit the other backend's guide.
   }
 }
+const deploymentGuides = guides.filter(file => !['README.md', 'README.en.md'].includes(file));
 const markdown = [...guides, 'CHANGELOG.md', 'docs/RELEASE.md', `release-notes-v${pkg.version}.md`];
 const contents = new Map();
 for (const file of markdown) {
   const text = await readFile(resolve(root, file), 'utf8');
   contents.set(file, text);
-  if (guides.includes(file) && !text.includes('INVITE_CODE')) throw new Error(`${file}: missing INVITE_CODE requirement`);
+  if (deploymentGuides.includes(file) && !text.includes('INVITE_CODE')) throw new Error(`${file}: missing INVITE_CODE requirement`);
   // Documentation may show placeholders and generation commands, but never a literal usable assignment.
   if (/INVITE_CODE\s*=\s*["']?[A-Za-z0-9_-]{16,256}["']?(?:\s|$)/m.test(text)) {
     throw new Error(`${file}: possible literal invitation value`);
@@ -53,7 +54,7 @@ for (const [file, text] of contents) {
 }
 for (const file of ['README.md', 'README.en.md']) {
   const text = contents.get(file);
-  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, `pass-vault-v2-linux-${pkg.version}.tar.gz`, 'SHA256SUMS']) {
+  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, 'SHA256SUMS']) {
     if (!text.includes(required)) throw new Error(`${file}: missing current release reference ${required}`);
   }
   if (text.includes('latest stable release (v1.1.59)') || text.includes('最新稳定版（v1.1.59）')) {
@@ -61,8 +62,8 @@ for (const file of ['README.md', 'README.en.md']) {
   }
 }
 for (const [file, required] of [
-  ['README.md', ['服务器辅助 Passkey 会改变默认零知识边界', '服务器或前端失陷时可能导致已存密文被解密', '服务器 KEK 包装的 vault key', '主密码仍不上传', '匿名 Passkey 认证成功后恢复 vault key、创建新会话']],
-  ['README.en.md', ['Server-assisted Passkey therefore changes the default zero-knowledge boundary', 'a compromised server or frontend may be able to decrypt stored ciphertext', 'vault key wrapped by a server KEK', 'master password is still never uploaded', 'anonymous Passkey authentication succeeds']],
+  ['README.md', ['服务器辅助 Passkey 会改变默认零知识边界', '默认模式下，主密码与资料明文不上传', '项目尚未经过独立第三方安全审计']],
+  ['README.en.md', ['Server-assisted Passkey changes the default zero-knowledge boundary', 'master passwords and record plaintext are not uploaded in the default mode', 'has not undergone an independent third-party security audit']],
 ]) {
   const text = contents.get(file);
   for (const disclosure of required) {
@@ -96,8 +97,6 @@ for (const phrase of [
 }
 
 for (const [file, phrase] of [
-  ['README.md','当前`main`完整链至`0029`'],
-  ['README.en.md','currently through `0029`'],
   ['docs/deployment.zh-CN.md','当前`main`全部迁移至`0029`'],
   ['docs/deployment.en.md','current `main` chain through `0029`'],
   ['docs/DEPLOYMENT.md','完整链至`0029_f3_r2_consistency.sql`'],
