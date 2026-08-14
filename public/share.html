@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#090d12" media="(prefers-color-scheme:dark)">
   <title>安全分享 · PassVault</title>
   <link rel="stylesheet" href="/style.css?v=2.1.0-full-audit-v1">
-  <link rel="stylesheet" href="/share-page.css?v=2.2.0-share-main-logo-v1">
+  <link rel="stylesheet" href="/share-page.css?v=2.2.0-share-unlock-v2">
 </head>
 <body class="share-view-page">
   <main class="share-view-shell" aria-labelledby="share-view-title">
@@ -20,11 +20,17 @@
     <section class="share-view-gate" aria-label="解锁安全分享">
       <div class="share-view-gate-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg></div>
       <p id="share-view-status" class="share-view-state" role="status" aria-live="polite">正在验证并解密…</p>
-      <form id="share-unlock-form" class="share-unlock" hidden><label><span>分享密码</span><input id="share-unlock-password" type="password" autocomplete="current-password" placeholder="输入分享密码" required></label><p id="share-unlock-error" role="alert"></p><button type="submit" class="primary">解锁分享</button></form>
+      <p id="share-view-hint" class="share-view-hint" hidden>分享内容已加密，密码只在此设备中用于解锁，不会发送到服务器。</p>
+      <form id="share-unlock-form" class="share-unlock" hidden>
+        <label for="share-unlock-password">分享密码</label>
+        <div class="share-password-field"><input id="share-unlock-password" type="password" autocomplete="current-password" enterkeyhint="go" placeholder="输入分享密码" required><button id="share-password-toggle" type="button" class="share-password-toggle" aria-pressed="false" aria-label="显示分享密码">显示</button></div>
+        <p id="share-unlock-error" role="alert"></p>
+        <button id="share-unlock-submit" type="submit" class="primary"><span>解锁分享</span><span class="share-unlock-spinner" aria-hidden="true"></span></button>
+      </form>
     </section>
     <div id="share-view-content" class="share-view-content" hidden></div>
     <p class="share-view-footnote">内容仅在当前浏览器中解密。离开页面后，请使用原链接重新打开。</p>
   </main>
-  <script type="module" src="/share-view.mjs?v=2.1.0-full-audit-v1"></script>
+  <script type="module" src="/share-view.mjs?v=2.2.0-share-unlock-v2"></script>
 </body>
 </html>
