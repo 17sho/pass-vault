@@ -18,6 +18,7 @@ A mobile-first, browser-encrypted, self-hosted open-source password vault.
 
 | Topic | English | 中文 |
 |---|---|---|
+| Main features and platform scope | [Features](docs/FEATURES.en.md) | [功能介绍](docs/FEATURES.zh-CN.md) |
 | Architecture, encryption, and Passkey boundaries | [Architecture](docs/ARCHITECTURE.en.md) | [架构说明](docs/ARCHITECTURE.zh-CN.md) |
 | Cloudflare deployment | [Deployment guide](docs/cloudflare-deployment.en.md) | [部署指南](docs/cloudflare-deployment.zh-CN.md) |
 | Linux deployment | [Deployment guide](docs/server-deployment.en.md) | [部署指南](docs/server-deployment.zh-CN.md) |

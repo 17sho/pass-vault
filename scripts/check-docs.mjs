@@ -32,7 +32,7 @@ for (const file of guideCandidates) {
   }
 }
 const deploymentGuides = guides.filter(file => !['README.md', 'README.en.md'].includes(file));
-const markdown = [...guides, 'CHANGELOG.md', 'docs/RELEASE.md', `release-notes-v${pkg.version}.md`];
+const markdown = [...guides, 'docs/FEATURES.zh-CN.md', 'docs/FEATURES.en.md', 'CHANGELOG.md', 'docs/RELEASE.md', `release-notes-v${pkg.version}.md`];
 const contents = new Map();
 for (const file of markdown) {
   const text = await readFile(resolve(root, file), 'utf8');

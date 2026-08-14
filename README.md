@@ -18,12 +18,13 @@
 
 | 需要了解 | 中文 | English |
 |---|---|---|
+| 主要功能与平台范围 | [功能介绍](docs/FEATURES.zh-CN.md) | [Features](docs/FEATURES.en.md) |
 | 架构、加密与 Passkey 边界 | [架构说明](docs/ARCHITECTURE.zh-CN.md) | [Architecture](docs/ARCHITECTURE.en.md) |
 | Cloudflare 部署 | [部署指南](docs/cloudflare-deployment.zh-CN.md) | [Deployment guide](docs/cloudflare-deployment.en.md) |
 | Linux 部署 | [部署指南](docs/server-deployment.zh-CN.md) | [Deployment guide](docs/server-deployment.en.md) |
 | API 契约 | [API](docs/API.md) | [API](docs/API.md) |
 | 本地开发与测试 | [开发指南](docs/DEVELOPMENT.md) | [Development](docs/DEVELOPMENT.md) |
-| 安全说明 | [安全设计](docs/SECURITY.md) | [Security](SECURITY.md) |
+| 安全说明 | [安全政策](SECURITY.md) | [Security](SECURITY.md) |
 | 贡献 | [贡献指南](CONTRIBUTING.md) | [Contributing](CONTRIBUTING.md) |
 
 ## 获取版本
