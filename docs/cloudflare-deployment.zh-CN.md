@@ -4,7 +4,7 @@
 
 本指南覆盖当前 `main` 的首次部署、生产升级、备份、恢复、回滚和验收。请把所有 `<...>` 替换为自己的值；不得把真实域名、账户/数据库 ID、bucket 名、token、邀请码、KEK、生产备份或私有配置提交到公开仓库。
 
-> **版本说明：** GitHub `v2.2.0` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复及 `0014`–`0016` revision CAS/tombstone 迁移。
+> **版本说明：** GitHub `v2.2.1` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复及 `0014`–`0016` revision CAS/tombstone 迁移。
 
 ## 1. 架构、要求与安全边界
 
@@ -48,22 +48,22 @@ npm run build
 
 所有命令必须自然退出0。不要用被中止、超时或旧提交的测试结果代替当前门禁。
 
-### 2.2 v2.2.0 Cloudflare 制品
+### 2.2 v2.2.1 Cloudflare 制品
 
 本Release的Cloudflare资产包括：
 
-- `pass-vault-v2-cloudflare-2.2.0.tar.gz`
-- `pass-vault-v2-cloudflare-2.2.0.zip`
+- `pass-vault-v2-cloudflare-2.2.1.tar.gz`
+- `pass-vault-v2-cloudflare-2.2.1.zip`
 - `SHA256SUMS`
 
 ```bash
-VERSION=2.2.0
+VERSION=2.2.1
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 
-校验必须显示`OK`。该包包含v2.2.0 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
+校验必须显示`OK`。该包包含v2.2.1 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
 
 ## 3. 配置模型：公共模板与生产私有配置
 
@@ -155,7 +155,7 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' | \
 
 ### 4.3 应用完整迁移链
 
-迁移账本位于`apps/worker/migrations/`。当前`main`首次部署应按账本应用`0001`到`0029`；升级只应用待执行项：
+迁移账本位于`apps/worker/migrations/`。当前`main`首次部署应按账本应用`0001`到`0034`（包含`0034_admin_control_center.sql`）；升级只应用待执行项：
 
 ```bash
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
@@ -176,7 +176,8 @@ npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION
 - `0016_revision_tombstones.sql`：删除/恢复后保持revision单调递增，防止ABA；
 - `0027_reset_user_quota_audit.sql`：在配额结构升级后重置旧配额审计状态；
 - `0028_admin_quota_history_index.sql`：增加Admin配额历史查询索引；
-- `0029_f3_r2_consistency.sql`：回填R2生命周期归属、重建带用户归属的历史清理触发器，并增加维护/备份租约。
+- `0029_f3_r2_consistency.sql`：回填R2生命周期归属、重建带用户归属的历史清理触发器，并增加维护/备份租约；
+- `0034_admin_control_center.sql`：扩展管理员审计与安全事件约束，增加用户封禁、通知、维护报告和候选项表。此迁移必须先于主 Worker 与 Admin Worker 新代码部署。
 
 ### 4.4 Dry-run与部署
 

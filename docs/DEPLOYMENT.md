@@ -27,7 +27,7 @@ git diff --check
 
 ## 2. 版本与Release资产真实性
 
-- 当前`v2.2.0` Release资产保持不可变，仅包含该tag当时的迁移；当前`main`候选包含完整迁移链至`0029_f3_r2_consistency.sql`，部署当前main必须在两个Worker之前应用并确认所有待处理迁移（包括`0029`）。
+- 当前`v2.2.0` Release资产保持不可变，仅包含该tag当时的迁移；当前`main`候选包含完整迁移链至`0034_admin_control_center.sql`，部署当前main必须在两个Worker之前应用并确认所有待处理迁移（包括`0034`）。
 - Linux可使用v2.2.0 Linux制品，或从同一tag/已审核main提交构建。
 - 不移动旧tag、不替换Release资产、不在文档中提供不存在的下载文件名。
 - 新部署和生产升级优先使用当前`main`的明确commit SHA，并在部署前审核diff。
@@ -57,7 +57,7 @@ Wrangler普通deploy默认删除旧plain vars后只写配置中的`vars`；Secre
 2. 复制全部R2对象到独立版本化备份bucket，保存key/size/checksum清单；
 3. 把备份放在仓库外并异地保存；
 4. 运行`d1 migrations list`；
-5. 按账本应用全部待执行迁移，当前`main`完整链至`0029_f3_r2_consistency.sql`；
+5. 按账本应用全部待执行迁移，当前`main`完整链至`0034_admin_control_center.sql`；
 6. 再次list并确认无pending。
 
 不能只备份D1，不能跳过R2，也不能重写已执行migration。

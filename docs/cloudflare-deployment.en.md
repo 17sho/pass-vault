@@ -4,7 +4,7 @@
 
 This guide covers first deployment, production upgrades, backup, restore, rollback, and acceptance checks for current `main`. Replace every `<...>` placeholder. Never commit real domains, account/database IDs, bucket names, tokens, invitation codes, KEKs, production backups, or private deployment configuration to the public repository.
 
-> **Version note:** the Cloudflare archives attached to GitHub Release `v2.2.0` contain the complete code through that tag, including R2 lifecycle migrations `0011`–`0013` and revision CAS/tombstone migrations `0014`–`0016`.
+> **Version note:** the Cloudflare archives attached to GitHub Release `v2.2.1` contain the complete code through that tag, including R2 lifecycle migrations `0011`–`0013` and revision CAS/tombstone migrations `0014`–`0016`.
 
 ## 1. Architecture, requirements, and trust boundary
 
@@ -48,22 +48,22 @@ npm run build
 
 Every command must naturally exit 0. Do not substitute interrupted, timed-out, or older-commit results.
 
-### 2.2 v2.2.0 Cloudflare artifacts
+### 2.2 v2.2.1 Cloudflare artifacts
 
 The Cloudflare assets in this Release are:
 
-- `pass-vault-v2-cloudflare-2.2.0.tar.gz`
-- `pass-vault-v2-cloudflare-2.2.0.zip`
+- `pass-vault-v2-cloudflare-2.2.1.tar.gz`
+- `pass-vault-v2-cloudflare-2.2.1.zip`
 - `SHA256SUMS`
 
 ```bash
-VERSION=2.2.0
+VERSION=2.2.1
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 
-The check must report `OK`. The package contains the complete Cloudflare code through tag `v2.2.0`; still inspect and apply every pending migration during upgrades.
+The check must report `OK`. The package contains the complete Cloudflare code through tag `v2.2.1`; still inspect and apply every pending migration during upgrades.
 
 ## 3. Configuration model: public template vs. private production config
 
@@ -155,7 +155,7 @@ Do not enable `set -x`, use `echo 'real-value'`, or expose values in arguments, 
 
 ### 4.3 Apply the complete migration chain
 
-The migration ledger is in `apps/worker/migrations/`. A first deployment from current `main` applies entries `0001` through `0029`; an upgrade applies only pending entries:
+The migration ledger lives in `apps/worker/migrations/`. A fresh deployment of current `main` must apply `0001` through `0034` (including `0034_admin_control_center.sql`); upgrades apply only pending migrations:
 
 ```bash
 npx wrangler d1 migrations list <D1_DATABASE_NAME> --remote --config <PRODUCTION_CONFIG>
@@ -176,7 +176,8 @@ The final command must show no pending migration. Add a new migration for each s
 - `0016_revision_tombstones.sql`: monotonic revisions across delete/restore cycles to prevent ABA;
 - `0027_reset_user_quota_audit.sql`: resets stale quota audit state after quota-schema upgrades;
 - `0028_admin_quota_history_index.sql`: adds the Admin quota-history lookup index;
-- `0029_f3_r2_consistency.sql`: backfills R2 lifecycle ownership, recreates attribution-aware pruning, and adds maintenance/backup leases.
+- `0029_f3_r2_consistency.sql`: backfills R2 lifecycle ownership, recreates attribution-aware pruning, and adds maintenance/backup leases;
+- `0034_admin_control_center.sql`: extends Admin audit and security-event constraints and adds user suspension, notification, maintenance-report, and candidate tables. Apply it before deploying the new main Worker and Admin Worker code.
 
 ### 4.4 Dry-run and deploy
 

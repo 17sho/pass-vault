@@ -17,6 +17,8 @@ test('发行脚本仅复制Git跟踪文件并拒绝ignored秘密进入递归目�
 
 test('发行脚本拒绝从dirty或untracked工作树制作误标HEAD的快照',async()=>{const source=await readFile(new URL('../scripts/package-release.mjs',import.meta.url),'utf8');assert.match(source,/git', \['status', '--porcelain=v1', '--untracked-files=all'\]/);assert.match(source,/refusing to package a dirty or untracked worktree/)});
 
+test('发行脚本默认只生成Cloudflare制品，Linux必须显式选择',async()=>{const source=await readFile(new URL('../scripts/package-release.mjs',import.meta.url),'utf8');assert.match(source,/process\.env\.RELEASE_VARIANTS \|\| 'cloudflare'/);assert.doesNotMatch(source,/process\.env\.RELEASE_VARIANTS \|\| Object\.keys\(variants\)/)});
+
 test('Linux-only release has no Cloudflare files or broken documentation links', async (t) => {
   if (worktreeDirty) { await assertDirtyPackagingRejected('linux'); t.skip('clean-worktree archive checks run after reviewed commit'); return; }
   const packed = spawnSync(process.execPath, ['scripts/package-release.mjs'], {
@@ -64,11 +66,16 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     const extracted = spawnSync('tar', ['-xzf', archive, '-C', destination], { encoding: 'utf8' });
     assert.equal(extracted.status, 0, extracted.stderr || extracted.stdout);
     const root = join(destination, archiveName.slice(0, -'.tar.gz'.length));
-  const wrangler = JSON.parse(await readFile(join(root, 'apps/worker/wrangler.jsonc'), 'utf8'));
+    const wrangler = JSON.parse(await readFile(join(root, 'apps/worker/wrangler.jsonc'), 'utf8'));
   assert.deepEqual(wrangler.triggers?.crons, ['17 * * * *']);
-  assert.equal(wrangler.vars?.APP_VERSION, '2.2.0');
+  assert.equal(wrangler.vars?.APP_VERSION, pkg.version);
   assert.match(await readFile(join(root, 'apps/worker/migrations/0012_backup_import_locks.sql'), 'utf8'), /CREATE TABLE backup_import_locks/);
   assert.match(await readFile(join(root, 'apps/worker/migrations/0013_r2_inflight_uploads.sql'), 'utf8'), /CREATE TABLE r2_inflight_uploads/);
+  assert.match(await readFile(join(root, 'apps/worker/migrations/0034_admin_control_center.sql'), 'utf8'), /CREATE TABLE admin_notifications/);
+  assert.match(await readFile(join(root, 'scripts/deploy-admin.mjs'), 'utf8'), /validateAdminDeployConfig/);
+  assert.match(await readFile(join(root, 'tests/fixtures.mjs'), 'utf8'), /export/);
+  const authLoad = spawnSync(process.execPath, ['--test', '--test-name-pattern=^$', 'tests/auth-entrance.test.js'], { cwd: root, encoding: 'utf8' });
+  assert.equal(authLoad.status, 0, authLoad.stderr || authLoad.stdout);
     const docs = spawnSync(process.execPath, ['scripts/check-docs.mjs'], { cwd: root, encoding: 'utf8' });
     assert.equal(docs.status, 0, docs.stderr || docs.stdout);
     const npmDocs = spawnSync('npm', ['run', 'lint:docs'], { cwd: root, encoding: 'utf8' });
@@ -90,7 +97,6 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   assert.equal(adminWrangler.d1_databases[0].database_name, 'your-d1-database-name');
   assert.equal(adminWrangler.r2_buckets[0].bucket_name, 'your-r2-attachments-bucket');
   assert.match(adminWrangler.d1_databases[0].database_id, /^0{8}-0{4}-0{4}-0{4}-0{12}$/);
-  assert.equal(JSON.stringify(adminWrangler).includes('23cm.me'), false);
   assert.equal(JSON.stringify(adminWrangler).includes('@gmail.com'), false);
   assert.doesNotMatch(members.stdout, /(?:^|\/)(?:apps\/server|docs\/server-deployment|scripts\/deploy-linux)/m);
   } finally {

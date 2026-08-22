@@ -1,5 +1,5 @@
 import { decryptSharedSnapshot, parseShareFragment } from '/share-crypto.mjs?v=2.1.0-full-audit-v1';
-import { parseShareV2Fragment, decryptSharePackageV2, packageKeyFromFragment, decryptShareObjectV2 } from '/recovery-share-core.mjs?v=2.2.0';
+import { parseShareV2Fragment, decryptSharePackageV2, packageKeyFromFragment, decryptShareObjectV2 } from '/recovery-share-core.mjs?v=2.2.1';
 
 const status=document.querySelector('#share-view-status'),hint=document.querySelector('#share-view-hint'),content=document.querySelector('#share-view-content'),title=document.querySelector('#share-view-title'),unlock=document.querySelector('#share-unlock-form'),unlockError=document.querySelector('#share-unlock-error'),passwordInput=document.querySelector('#share-unlock-password'),passwordToggle=document.querySelector('#share-password-toggle'),unlockSubmit=document.querySelector('#share-unlock-submit');
 const typeNames={account:'账号',website:'网站',note:'笔记',totp:'TOTP',custom:'自定义资料',attachment:'附件'};

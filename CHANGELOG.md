@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.2.1
+
+- Cloudflare Admin adds user suspension, privacy-aggregated security events, deduplicated notifications, bounded D1/R2 maintenance, and allowlisted JSON/CSV export.
+- Main Worker fails closed for suspended users across password, Passkey, established-session, registration-finalization, and attachment-compensation paths.
+- Adds `0034_admin_control_center.sql` and hardened maintenance/reporting audit contracts.
+- Improves Cloudflare login typography for 14/16px readable text hierarchy.
+- Cloudflare-only release; Linux archives are not produced or published. Shared frontend files remain compatible with the Linux build, but the Linux runtime was not released or production-verified in this cycle.
+
 ## v2.2.0
 
 ### Added / 新增

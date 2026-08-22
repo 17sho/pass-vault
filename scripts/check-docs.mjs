@@ -86,7 +86,7 @@ for (const phrase of [
   '0013_r2_inflight_uploads.sql', '0014_entries_revision.sql',
   '0015_attachments_revision.sql', '0016_revision_tombstones.sql',
   '0027_reset_user_quota_audit.sql', '0028_admin_quota_history_index.sql',
-  '0029_f3_r2_consistency.sql', '0001`–`0029',
+  '0029_f3_r2_consistency.sql', '0034_admin_control_center.sql',
   '17 * * * *', 'workers_dev',
   '--keep-vars', 'run_worker_first', 'migrations_dir', '100%',
   'passkey_unlock_unavailable',
@@ -97,10 +97,10 @@ for (const phrase of [
 }
 
 for (const [file, phrase] of [
-  ['docs/deployment.zh-CN.md','当前`main`全部迁移至`0029`'],
-  ['docs/deployment.en.md','current `main` chain through `0029`'],
-  ['docs/DEPLOYMENT.md','完整链至`0029_f3_r2_consistency.sql`'],
-  [`release-notes-v${pkg.version}.md`,'`0021`–`0028`'],
+  ['docs/deployment.zh-CN.md','当前`main`全部迁移至`0034`'],
+  ['docs/deployment.en.md','current `main` chain through `0034`'],
+  ['docs/DEPLOYMENT.md','完整链至`0034_admin_control_center.sql`'],
+  [`release-notes-v${pkg.version}.md`,'`0034_admin_control_center.sql`'],
   ['CHANGELOG.md','`0021`–`0028`'],
   ['docs/RELEASE.md','combined deployment navigation pages remain in both archives'],
 ]) {
