@@ -84,6 +84,8 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     assert.equal(members.status, 0, members.stderr || members.stdout);
   assert.match(members.stdout, /apps\/admin-worker\/src\/index\.ts/);
   for (const modulePath of [
+    'apps/worker/src/request-utils.ts',
+    'public/pinned-order.mjs',
     'apps/admin-worker/src/access-auth.ts',
     'apps/admin-worker/src/runtime.ts',
     'apps/admin-worker/src/ui/page.ts',
