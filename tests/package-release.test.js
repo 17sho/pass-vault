@@ -83,6 +83,16 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     const members = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
     assert.equal(members.status, 0, members.stderr || members.stdout);
   assert.match(members.stdout, /apps\/admin-worker\/src\/index\.ts/);
+  for (const modulePath of [
+    'apps/admin-worker/src/access-auth.ts',
+    'apps/admin-worker/src/runtime.ts',
+    'apps/admin-worker/src/ui/page.ts',
+    'apps/admin-worker/src/ui/style.ts',
+    'apps/admin-worker/src/ui/script.ts',
+  ]) {
+    assert.match(members.stdout, new RegExp(modulePath.replaceAll('/', '\\/').replace('.', '\\.')));
+    await readFile(join(root, modulePath), 'utf8');
+  }
   assert.match(members.stdout, /apps\/admin-worker\/wrangler\.jsonc/);
   const adminWrangler = JSON.parse(await readFile(join(root, 'apps/admin-worker/wrangler.jsonc'), 'utf8'));
   assert.equal(adminWrangler.workers_dev, false);
