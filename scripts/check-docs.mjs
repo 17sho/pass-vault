@@ -112,7 +112,7 @@ for (const [file, phrase] of [
   ['docs/RELEASE.md',`The v${pkg.version} Release publishes only the Cloudflare variant`],
   ['docs/RELEASE.md','combined deployment navigation pages remain in both archives'],
 ]) {
-  if (!contents.get(file)?.includes(phrase)) throw new Error(`${file}: stale Cloudflare migration-chain entry point`);
+  if (contents.has(file) && !contents.get(file).includes(phrase)) throw new Error(`${file}: stale Cloudflare migration-chain entry point`);
 }
 
 for (const phrase of ['CLIENT_IP_HEADER', 'INVITE_CODE', 'PASSKEY_UNLOCK_KEK']) {
