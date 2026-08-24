@@ -5,7 +5,7 @@ const root = resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const versionedAssets = new Map([
   ['public/index.html', ['/theme-init.js', '/style.css', '/app-shell.css', '/app.mjs']],
-  ['public/app.mjs', ['/quick-unlock-device.mjs', '/passkey-assisted-device.mjs', '/history-diff.mjs', '/pinned-order.mjs']],
+  ['public/app.mjs', ['/quick-unlock-device.mjs', '/passkey-assisted-device.mjs', '/history-diff.mjs', '/pinned-order.mjs', '/dialog-ui.mjs']],
 ]);
 for (const [file, assets] of versionedAssets) {
   const text = await readFile(resolve(root, file), 'utf8');

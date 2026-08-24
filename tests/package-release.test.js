@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+
+for (const entry of ['public/app.mjs', 'public/dialog-ui.mjs']) {
+  execFileSync(process.execPath, ['--check', entry], { stdio: 'pipe' });
+}
 
 const worktreeDirty = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { encoding: 'utf8' }).stdout.trim().length > 0;
 
@@ -86,6 +90,7 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   for (const modulePath of [
     'apps/worker/src/request-utils.ts',
     'public/pinned-order.mjs',
+    'public/dialog-ui.mjs',
     'apps/admin-worker/src/access-auth.ts',
     'apps/admin-worker/src/runtime.ts',
     'apps/admin-worker/src/ui/page.ts',
