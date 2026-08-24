@@ -102,6 +102,8 @@ for (const [file, phrase] of [
   ['docs/DEPLOYMENT.md','完整链至`0034_admin_control_center.sql`'],
   [`release-notes-v${pkg.version}.md`,'`0034_admin_control_center.sql`'],
   ['CHANGELOG.md','`0021`–`0028`'],
+  ['docs/DEPLOYMENT.md',`当前\`v${pkg.version}\` Cloudflare Release资产`],
+  ['docs/DEPLOYMENT.md',`v${pkg.version} 不提供 Linux Release 归档`],
   ['docs/RELEASE.md','combined deployment navigation pages remain in both archives'],
 ]) {
   if (!contents.get(file)?.includes(phrase)) throw new Error(`${file}: stale Cloudflare migration-chain entry point`);

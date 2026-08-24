@@ -78,6 +78,19 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   assert.match(await readFile(join(root, 'apps/worker/migrations/0034_admin_control_center.sql'), 'utf8'), /CREATE TABLE admin_notifications/);
   assert.match(await readFile(join(root, 'scripts/deploy-admin.mjs'), 'utf8'), /validateAdminDeployConfig/);
   assert.match(await readFile(join(root, 'tests/fixtures.mjs'), 'utf8'), /export/);
+  for (const testPath of [
+    'tests/admin-module-boundaries.test.js',
+    'tests/cloudflare-core-module-boundaries.test.js',
+    'tests/cloudflare-frontend-dead-code.test.js',
+    'tests/cloudflare-module-architecture.test.js',
+    'tests/cloudflare-render-performance.test.js',
+    'tests/cloudflare-safe-utils-boundaries.test.js',
+    'tests/dialog-ui-module.test.js',
+    'tests/password-generator-module.test.js',
+    'tests/production-assets.test.js',
+    'tests/package-release.test.js',
+    'tests/ui.test.js',
+  ]) await readFile(join(root, testPath), 'utf8');
   const authLoad = spawnSync(process.execPath, ['--test', '--test-name-pattern=^$', 'tests/auth-entrance.test.js'], { cwd: root, encoding: 'utf8' });
   assert.equal(authLoad.status, 0, authLoad.stderr || authLoad.stdout);
     const docs = spawnSync(process.execPath, ['scripts/check-docs.mjs'], { cwd: root, encoding: 'utf8' });
