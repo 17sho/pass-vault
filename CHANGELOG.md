@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.2.2
+
+- Refactors the Cloudflare core Worker and Admin Worker into clearer runtime, HTTP, authentication, and UI module boundaries without adding deployment targets.
+- Extracts low-coupling browser domains for dialog helpers and password generation while preserving existing UI, API, and cryptographic behavior.
+- Replaces repeated list-animation `indexOf` lookups with linear map indexing and adds a regression gate.
+- Stabilizes WebKit dialog geometry tests at animation completion and tightens final geometry tolerance to 1px.
+- Adds repository-wide module, dependency-cycle, syntax, cache-identity, build-closure, release-membership, and dead-code gates.
+- Removes an unreferenced legacy visibility SVG factory.
+- Requires no new D1 migration from v2.2.1.
+
 ## v2.2.1
 
 - Cloudflare Admin adds user suspension, privacy-aggregated security events, deduplicated notifications, bounded D1/R2 maintenance, and allowlisted JSON/CSV export.
