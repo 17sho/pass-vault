@@ -6,6 +6,7 @@ import * as requestUtils from '../apps/worker/src/request-utils.ts';
 import * as pinnedOrder from '../public/pinned-order.mjs';
 import * as historyDiff from '../public/history-diff.mjs';
 import * as dialogUi from '../public/dialog-ui.mjs';
+import * as passwordGenerator from '../public/password-generator.mjs';
 import * as httpHelpers from '../apps/worker/src/http.ts';
 import { SECURITY_HEADERS, json, asset, error } from '../apps/worker/src/http.ts';
 
@@ -28,6 +29,7 @@ test('纯辅助模块锁定最小导出集合且禁止浏览器、数据库、R2
   assert.deepEqual(Object.keys(pinnedOrder), ['pinnedFirst']);
   assert.deepEqual(Object.keys(historyDiff).sort(), ['businessHistoryChanges','historyValue']);
   assert.deepEqual(Object.keys(dialogUi).sort(), ['COMPACT_DIALOG_IDS','clearCompactDialogSize','dialogSafeInitialFocus','dialogTextEntry','sizeCompactDialog','syncDialogScrollLock']);
+  assert.deepEqual(Object.keys(passwordGenerator).sort(), ['PASSWORD_POOLS','generatePassword']);
   assert.deepEqual(Object.keys(httpHelpers).sort(), ['SECURITY_HEADERS','asset','error','json']);
   const [requests, pinned, history] = await Promise.all([
     source('../apps/worker/src/request-utils.ts'),

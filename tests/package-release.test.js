@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 
-for (const entry of ['public/app.mjs', 'public/dialog-ui.mjs']) {
+for (const entry of ['public/app.mjs', 'public/dialog-ui.mjs', 'public/password-generator.mjs']) {
   execFileSync(process.execPath, ['--check', entry], { stdio: 'pipe' });
 }
 
@@ -91,6 +91,7 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     'apps/worker/src/request-utils.ts',
     'public/pinned-order.mjs',
     'public/dialog-ui.mjs',
+    'public/password-generator.mjs',
     'apps/admin-worker/src/access-auth.ts',
     'apps/admin-worker/src/runtime.ts',
     'apps/admin-worker/src/ui/page.ts',
