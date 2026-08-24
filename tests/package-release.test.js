@@ -88,8 +88,8 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     'tests/password-generator-module.test.js',
     'tests/production-assets.test.js',
   ]) await readFile(join(root, testPath), 'utf8');
-  const authLoad = spawnSync(process.execPath, ['--test', '--test-name-pattern=^$', 'tests/auth-entrance.test.js'], { cwd: root, encoding: 'utf8' });
-  assert.equal(authLoad.status, 0, authLoad.stderr || authLoad.stdout);
+  const workerLoad = spawnSync(process.execPath, ['--test', '--test-name-pattern=^$', 'tests/worker.test.js'], { cwd: root, encoding: 'utf8' });
+  assert.equal(workerLoad.status, 0, workerLoad.stderr || workerLoad.stdout);
     const docs = spawnSync(process.execPath, ['scripts/check-docs.mjs'], { cwd: root, encoding: 'utf8' });
     assert.equal(docs.status, 0, docs.stderr || docs.stdout);
     const npmDocs = spawnSync('npm', ['run', 'lint:docs'], { cwd: root, encoding: 'utf8' });
