@@ -104,6 +104,12 @@ for (const [file, phrase] of [
   ['CHANGELOG.md','`0021`–`0028`'],
   ['docs/DEPLOYMENT.md',`当前\`v${pkg.version}\` Cloudflare Release资产`],
   ['docs/DEPLOYMENT.md',`v${pkg.version} 不提供 Linux Release 归档`],
+  ['docs/FEATURES.zh-CN.md',`当前 v${pkg.version} GitHub Release 不提供 Linux 下载包`],
+  ['docs/FEATURES.en.md',`current v${pkg.version} GitHub Release does not provide a Linux download archive`],
+  ['docs/server-deployment.zh-CN.md',`当前 \`v${pkg.version}\` GitHub Release 只发布 Cloudflare 制品`],
+  ['docs/server-deployment.en.md',`current \`v${pkg.version}\` GitHub Release publishes Cloudflare artifacts only`],
+  ['docs/RELEASE.md',`v${pkg.version} 正式 Release 只发布 Cloudflare variant`],
+  ['docs/RELEASE.md',`The v${pkg.version} Release publishes only the Cloudflare variant`],
   ['docs/RELEASE.md','combined deployment navigation pages remain in both archives'],
 ]) {
   if (!contents.get(file)?.includes(phrase)) throw new Error(`${file}: stale Cloudflare migration-chain entry point`);

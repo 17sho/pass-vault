@@ -6,12 +6,12 @@
 
 ### 发布物
 
-`npm run package:release -- --tag v<VERSION>` 生成两个相互隔离的源码制品：
+`npm run package:release` 默认生成 Cloudflare 源码制品；只有明确设置 `RELEASE_VARIANTS=linux` 时才生成 Linux 制品：
 
 - `pass-vault-v2-cloudflare-<VERSION>`：共享浏览器前端、Worker 后端和 D1 migrations；
 - `pass-vault-v2-linux-<VERSION>`：共享浏览器前端、Node 后端和由运维者配置的 SQLite/附件持久路径。
 
-每个版本提供 `.tar.gz`、`.zip` 和统一 `SHA256SUMS`。压缩包不包含依赖、运行数据、部署证据、秘密、生产路由或真实资源配置。
+每个被选择的 variant 提供 `.tar.gz`、`.zip` 和统一 `SHA256SUMS`。v2.2.2 正式 Release 只发布 Cloudflare variant。压缩包不包含依赖、运行数据、部署证据、秘密、生产路由或真实资源配置。
 
 ### 文档边界
 
@@ -34,7 +34,7 @@
    ```
 2. 独立审查最终 diff，处理所有 blocker；审查后改动必须重跑受影响门禁。
 3. 提交并推送默认分支，创建**新的 annotated tag**；不移动公开 tag。
-4. 从该 tag 构建两个运行时的四个 archive 和 `SHA256SUMS`。
+4. 从该 tag 构建本次明确选择的 variant；v2.2.2 只生成 Cloudflare 的两个 archive 和 `SHA256SUMS`。
 5. 解包检查 variant 必需/禁止文件，并扫描真实域名、资源 ID、邀请码、KEK、token、数据库和生产数据。
 6. 发布中英文等价 Release notes：功能、架构、边界变化、升级步骤、测试证据、制品和校验方式。
 7. 上传后通过无认证公开 URL 重新下载全部制品和 checksum，执行 `sha256sum -c SHA256SUMS`。
@@ -51,12 +51,12 @@
 
 ### Artifacts
 
-`npm run package:release -- --tag v<VERSION>` produces two isolated source distributions:
+`npm run package:release` produces the Cloudflare source distribution by default; the Linux variant is generated only when `RELEASE_VARIANTS=linux` is explicitly selected:
 
 - `pass-vault-v2-cloudflare-<VERSION>`: shared browser frontend, Worker backend, and D1 migrations;
 - `pass-vault-v2-linux-<VERSION>`: shared browser frontend, Node backend, and operator-configured persistent SQLite/attachment paths.
 
-Each release provides `.tar.gz`, `.zip`, and a common `SHA256SUMS`. Archives exclude dependencies, runtime data, deployment evidence, secrets, production routes, and real resource configuration.
+Each selected variant provides `.tar.gz`, `.zip`, and a common `SHA256SUMS`. The v2.2.2 Release publishes only the Cloudflare variant. Archives exclude dependencies, runtime data, deployment evidence, secrets, production routes, and real resource configuration.
 
 ### Documentation boundary
 
@@ -79,7 +79,7 @@ Each release provides `.tar.gz`, `.zip`, and a common `SHA256SUMS`. Archives exc
    ```
 2. Independently review the final diff and resolve every blocker; rerun affected gates after review changes.
 3. Commit and push the default branch, then create a **new annotated tag**. Never move a public tag.
-4. Build four archives and `SHA256SUMS` from that tag.
+4. Build only the explicitly selected variant from that tag; v2.2.2 produces the two Cloudflare archives and `SHA256SUMS`.
 5. Extract and inspect required/forbidden variant files, and scan for real domains, resource IDs, invitation codes, KEKs, tokens, databases, and production data.
 6. Publish equivalent bilingual Release notes covering features, architecture, boundary changes, upgrades, test evidence, artifacts, and checksum verification.
 7. Download every artifact and checksum again from unauthenticated public URLs, then run `sha256sum -c SHA256SUMS`.

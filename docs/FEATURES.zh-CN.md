@@ -68,4 +68,4 @@ Cloudflare v2.2.0 可选部署独立 Admin Worker：
 | 安全分享 v2、跨页收藏 | v2.2.0 | — |
 | Cloudflare Admin 与配额控制 | v2.2.0 | — |
 
-Linux 版从源码和独立部署指南安装；当前 v2.2.0 GitHub Release 没有 Linux 下载包。
+Linux 版从源码和独立部署指南安装；当前 v2.2.2 GitHub Release 不提供 Linux 下载包。

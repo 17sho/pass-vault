@@ -82,14 +82,11 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
     'tests/admin-module-boundaries.test.js',
     'tests/cloudflare-core-module-boundaries.test.js',
     'tests/cloudflare-frontend-dead-code.test.js',
-    'tests/cloudflare-module-architecture.test.js',
     'tests/cloudflare-render-performance.test.js',
     'tests/cloudflare-safe-utils-boundaries.test.js',
     'tests/dialog-ui-module.test.js',
     'tests/password-generator-module.test.js',
     'tests/production-assets.test.js',
-    'tests/package-release.test.js',
-    'tests/ui.test.js',
   ]) await readFile(join(root, testPath), 'utf8');
   const authLoad = spawnSync(process.execPath, ['--test', '--test-name-pattern=^$', 'tests/auth-entrance.test.js'], { cwd: root, encoding: 'utf8' });
   assert.equal(authLoad.status, 0, authLoad.stderr || authLoad.stdout);

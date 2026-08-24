@@ -18,7 +18,7 @@ v2.2.2 汇总发布今天完成的 Cloudflare 版本代码优化与回归加固�
 
 - 不改变 Passkey/WebAuthn、Vault Key、KEK、主密码、附件或分享加密协议。
 - 不包含生产凭据、数据库导出、备份、日志、截图、视频、Git 元数据或 `node_modules`。
-- Cloudflare 制品包含完整公开源码、部署模板、文档以及该制品可独立运行的测试集合；测试仅用于本地或 CI，不会由 Wrangler 部署到生产。
+- Cloudflare 制品包含完整公开源码、部署模板、文档以及依赖闭合、可在该制品内独立运行的 Cloudflare 测试清单；依赖 Linux 后端或全仓布局的测试仍保留在 GitHub 源码分支，不进入 Cloudflare 包。测试仅用于本地或 CI，不会由 Wrangler 部署到生产。
 - 从 v2.2.1 升级无需新增 migration；完整 Cloudflare migration 链截至 `0034_admin_control_center.sql`。仍应按部署指南检查远端 migration ledger，且不要重复运行已应用迁移。
 
 ### Release 资产
@@ -53,7 +53,7 @@ PassVault v2.2.2 publishes the Cloudflare code-structure and regression-hardenin
 
 - No changes to Passkey/WebAuthn, Vault Key, KEK, master-password, attachment, or secure-share cryptographic protocols.
 - Production credentials, database exports, backups, logs, screenshots, videos, Git metadata, and `node_modules` are excluded.
-- The Cloudflare archives contain the complete public source, deployment templates, documentation, and the test subset runnable from that artifact. Tests are for local/CI use and are not deployed by Wrangler.
+- The Cloudflare archives contain the complete public source, deployment templates, documentation, and a dependency-closed Cloudflare test manifest runnable from that artifact. Tests that require the Linux backend or the full repository layout remain on the GitHub source branch and are excluded from the Cloudflare archive. Tests are for local/CI use and are not deployed by Wrangler.
 - No new migration is required from v2.2.1. Continue to inspect the remote migration ledger according to the deployment guide and never reapply migrations already recorded.
 
 ### Release assets
