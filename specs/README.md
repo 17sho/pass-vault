@@ -8,4 +8,4 @@ These files are the current authoritative behavioral and security specifications
 - [`history-share.md`](history-share.md) — encrypted history and secure sharing.
 - [`recovery-share-enhancements.md`](recovery-share-enhancements.md) — recovery and share enhancements.
 
-Historical plans, TODO lists, and test evidence live under [`docs/history/`](../docs/history/) and are not current requirements.
+Historical plans, TODO lists, and test evidence are intentionally excluded from platform release archives. In the full Git repository, they live under `docs/history/` and are not current requirements.
