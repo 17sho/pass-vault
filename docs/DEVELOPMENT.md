@@ -28,7 +28,7 @@ npm run typecheck
 npm run build
 npm test
 npm audit
-npm run package:release -- --tag v2.2.0
+npm run package:release
 ```
 
 `npm test` is intentionally serial because many browser and integration tests start local services and temporary databases.
@@ -42,7 +42,7 @@ npm run package:release -- --tag v2.2.0
 
 ## Adding a feature
 
-1. Read `AGENTS.md`, `tasks/spec.md`, and the architecture docs.
+1. Read `AGENTS.md`, `specs/core.md`, the relevant domain spec under `specs/`, and the architecture docs.
 2. Identify whether the change belongs in `public/`, `shared/`, one backend, or both.
 3. Define/extend the encrypted contract before wiring UI behavior.
 4. Add regression tests for success, failure, lock, account switch, mobile width, and both runtimes where applicable.

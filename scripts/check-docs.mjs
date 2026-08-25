@@ -32,7 +32,7 @@ for (const file of guideCandidates) {
   }
 }
 const deploymentGuides = guides.filter(file => !['README.md', 'README.en.md'].includes(file));
-const markdown = [...guides, 'docs/FEATURES.zh-CN.md', 'docs/FEATURES.en.md', 'CHANGELOG.md', 'docs/RELEASE.md', `release-notes-v${pkg.version}.md`];
+const markdown = [...guides, 'docs/FEATURES.zh-CN.md', 'docs/FEATURES.en.md', 'docs/REPOSITORY.md', 'CHANGELOG.md', 'docs/RELEASE.md', `docs/releases/release-notes-v${pkg.version}.md`];
 const contents = new Map();
 for (const file of markdown) {
   const text = await readFile(resolve(root, file), 'utf8');
@@ -100,7 +100,7 @@ for (const [file, phrase] of [
   ['docs/deployment.zh-CN.md','当前`main`全部迁移至`0034`'],
   ['docs/deployment.en.md','current `main` chain through `0034`'],
   ['docs/DEPLOYMENT.md','完整链至`0034_admin_control_center.sql`'],
-  [`release-notes-v${pkg.version}.md`,'`0034_admin_control_center.sql`'],
+  [`docs/releases/release-notes-v${pkg.version}.md`,'`0034_admin_control_center.sql`'],
   ['CHANGELOG.md','`0021`–`0028`'],
   ['docs/DEPLOYMENT.md',`当前\`v${pkg.version}\` Cloudflare Release资产`],
   ['docs/DEPLOYMENT.md',`v${pkg.version} 不提供 Linux Release 归档`],

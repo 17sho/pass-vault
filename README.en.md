@@ -63,7 +63,7 @@ These screenshots use isolated environments and fictional test data. They contai
 | Architecture, encryption, and Passkey boundaries | [Architecture](docs/ARCHITECTURE.en.md) | [架构说明](docs/ARCHITECTURE.zh-CN.md) |
 | Cloudflare deployment | [Deployment guide](docs/cloudflare-deployment.en.md) | [部署指南](docs/cloudflare-deployment.zh-CN.md) |
 | Linux deployment | [Deployment guide](docs/server-deployment.en.md) | [部署指南](docs/server-deployment.zh-CN.md) |
-| API, development, and security | [API](docs/API.md) · [Development](docs/DEVELOPMENT.md) · [Security](SECURITY.md) | [API](docs/API.md) · [开发](docs/DEVELOPMENT.md) · [安全](SECURITY.md) |
+| API, development, security, and repository map | [API](docs/API.md) · [Development](docs/DEVELOPMENT.md) · [Repository map](docs/REPOSITORY.md) · [Security](SECURITY.md) | [API](docs/API.md) · [开发](docs/DEVELOPMENT.md) · [仓库结构](docs/REPOSITORY.md) · [安全](SECURITY.md) |
 
 ## Get a release
 

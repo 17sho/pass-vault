@@ -63,7 +63,7 @@ Cloudflare v2.2.0 还提供独立 `custom` 自定义资料、加密历史与恢�
 | 架构、加密与 Passkey 边界 | [架构说明](docs/ARCHITECTURE.zh-CN.md) | [Architecture](docs/ARCHITECTURE.en.md) |
 | Cloudflare 部署 | [部署指南](docs/cloudflare-deployment.zh-CN.md) | [Deployment guide](docs/cloudflare-deployment.en.md) |
 | Linux 部署 | [部署指南](docs/server-deployment.zh-CN.md) | [Deployment guide](docs/server-deployment.en.md) |
-| API、开发与安全 | [API](docs/API.md) · [开发](docs/DEVELOPMENT.md) · [安全](SECURITY.md) | [API](docs/API.md) · [Development](docs/DEVELOPMENT.md) · [Security](SECURITY.md) |
+| API、开发、安全与仓库结构 | [API](docs/API.md) · [开发](docs/DEVELOPMENT.md) · [仓库结构](docs/REPOSITORY.md) · [安全](SECURITY.md) | [API](docs/API.md) · [Development](docs/DEVELOPMENT.md) · [Repository map](docs/REPOSITORY.md) · [Security](SECURITY.md) |
 
 ## 获取版本
 
