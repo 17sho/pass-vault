@@ -55,6 +55,6 @@ test('入口只导入新纯模块且不再重复定义', async () => {
   ]);
   assert.match(worker, /from ['"]\.\/request-utils\.ts['"]/);
   for (const name of ['body','limitedJson','validPassword','emptyObject','namedCookie']) assert.doesNotMatch(worker, new RegExp(`(?:function|const)\\s+${name}\\b`));
-  assert.match(app, /from ['"]\/pinned-order\.mjs\?v=2\.2\.2['"]/);
+  assert.match(app, /from ['"]\/pinned-order\.mjs\?v=2\.2\.3['"]/);
   assert.doesNotMatch(app, /function pinnedFirst\s*\(/);
 });

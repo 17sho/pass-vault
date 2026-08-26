@@ -68,4 +68,4 @@ The admin surface does not display vault plaintext. Read the [architecture guide
 | Secure Share v2 and cross-tab favorites | v2.2.0 | — |
 | Cloudflare Admin and quota controls | v2.2.0 | — |
 
-Install the Linux edition from source using its deployment guide. The current v2.2.2 GitHub Release does not provide a Linux download archive.
+Install the Linux edition from source using its deployment guide. The current v2.2.3 GitHub Release does not provide a Linux download archive.

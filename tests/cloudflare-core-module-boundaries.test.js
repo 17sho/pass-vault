@@ -23,7 +23,7 @@ test('核心 Worker 将运行时契约与 HTTP 响应边界拆为独立模块', 
 test('主前端将纯历史差异计算拆为独立模块', async () => {
   const app = await source('../public/app.mjs');
   const history = await source('../public/history-diff.mjs');
-  assert.match(app, /from ['"]\/history-diff\.mjs\?v=2\.2\.2['"]/);
+  assert.match(app, /from ['"]\/history-diff\.mjs\?v=2\.2\.3['"]/);
   assert.doesNotMatch(app, /function businessHistoryChanges\s*\(/);
   assert.match(history, /export function businessHistoryChanges/);
 });

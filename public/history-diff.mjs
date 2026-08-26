@@ -1,4 +1,4 @@
-import { fieldDiff } from './recovery-share-core.mjs?v=2.2.2';
+import { fieldDiff } from './recovery-share-core.mjs?v=2.2.3';
 
 const HISTORY_HIDDEN_FIELDS=new Set(['favorite','pinned','pinRank','deletedAt','trashOwnerId','groupId','createdAt','updatedAt','id','type','revision']);
 const HISTORY_FIELD_LABELS={platform:'平台',loginUrl:'登录网址',notes:'备注',name:'名称',mime:'文件类型',size:'文件大小',category:'附件分类',url:'网址',description:'说明',title:'标题',body:'正文',account:'账号',secret:'密钥',tags:'标签',attachmentIds:'附件',template:'模板'};

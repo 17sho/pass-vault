@@ -67,9 +67,9 @@ These screenshots use isolated environments and fictional test data. They contai
 
 ## Get a release
 
-Latest stable release: [**v2.2.2**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.2)
+Latest stable release: [**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3)
 
-Current public assets are `pass-vault-v2-cloudflare-2.2.2.tar.gz`, `.zip`, and `SHA256SUMS`. Install Linux from source using its deployment guide. Verify downloads with `SHA256SUMS`.
+Current public assets are `pass-vault-v2-cloudflare-2.2.3.tar.gz`, `.zip`, and `SHA256SUMS`. Install Linux from source using its deployment guide. Verify downloads with `SHA256SUMS`.
 
 ## Security note
 

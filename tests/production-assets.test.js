@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 const { version: VERSION } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const expected = new Map([
   ['theme-init', `/theme-init.js?v=${VERSION}-theme-color-v2`],
-  ['stylesheet', `/style.css?v=${VERSION}-marker-badges-v2`],
+  ['stylesheet', `/style.css?v=${VERSION}-mobile-detail-exit-v1`],
   ['app-shell', `/app-shell.css?v=${VERSION}`],
   ['module', `/app.mjs?v=${VERSION}-dead-code-v1`],
 ]);
@@ -23,7 +23,7 @@ test(`production HTML references current v${VERSION} frontend assets`, async () 
   for (const path of ['public/index.html', 'dist/index.html']) {
     const html = await readFile(path, 'utf8');
     assert.deepEqual(refs(html), expected, path);
-    assert.doesNotMatch(html, new RegExp(`style\\.css\\?v=${VERSION.replaceAll('.', '\\.') }-(?!marker-badges-v2(?:["']))`), path);
+    assert.doesNotMatch(html, new RegExp(`style\\.css\\?v=${VERSION.replaceAll('.', '\\.') }-(?!mobile-detail-exit-v1(?:["']))`), path);
     assert.doesNotMatch(html, new RegExp(`app\\.mjs\\?v=${VERSION.replaceAll('.', '\\.') }-(?!dead-code-v1(?:["']))`), path);
     assert.doesNotMatch(html, /20260711-mobile-menu-1|\?v=1\.1\.11(?:[^0-9]|$)/, path);
   }

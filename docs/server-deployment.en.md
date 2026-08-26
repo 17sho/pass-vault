@@ -44,7 +44,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Current artifact status
 
-The current `v2.2.2` GitHub Release publishes Cloudflare artifacts only and does not provide a Linux archive. Build Linux deployments from an explicit reviewed tag/commit using this guide; never deploy the Cloudflare artifact across runtime boundaries.
+The current `v2.2.3` GitHub Release publishes Cloudflare artifacts only and does not provide a Linux archive. Build Linux deployments from an explicit reviewed tag/commit using this guide; never deploy the Cloudflare artifact across runtime boundaries.
 
 Use the current stable tag or a reviewed commit and record the exact commit SHA:
 
@@ -57,7 +57,7 @@ git pull --ff-only
 git rev-parse HEAD
 ```
 
-Do not move an old tag or replace Release assets to fabricate a Linux package. Use the artifact workflow only when the GitHub Release actually lists Linux assets; v2.2.2 has no Linux artifact.
+Do not move an old tag or replace Release assets to fabricate a Linux package. Use the artifact workflow only when the GitHub Release actually lists Linux assets; v2.2.3 has no Linux artifact.
 
 ### 3.2 Build from source and install atomically
 

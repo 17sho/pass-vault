@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.2.3
+
+- Raises mobile text controls to at least 16px and applies the explicitly chosen fixed-scale viewport to the main and secure-share pages, preventing iOS focus zoom while disabling pinch zoom.
+- Keeps mobile row menus inside the list's visible interval so toolbar chrome cannot cover their actions.
+- Makes mobile detail exits fully transparent before DOM cleanup to remove the WebKit return-to-list end-frame jump.
+- Clears editor baselines and recovery/marker client registries at privacy and lock boundaries to prevent stale sensitive state from crossing sessions.
+- Adds Chromium/WebKit regressions for viewport policy, menu hit targets, animation completion/opacity, and sensitive-state lifecycle.
+- Requires no new D1 migration from v2.2.2; Cloudflare-only release, with no Linux production verification in this cycle.
+
 ## v2.2.2
 
 - Refactors the Cloudflare core Worker and Admin Worker into clearer runtime, HTTP, authentication, and UI module boundaries without adding deployment targets.

@@ -67,9 +67,9 @@ Cloudflare v2.2.0 还提供独立 `custom` 自定义资料、加密历史与恢�
 
 ## 获取版本
 
-最新稳定版：[**v2.2.2**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.2)
+最新稳定版：[**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3)
 
-当前公开资产为 `pass-vault-v2-cloudflare-2.2.2.tar.gz`、`.zip` 和 `SHA256SUMS`；Linux 请按对应部署指南从源码安装。下载后请校验 `SHA256SUMS`。
+当前公开资产为 `pass-vault-v2-cloudflare-2.2.3.tar.gz`、`.zip` 和 `SHA256SUMS`；Linux 请按对应部署指南从源码安装。下载后请校验 `SHA256SUMS`。
 
 ## 安全提示
 

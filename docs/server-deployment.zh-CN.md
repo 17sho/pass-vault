@@ -45,7 +45,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 当前发布状态
 
-当前 `v2.2.2` GitHub Release 只发布 Cloudflare 制品，不提供 Linux 压缩包。Linux 新部署或升级必须从明确的已审核 tag/commit 按本指南构建；不要把 Cloudflare 制品跨运行时部署。
+当前 `v2.2.3` GitHub Release 只发布 Cloudflare 制品，不提供 Linux 压缩包。Linux 新部署或升级必须从明确的已审核 tag/commit 按本指南构建；不要把 Cloudflare 制品跨运行时部署。
 
 使用当前稳定 tag 或已审核提交，并记录准确 commit SHA：
 
@@ -58,7 +58,7 @@ git pull --ff-only
 git rev-parse HEAD
 ```
 
-不得移动旧 tag 或替换 Release 资产来伪造 Linux 包。只有 GitHub Release 实际列出 Linux 资产时才能使用制品流程；v2.2.2 没有 Linux 资产。
+不得移动旧 tag 或替换 Release 资产来伪造 Linux 包。只有 GitHub Release 实际列出 Linux 资产时才能使用制品流程；v2.2.3 没有 Linux 资产。
 
 ### 3.2 从源码构建并原子安装
 

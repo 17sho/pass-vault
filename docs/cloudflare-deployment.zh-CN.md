@@ -4,7 +4,7 @@
 
 本指南覆盖当前 `main` 的首次部署、生产升级、备份、恢复、回滚和验收。请把所有 `<...>` 替换为自己的值；不得把真实域名、账户/数据库 ID、bucket 名、token、邀请码、KEK、生产备份或私有配置提交到公开仓库。
 
-> **版本说明：** GitHub `v2.2.2` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复及 `0014`–`0016` revision CAS/tombstone 迁移。
+> **版本说明：** GitHub `v2.2.3` Cloudflare 制品包含该 tag 截止的完整代码及 `0011`–`0013` R2 生命周期修复及 `0014`–`0016` revision CAS/tombstone 迁移。
 
 ## 1. 架构、要求与安全边界
 
@@ -48,22 +48,22 @@ npm run build
 
 所有命令必须自然退出0。不要用被中止、超时或旧提交的测试结果代替当前门禁。
 
-### 2.2 v2.2.2 Cloudflare 制品
+### 2.2 v2.2.3 Cloudflare 制品
 
 本Release的Cloudflare资产包括：
 
-- `pass-vault-v2-cloudflare-2.2.2.tar.gz`
-- `pass-vault-v2-cloudflare-2.2.2.zip`
+- `pass-vault-v2-cloudflare-2.2.3.tar.gz`
+- `pass-vault-v2-cloudflare-2.2.3.zip`
 - `SHA256SUMS`
 
 ```bash
-VERSION=2.2.2
+VERSION=2.2.3
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
 curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 
-校验必须显示`OK`。该包包含v2.2.2 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
+校验必须显示`OK`。该包包含v2.2.3 tag截止的完整Cloudflare代码；升级后仍须核对并应用全部迁移。
 
 ## 3. 配置模型：公共模板与生产私有配置
 

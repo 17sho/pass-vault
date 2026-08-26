@@ -1,6 +1,6 @@
 {
   "name": "pass-vault-v2",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "private": true,
   "description": "Mobile-first encrypted vault with one browser frontend packaged for independent Cloudflare D1/R2 and Linux SQLite deployments",
   "license": "MIT",
