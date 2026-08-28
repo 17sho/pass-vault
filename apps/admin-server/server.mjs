@@ -23,7 +23,7 @@ import { pagedUsers, pagedAudit, updateUserQuota, resetUserQuota, setSuspension,
 import { scanMaintenance, repairMaintenance, retryMaintenance } from './maintenance.mjs';
 import { updateRegistration, createInvite, deleteInvite, revealInvite, reviewSecurityEvent } from './settings.mjs';
 import { refreshDiskStats, refreshNotifications } from './refresh.mjs';
-import { adminPage, adminLoginPage } from './ui/page.mjs';
+import { adminPage, adminLoginPage, ADMIN_LOGIN_SCRIPT } from './ui/page.mjs';
 import { ADMIN_SCRIPT } from './ui/script.mjs';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -129,6 +129,10 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });
       const identity = adminIdentity(req);
       return res.end(identity && ADMINS.has(identity.username) ? adminPage() : adminLoginPage(url.searchParams.get('error') === '1'));
+    }
+    if (req.method === 'GET' && path === '/login.js') {
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });
+      return res.end(ADMIN_LOGIN_SCRIPT);
     }
     if (req.method === 'GET' && path === '/app.js') {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });

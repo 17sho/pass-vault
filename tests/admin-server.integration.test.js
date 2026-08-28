@@ -110,6 +110,15 @@ test('Linux Admin原生表单在Origin缺失时用同源Referer或Fetch Metadata
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 
+test('Linux Admin登录页脚本提交JSON并提供加载和明确错误反馈',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-login-js-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
+  let r=await fetch(admin.base+'/');const html=await r.text();assert.match(html,/src="\/login\.js"/);assert.match(html,/data-login-error/);
+  r=await fetch(admin.base+'/login.js');assert.equal(r.status,200);const js=await r.text();assert.match(js,/\/api\/admin-login/);assert.match(js,/正在登录/);assert.match(js,/账号或主密码错误/);assert.match(js,/reportValidity/);
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
 test('Linux Admin未登录显示独立登录页而非空白控制台',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-login-page-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
