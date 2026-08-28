@@ -158,6 +158,7 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
  assert.match(style,/prefers-reduced-motion/);assert.match(style,/min-height:100dvh/);assert.match(style,/\.empty-state/);assert.match(style,/\.quota-state/);
  assert.match(script,/配额未设置/);assert.match(script,/重新统计附件/);assert.doesNotMatch(script,/SQLite 正常 · SQLite/);
  assert.match(style,/@media\(max-width:|@media \(max-width:/);assert.match(script,/\/api\/overview/);assert.match(script,/\/api\/users/);
+ assert.match(style,/\.operations-actions\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);assert.match(style,/\.operations-actions button\{min-width:0;max-width:100%;white-space:normal/);assert.match(style,/operations-actions \[data-maintenance-repair\].*operations-actions \[data-maintenance\]/);assert.match(script,/class=\\"row-actions operations-actions\\"/);assert.match(script,/class=\\"detail-grid operations-metrics\\"/);
 });
 
 test('Linux Admin独立身份大小写精确匹配且不接受密码库共享会话',async()=>{
