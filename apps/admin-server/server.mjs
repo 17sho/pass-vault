@@ -5,10 +5,9 @@
 // + health endpoint. Later phases add the overview/users/maintenance/etc. handlers.
 //
 // Auth model (replaces Cloudflare Access):
-//   1. A visitor may authenticate directly with an allowlisted vault account; the
-//      Admin issues a host-only pv_admin_session. Existing shared pv_session
-//      cookies remain supported for compatibility, but are not required.
-//   2. The resolved username must exactly match ADMIN_USERNAMES.
+//   1. A visitor authenticates with the dedicated ADMIN_USERNAME and independent
+//      password verifier; no vault user or vault master password participates.
+//   2. The Admin issues a host-only pv_admin_session bound to that principal.
 //   Both checks must pass or the request is rejected (401 unauthenticated / 403
 //   not-an-admin). Mutations additionally require same-origin.
 import { createServer } from 'node:http';
@@ -17,7 +16,7 @@ import { mkdir } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { normalizeSessionIp } from '../../shared/session-metadata.mjs';
 import { runAdminMigrations } from './migrations-admin.mjs';
-import { json, requestOrigin, sameOrigin, readCookie, digest, adminAllowlist, COOKIE_NAME, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, SECURITY_HEADERS } from './runtime.mjs';
+import { json, sameOrigin, readCookie, digest, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, SECURITY_HEADERS } from './runtime.mjs';
 import { overview } from './overview.mjs';
 import { pagedUsers, pagedAudit, updateUserQuota, resetUserQuota, setSuspension, revokeSessions, deleteUser, exportUser } from './users.mjs';
 import { scanMaintenance, repairMaintenance, retryMaintenance } from './maintenance.mjs';
@@ -32,7 +31,11 @@ const DB_PATH = resolve(process.env.DB_PATH || join(process.cwd(), 'data', 'pass
 const ATTACHMENTS_DIR = resolve(process.env.ATTACHMENTS_DIR || join(dirname(DB_PATH), 'attachments'));
 const SHARES_DIR = resolve(process.env.SHARES_DIR || join(dirname(DB_PATH), 'shares'));
 const MAIN_SITE_URL = process.env.MAIN_SITE_URL || '';
-const ADMINS = adminAllowlist(process.env);
+const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || '').trim();
+const ADMIN_PASSWORD_SALT = (process.env.ADMIN_PASSWORD_SALT || '').trim();
+const ADMIN_PASSWORD_HASH = (process.env.ADMIN_PASSWORD_HASH || '').trim();
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD_SALT || !ADMIN_PASSWORD_HASH) throw new Error('ADMIN_USERNAME, ADMIN_PASSWORD_SALT and ADMIN_PASSWORD_HASH are required');
+const ADMIN_VERIFIER = { password_salt: ADMIN_PASSWORD_SALT, password_hash: ADMIN_PASSWORD_HASH };
 const TRUSTED_IP_HEADER = (process.env.CLIENT_IP_HEADER || '').trim().toLowerCase();
 const APP_VERSION = process.env.APP_VERSION || 'unknown';
 // Env bag passed to endpoint modules (keeps them free of process.env coupling).
@@ -53,28 +56,22 @@ db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FUL
 // Ensure admin schema exists (idempotent). The admin-server owns these migrations
 // so the console works even if the main app hasn't been restarted.
 const applied = runAdminMigrations(db);
+// Admin sessions are bound to an independent principal, never to vault users.
+const sessionColumns = db.prepare('PRAGMA table_info(admin_sessions)').all().map(row => row.name);
+if (sessionColumns.length && sessionColumns.includes('user_id')) db.exec('DROP TABLE admin_sessions');
 db.exec(`CREATE TABLE IF NOT EXISTS admin_sessions(
-  id_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL,
-  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions(user_id);`);
+  id_hash TEXT PRIMARY KEY,principal TEXT NOT NULL,expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL
+);CREATE INDEX IF NOT EXISTS idx_admin_sessions_principal ON admin_sessions(principal);`);
 if (applied.length) console.log(`[admin] applied migrations: ${applied.join(', ')}`);
 
-// Resolve the current admin identity, or null. Mirrors the main app's auth():
-// expired sessions are swept, the cookie is hashed, and we join to users.
+// Resolve the independent Admin principal from its host-only session.
 function adminIdentity(req) {
   const now = Date.now();
   db.prepare('DELETE FROM admin_sessions WHERE expires_at<=?').run(now);
-  const own = readCookie(req, ADMIN_COOKIE_NAME);
-  if (own) {
-    const row = db.prepare('SELECT s.user_id,s.id_hash,u.username FROM admin_sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>? AND (u.banned_until IS NULL OR (u.banned_until<>-1 AND u.banned_until<?))').get(digest(own), now, now);
-    if (row) return { userId: row.user_id, username: String(row.username || ''), sessionHash: row.id_hash, own: true };
-  }
-  db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(now);
-  const raw = readCookie(req, COOKIE_NAME);
+  const raw = readCookie(req, ADMIN_COOKIE_NAME);
   if (!raw) return null;
-  const row = db.prepare('SELECT s.user_id,s.id_hash,u.username FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>? AND (u.banned_until IS NULL OR (u.banned_until<>-1 AND u.banned_until<?))').get(digest(raw), now, now);
-  if (!row) return null;
-  return { userId: row.user_id, username: String(row.username || ''), sessionHash: row.id_hash, own: false };
+  const row = db.prepare('SELECT principal,id_hash FROM admin_sessions WHERE id_hash=? AND expires_at>?').get(digest(raw), now);
+  return row && row.principal === ADMIN_USERNAME ? { username: row.principal, sessionHash: row.id_hash } : null;
 }
 
 function adminClientIp(req) {
@@ -91,16 +88,14 @@ function attemptAdminLogin(req, username, password) {
   db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now - 60_000);
   const attempts = db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key, now - 60_000).count;
   if (attempts >= 10) return { status: 429 };
-  const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
-  const verifier = user || { password_salt: 'YWRtaW4tbG9naW4tZHVtbQ==', password_hash: 'vBbk9d107EZJVUMR5I4Ym426nc9INhq3vFrD+D+UNlY=' };
-  const passwordOk = verifyPassword(password, verifier);
-  if (!user || !ADMINS.has(username) || !passwordOk || user.banned_until === -1 || (Number.isFinite(user.banned_until) && user.banned_until > now)) {
+  const passwordOk = verifyPassword(password, ADMIN_VERIFIER);
+  if (username !== ADMIN_USERNAME || !passwordOk) {
     let slot = now; while (db.prepare('SELECT 1 FROM auth_attempts WHERE key=? AND attempted_at=?').get(key, slot)) slot++;
     db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key, slot);
     return { status: 401 };
   }
   const raw = newAdminSession();
-  db.prepare('INSERT INTO admin_sessions(id_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)').run(digest(raw), user.id, now + ADMIN_SESSION_MS, now);
+  db.prepare('INSERT INTO admin_sessions(id_hash,principal,expires_at,created_at) VALUES(?,?,?,?)').run(digest(raw), ADMIN_USERNAME, now + ADMIN_SESSION_MS, now);
   return { status: 200, raw };
 }
 
@@ -128,7 +123,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });
       const identity = adminIdentity(req);
-      return res.end(identity && ADMINS.has(identity.username) ? adminPage() : adminLoginPage(url.searchParams.get('error') === '1'));
+      return res.end(identity ? adminPage() : adminLoginPage(url.searchParams.get('error') === '1'));
     }
     if (req.method === 'GET' && path === '/login.js') {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });
@@ -156,9 +151,8 @@ const server = createServer(async (req, res) => {
     // Logout: revoke the current session (if any) and clear the cookie, then redirect home.
     if (path === '/logout') {
       if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { error: 'invalid_origin' });
-      const own = readCookie(req, ADMIN_COOKIE_NAME), raw = readCookie(req, COOKIE_NAME);
+      const own = readCookie(req, ADMIN_COOKIE_NAME);
       if (own) db.prepare('DELETE FROM admin_sessions WHERE id_hash=?').run(digest(own));
-      else if (raw) db.prepare('DELETE FROM sessions WHERE id_hash=?').run(digest(raw));
       res.writeHead(302, { location: '/', 'set-cookie': adminCookie('', 0), ...SECURITY_HEADERS });
       return res.end();
     }
@@ -166,7 +160,6 @@ const server = createServer(async (req, res) => {
     // --- Auth gate: valid session + admin allowlist membership ---
     const identity = adminIdentity(req);
     if (!identity) return json(res, 401, { error: 'auth_required' });
-    if (!ADMINS.size || !ADMINS.has(identity.username)) return json(res, 403, { error: 'forbidden' });
 
     // Health endpoint (read-only).
     if (req.method === 'GET' && path === '/api/health') {
@@ -341,8 +334,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`pass-vault admin server listening on ${HOST}:${PORT}`);
-  console.log(`[admin] DB=${DB_PATH} attachments=${ATTACHMENTS_DIR} admins=${[...ADMINS].join(',') || '(none set!)'}`);
-  if (!ADMINS.size) console.warn('[admin] WARNING: ADMIN_USERNAMES not set — every request will be forbidden (403).');
+  console.log(`[admin] DB=${DB_PATH} attachments=${ATTACHMENTS_DIR} principal=${ADMIN_USERNAME}`);
 });
 
 export { db, adminIdentity, ATTACHMENTS_DIR, DB_PATH };

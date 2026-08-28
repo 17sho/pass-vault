@@ -66,10 +66,7 @@ export async function readJsonBody(req) {
   catch { throw Object.assign(new Error('invalid_json'), { status: 400 }); }
 }
 
-// Parse ADMIN_USERNAMES ("alice,bob") as exact, case-sensitive usernames.
-// Usernames are case-sensitive in the main service; folding case here could grant
-// a distinct account administrative access. Falls back to ADMIN_USERNAME.
+// Deprecated compatibility helper retained for non-Linux callers.
 export function adminAllowlist(env) {
-  return new Set((env.ADMIN_USERNAMES || env.ADMIN_USERNAME || '')
-    .split(',').map(x => x.trim()).filter(Boolean));
+  return new Set((env.ADMIN_USERNAME || '').split(',').map(x => x.trim()).filter(Boolean));
 }

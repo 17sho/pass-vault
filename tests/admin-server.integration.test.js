@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { scryptSync } from 'node:crypto';
 import { startTestServer, TEST_INVITE_CODE } from './fixtures.mjs';
 import { checkAttachmentReplacementQuota } from '../apps/server/enforcement.mjs';
 import { retryMaintenance, repairMaintenance } from '../apps/admin-server/maintenance.mjs';
@@ -22,9 +23,13 @@ async function reservePort(){
  return port;
 }
 
+const ADMIN_PASSWORD='independent admin secret';
+const ADMIN_SALT=Buffer.from('0123456789abcdef').toString('base64');
+const ADMIN_HASH=scryptSync(ADMIN_PASSWORD,Buffer.from(ADMIN_SALT,'base64'),32,{N:32768,maxmem:64*1024*1024}).toString('base64');
+
 async function startAdmin({dbPath,username='admin',extraEnv={}}){
  const port=await reservePort(),base=`http://127.0.0.1:${port}`;
- const child=spawn(process.execPath,['apps/admin-server/server.mjs'],{env:{...process.env,HOST:'127.0.0.1',ADMIN_PORT:String(port),DB_PATH:dbPath,ADMIN_USERNAMES:username,CLIENT_IP_HEADER:'',INVITE_CODE_PEPPER:'admin-server-test-pepper',INVITE_CODE_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64url'),MAIN_SITE_URL:'',...extraEnv},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['apps/admin-server/server.mjs'],{env:{...process.env,HOST:'127.0.0.1',ADMIN_PORT:String(port),DB_PATH:dbPath,ADMIN_USERNAME:username,ADMIN_PASSWORD_SALT:ADMIN_SALT,ADMIN_PASSWORD_HASH:ADMIN_HASH,CLIENT_IP_HEADER:'',INVITE_CODE_PEPPER:'admin-server-test-pepper',INVITE_CODE_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64url'),MAIN_SITE_URL:'',...extraEnv},stdio:['ignore','pipe','pipe']});
  let output='';for(const stream of [child.stdout,child.stderr]){stream.setEncoding('utf8');stream.on('data',chunk=>{output=(output+chunk).slice(-8000)})}
  const exited=new Promise(resolve=>child.once('exit',(code,signal)=>resolve({code,signal})));
  const deadline=Date.now()+8000;
@@ -49,17 +54,28 @@ async function registerAndLogin(dbPath,username='admin',extraEnv={}){
 
 const req=(base,path,{method='GET',cookie,body,origin=base,redirect='follow',headers={}}={})=>fetch(base+path,{method,redirect,headers:{...(cookie?{cookie}:{}),...(origin?{origin}:{}),...(body===undefined?{}:{'content-type':'application/json'}),...headers},body:body===undefined?undefined:JSON.stringify(body)});
 
+test('Linux Admin独立凭据不依赖密码库用户且会话principal不关联users表',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-separate-identity-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  await registerAndLogin(dbPath,'vault-owner');admin=await startAdmin({dbPath});
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}})).status,401,'密码库主密码不得登录Admin');
+  const r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}});assert.equal(r.status,200,await r.text());const cookie=r.headers.get('set-cookie').split(';',1)[0];
+  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,200);
+  const sql=new DatabaseSync(dbPath),cols=sql.prepare('PRAGMA table_info(admin_sessions)').all().map(x=>x.name);assert.ok(cols.includes('principal'));assert.ok(!cols.includes('user_id'));assert.equal(sql.prepare('SELECT principal FROM admin_sessions').get().principal,'admin');sql.close();
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
 test('Linux Admin独立登录签发host-only会话且退出后立即失效',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-own-login-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
   await registerAndLogin(dbPath,'admin');
   admin=await startAdmin({dbPath});
   let r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'wrong'}});assert.equal(r.status,401);
-  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',origin:'',body:{username:'admin',password:'correct horse battery'}})).status,403);
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',origin:'',body:{username:'admin',password:ADMIN_PASSWORD}})).status,403);
   for(let i=0;i<9;i++) assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'missing',password:'wrong'}})).status,401);
-  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}})).status,429);
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}})).status,429);
   const rateDb=new DatabaseSync(dbPath);rateDb.prepare("DELETE FROM auth_attempts WHERE key LIKE 'admin-login:%'").run();rateDb.close();
-  r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}});assert.equal(r.status,200,await r.text());
+  r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}});assert.equal(r.status,200,await r.text());
   const setCookie=r.headers.get('set-cookie');assert.match(setCookie,/^pv_admin_session=/);assert.doesNotMatch(setCookie,/Domain=/i);assert.match(setCookie,/HttpOnly/);assert.match(setCookie,/SameSite=Strict/);
   const cookie=setCookie.split(';',1)[0];assert.equal((await req(admin.base,'/api/overview',{cookie})).status,200);
   r=await req(admin.base,'/logout',{method:'POST',cookie,redirect:'manual'});assert.equal(r.status,302);assert.match(r.headers.get('set-cookie'),/^pv_admin_session=;/);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
@@ -84,16 +100,16 @@ test('Linux Admin可信反代客户端IP隔离登录限流且未配置时忽略�
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 
-test('Linux修改主密码和用户名均立即撤销既有Admin独立会话',async()=>{
+test('Linux修改密码库主密码和用户名均不影响独立Admin会话',async()=>{
  for(const mutation of ['password','username']){
   const dir=await mkdtemp(join(tmpdir(),`pv2-admin-revoke-${mutation}-`)),dbPath=join(dir,'vault.sqlite');let admin,main;
   try{
    await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
-   let r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}});assert.equal(r.status,200);const adminCookie=r.headers.get('set-cookie').split(';',1)[0];
+   let r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}});assert.equal(r.status,200);const adminCookie=r.headers.get('set-cookie').split(';',1)[0];
    main=await startTestServer({dbPath,env:{CLIENT_IP_HEADER:''}});r=await fetch(main.base+'/api/login',{method:'POST',headers:{origin:main.base,'content-type':'application/json'},body:JSON.stringify({username:'admin',password:'correct horse battery'})});assert.equal(r.status,200);const login=await r.json(),mainCookie=r.headers.get('set-cookie').split(';',1)[0];
    const path=mutation==='password'?'/api/change-password':'/api/change-username',body=mutation==='password'?{currentPassword:'correct horse battery',newPassword:'new admin password',kdf,wrappedKey}:{currentPassword:'correct horse battery',newUsername:'admin-renamed'};
    r=await fetch(main.base+path,{method:'POST',headers:{origin:main.base,cookie:mainCookie,'x-csrf-token':login.csrf,'content-type':'application/json'},body:JSON.stringify(body)});assert.equal(r.status,200,await r.text());
-   assert.equal((await req(admin.base,'/api/overview',{cookie:adminCookie})).status,401,`${mutation}后旧Admin会话必须失效`);
+   assert.equal((await req(admin.base,'/api/overview',{cookie:adminCookie})).status,200,`${mutation}后独立Admin会话应保持有效`);
   }finally{if(main)await main.stop();if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
  }
 });
@@ -102,7 +118,7 @@ test('Linux Admin原生表单在Origin缺失时用同源Referer或Fetch Metadata
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-native-form-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
   await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
-  const encoded=new URLSearchParams({username:'admin',password:'correct horse battery'}).toString();
+  const encoded=new URLSearchParams({username:'admin',password:ADMIN_PASSWORD}).toString();
   for(const headers of [{referer:admin.base+'/'},{'sec-fetch-site':'same-origin'}]){
    const r=await fetch(admin.base+'/login',{method:'POST',redirect:'manual',headers:{'content-type':'application/x-www-form-urlencoded',...headers},body:encoded});assert.equal(r.status,303);assert.equal(r.headers.get('location'),'/');assert.match(r.headers.get('set-cookie'),/^pv_admin_session=/);
   }
@@ -115,7 +131,7 @@ test('Linux Admin登录页脚本提交JSON并提供加载和明确错误反馈',
  try{
   await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
   let r=await fetch(admin.base+'/');const html=await r.text();assert.match(html,/src="\/login\.js"/);assert.match(html,/data-login-error/);
-  r=await fetch(admin.base+'/login.js');assert.equal(r.status,200);const js=await r.text();assert.match(js,/\/api\/admin-login/);assert.match(js,/正在登录/);assert.match(js,/账号或主密码错误/);assert.match(js,/reportValidity/);
+  r=await fetch(admin.base+'/login.js');assert.equal(r.status,200);const js=await r.text();assert.match(js,/\/api\/admin-login/);assert.match(js,/正在登录/);assert.match(js,/账号或管理员密码错误/);assert.match(js,/reportValidity/);
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 
@@ -134,23 +150,22 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
  assert.match(style,/@media\(max-width:|@media \(max-width:/);assert.match(script,/\/api\/overview/);assert.match(script,/\/api\/users/);
 });
 
-test('Linux Admin管理员白名单大小写精确匹配且封禁会话失效',async()=>{
+test('Linux Admin独立身份大小写精确匹配且不接受密码库共享会话',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-auth-boundary-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
-  const cookie=await registerAndLogin(dbPath,'Admin');
+  const vaultCookie=await registerAndLogin(dbPath,'Admin');
   admin=await startAdmin({dbPath,username:'admin'});
-  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,403,'Admin 不得匹配 admin 白名单');
-  await admin.stop();admin=await startAdmin({dbPath,username:'Admin'});
-  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,200);
-  const sql=new DatabaseSync(dbPath);sql.prepare('UPDATE users SET banned_until=-1 WHERE username=?').run('Admin');sql.close();
-  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401,'封禁账户的既有管理员会话必须失效');
+  assert.equal((await req(admin.base,'/api/overview',{cookie:vaultCookie})).status,401,'密码库共享会话不得登录Admin');
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'Admin',password:ADMIN_PASSWORD}})).status,401,'Admin不得匹配admin独立用户名');
+  const r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}});assert.equal(r.status,200);
+  assert.equal((await req(admin.base,'/api/overview',{cookie:r.headers.get('set-cookie').split(';',1)[0]})).status,200);
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 
 test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端点集成',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-server-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
-  const cookie=await registerAndLogin(dbPath,'admin',{COOKIE_DOMAIN:'.passkey.23cm.me'});admin=await startAdmin({dbPath,extraEnv:{COOKIE_DOMAIN:'.passkey.23cm.me'}});
+  await registerAndLogin(dbPath,'admin',{COOKIE_DOMAIN:'.passkey.23cm.me'});admin=await startAdmin({dbPath,extraEnv:{COOKIE_DOMAIN:'.passkey.23cm.me'}});const cookie=(await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}})).headers.get('set-cookie').split(';',1)[0];
   let r=await req(admin.base,'/',{cookie});assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/text\/html/);assert.match(await r.text(),/data-nav-page="audit"/);
   r=await fetch(admin.base+'/app.js');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/javascript/);
   assert.equal((await fetch(admin.base+'/api/overview')).status,401);
