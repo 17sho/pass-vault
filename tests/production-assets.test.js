@@ -34,10 +34,10 @@ test('production HTML exposes the key-diamond brand icon and install manifest', 
     const html = await readFile(path, 'utf8');
     assert.match(html, /<meta id="theme-color" name="theme-color" content="#f4f6f8">/, path);
     assert.match(html, new RegExp(`<script defer src="/theme-color\\.js\\?v=${VERSION.replaceAll('.', '\\.')}-theme-color-v2"></script>`), path);
-    assert.match(html, /<link rel="icon" href="\/favicon\.ico" sizes="any">/, path);
-    assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/icon\.svg">/, path);
+    assert.match(html, /<link rel="icon" href="\/favicon\.ico\?v=2\.2\.3-mime-fix" sizes="any">/, path);
+    assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/icon\.svg\?v=2\.2\.3-mime-fix">/, path);
     assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png">/, path);
-    assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/, path);
+    assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest\?v=2\.2\.3-mime-fix">/, path);
   }
   const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'));
   assert.equal(manifest.name, '零知密码库');

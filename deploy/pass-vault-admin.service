@@ -1,0 +1,49 @@
+[Unit]
+Description=Pass Vault V2 Admin Console (Linux/SQLite)
+After=network.target
+# Shares the same SQLite DB as the main pass-vault-v2 service (admin tables are
+# owned by admin migrations and created idempotently by both processes). Order
+# after the main service so the DB file/dir exists, but do not hard-require it —
+# the admin console self-heals the schema on boot.
+After=pass-vault-v2.service
+Wants=pass-vault-v2.service
+
+# Template: replace @APP_USER@, @APP_DIR@, and @DATA_DIR@ before installing.
+# Reuses the verified Node binary at @APP_DIR@/node and the release code under
+# @APP_DIR@/current (same atomic release tree as the main service).
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=@APP_DIR@/current
+Environment=NODE_ENV=production
+Environment=ADMIN_PORT=8120
+Environment=HOST=127.0.0.1
+Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
+Environment=ATTACHMENTS_DIR=@DATA_DIR@/attachments
+Environment=SHARES_DIR=@DATA_DIR@/shares
+# ADMIN_USERNAMES (comma-separated allowlist), MAIN_SITE_URL, APP_VERSION,
+# INVITE_CODE_PEPPER and INVITE_CODE_ENCRYPTION_KEY come from the shared env file.
+# The pepper/key MUST match the main service so invite-code hashes/reveals align.
+EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
+ExecStart=@APP_DIR@/node apps/admin-server/server.mjs
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+ReadWritePaths=@DATA_DIR@
+
+[Install]
+WantedBy=multi-user.target
