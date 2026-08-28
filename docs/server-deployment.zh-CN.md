@@ -45,9 +45,9 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 当前发布状态
 
-Cloudflare 版使用 `v2.2.3`；Linux 版使用独立的 `v2.2.3-server` tag 和 Linux 归档。不要把任一制品跨运行时部署。
+Linux 当前正式版为独立的 [GitHub `v2.2.3-server` Release](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server)，提供 Linux tar.gz、zip 和 `SHA256SUMS`。请勿使用 Cloudflare 归档部署 Linux。
 
-使用当前稳定 tag 或已审核提交，并记录准确 commit SHA：
+Linux 新部署或升级优先下载并校验 `v2.2.3-server` 中的 Linux 制品；如需从源码构建，请检出服务器 tag 并记录准确 commit SHA：
 
 ```bash
 cd /tmp
@@ -57,7 +57,7 @@ git checkout v2.2.3-server
 git rev-parse HEAD
 ```
 
-不得移动旧 tag 或替换 Release 资产。下载 Linux 归档后必须先验证同一 Release 中的 `SHA256SUMS`。
+当前资产名称为 `pass-vault-v2-linux-2.2.3.tar.gz`、`pass-vault-v2-linux-2.2.3.zip` 和 `SHA256SUMS`。从 Release 页面下载所需归档与校验文件，在同一目录执行 `sha256sum -c SHA256SUMS`，结果必须为 `OK`。
 
 ### 3.2 从源码构建并原子安装
 
@@ -76,8 +76,8 @@ sudo env \
   PV_SOURCE="$PWD" \
   PV_APP_ROOT=/opt/pass-vault-v2 \
   PV_VERSION=<VERSION> \
-  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2 pass-vault-admin' \
-  PV_HEALTH_COMMAND='systemctl is-active --quiet pass-vault-v2 pass-vault-admin && curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"' && test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8120/)" = 200' \
+  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2' \
+  PV_HEALTH_COMMAND='curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"'' \
   PV_EVIDENCE=/var/log/pass-vault-v2/deploy-<VERSION>.json \
   bash scripts/deploy-linux-atomic.sh
 sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<VERSION>.json
@@ -102,11 +102,6 @@ sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<V
 | `PASSKEY_UNLOCK_KEK` | 启用辅助解锁时必填 | 32 个随机字节的 Base64URL；仅用于 AES-256-GCM 包装 vault key，绝不提交仓库或记录日志 |
 | `PASSKEY_RP_ID` | 启用辅助解锁时必填 | 应用的精确 HTTPS 主机名，例如 `<APP_DOMAIN>` |
 | `PASSKEY_ORIGIN` | 启用辅助解锁时必填 | canonical HTTPS Origin，例如 `https://<APP_DOMAIN>`，不得有路径或尾部斜杠 |
-| `ADMIN_USERNAME` | 必填 | 与密码库用户名独立的 Admin 登录名 |
-| `ADMIN_PASSWORD_SALT` | 必填 | Admin scrypt verifier 的规范 Base64 salt；不要使用主密码或用户 salt |
-| `ADMIN_PASSWORD_HASH` | 必填 | Admin scrypt verifier 的规范 Base64 hash；原始密码不得进入环境文件 |
-| `ADMIN_PORT` | `8120` | Admin 服务回环端口 |
-| `MAIN_SITE_URL` | `https://<APP_DOMAIN>` | Admin 控制台返回主站的链接 |
 
 创建 `/etc/pass-vault-v2/pass-vault-v2.env`。为避免邀请码出现在 shell 历史或进程参数中，使用 root-only 临时文件接收 `openssl` 标准输出并原子安装：
 
@@ -136,7 +131,7 @@ sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVIT
 
 ## 5. systemd
 
-创建 `/etc/systemd/system/pass-vault-v2.service`，并从归档内模板 `deploy/pass-vault-admin.service` 安装独立 `/etc/systemd/system/pass-vault-admin.service`。两个 unit 共享 SQLite 和密文目录，但身份、Cookie 和会话完全独立；先替换模板中的 `@APP_USER@`、`@APP_DIR@`、`@DATA_DIR@`：
+创建 `/etc/systemd/system/pass-vault-v2.service`：
 
 ```ini
 [Unit]
@@ -174,13 +169,12 @@ WantedBy=multi-user.target
 确认 `command -v node`；若不是 `/usr/bin/node`，把 `ExecStart` 改成真实绝对路径。
 
 ```bash
-sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service /etc/systemd/system/pass-vault-admin.service
+sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service
 sudo systemctl daemon-reload
 # 首次安装：回到第3.2节运行原子部署，成功后再启用开机自启
-sudo systemctl enable pass-vault-v2 pass-vault-admin
-sudo systemctl status pass-vault-v2 pass-vault-admin --no-pager
+sudo systemctl enable pass-vault-v2
+sudo systemctl status pass-vault-v2 --no-pager
 curl -fsS http://127.0.0.1:3000/api/health
-test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8120/)" = 200
 ```
 
 `status`和`curl`只应在第3.2节原子部署成功后执行。升级已有安装时，unit已启用，不需要重复本段初始化。
@@ -214,8 +208,6 @@ sudo systemctl reload caddy
 ```
 
 Caddy 自动申请和续期证书。查看 `journalctl -u caddy` 确认证书成功。
-
-Admin 使用独立 `<ADMIN_DOMAIN>`，反代到 `127.0.0.1:8120`。复制归档中的 `deploy/Caddyfile.admin` 片段并替换占位符；公网入口应位于 Cloudflare 或等效边缘访问控制之后，源站只接受可信代理流量。不要给 Admin 再添加共享 Basic Auth。
 
 ### 6.2 Nginx
 
@@ -285,7 +277,7 @@ sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 
 ## 9. 升级与回滚
 
-### 升级当前 `main`（包含 v1.1.72 功能）
+### 升级到当前 `v2.2.3-server`
 
 从旧版本升级前，先做SQLite与附件目录的一致性备份，记录当前`current`目标及环境变量名称清单。首次启用辅助Passkey才生成独立`PASSKEY_UNLOCK_KEK`并配置精确`PASSKEY_RP_ID`/`PASSKEY_ORIGIN`；已经启用时必须保留原KEK和两个域变量。安装到新的不可变版本目录并原子切换。服务启动会幂等创建缺失的辅助Passkey、会话元数据和认证方式表；无需重加密现有密文或vault key。
 

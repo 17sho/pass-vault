@@ -1,6 +1,6 @@
 # Pass Vault V2
 
-[![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
@@ -18,7 +18,7 @@
 - 响应式桌面与移动界面，无需原生客户端
 - revision CAS、删除 tombstone、CSRF、同源检查、会话控制和限速
 
-Cloudflare v2.2.0 还提供独立 `custom` 自定义资料、加密历史与恢复中心、安全分享 v2、跨页收藏，以及可选的 Cloudflare Admin 与配额管理。完整说明和平台范围请查看 **[功能介绍](docs/FEATURES.zh-CN.md)**。
+Cloudflare v2.2.3 提供独立 `custom` 自定义资料、加密历史与恢复中心、安全分享 v2、跨页收藏，以及可选的 Cloudflare Admin 与配额管理。Linux v2.2.3-server 提供安全分享、独立 Admin 控制台和文件生命周期保护。完整说明和平台范围请查看 **[功能介绍](docs/FEATURES.zh-CN.md)**。
 
 ## 加密与部署边界
 
@@ -63,13 +63,18 @@ Cloudflare v2.2.0 还提供独立 `custom` 自定义资料、加密历史与恢�
 | 架构、加密与 Passkey 边界 | [架构说明](docs/ARCHITECTURE.zh-CN.md) | [Architecture](docs/ARCHITECTURE.en.md) |
 | Cloudflare 部署 | [部署指南](docs/cloudflare-deployment.zh-CN.md) | [Deployment guide](docs/cloudflare-deployment.en.md) |
 | Linux 部署 | [部署指南](docs/server-deployment.zh-CN.md) | [Deployment guide](docs/server-deployment.en.md) |
-| API、开发、安全与仓库结构 | [API](docs/API.md) · [开发](docs/DEVELOPMENT.md) · [仓库结构](docs/REPOSITORY.md) · [安全](SECURITY.md) | [API](docs/API.md) · [Development](docs/DEVELOPMENT.md) · [Repository map](docs/REPOSITORY.md) · [Security](SECURITY.md) |
+| API、开发与安全 | [API](docs/API.md) · [开发](docs/DEVELOPMENT.md) · [安全](SECURITY.md) | [API](docs/API.md) · [Development](docs/DEVELOPMENT.md) · [Security](SECURITY.md) |
 
 ## 获取版本
 
-最新稳定版：[**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3)
+两个运行时使用独立 tag、独立归档和独立数据存储，不要跨平台部署制品：
 
-当前公开资产为 `pass-vault-v2-cloudflare-2.2.3.tar.gz`、`.zip` 和 `SHA256SUMS`；Linux 请按对应部署指南从源码安装。下载后请校验 `SHA256SUMS`。
+| 平台 | 正式版本 | 下载与部署 |
+|---|---|---|
+| Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) | `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [部署指南](docs/cloudflare-deployment.zh-CN.md) |
+| Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) | `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [部署指南](docs/server-deployment.zh-CN.md) |
+
+每个 Release 都附带 `SHA256SUMS`。下载对应平台的两个归档之一及校验文件后，在同一目录运行 `sha256sum -c SHA256SUMS`。
 
 ## 安全提示
 

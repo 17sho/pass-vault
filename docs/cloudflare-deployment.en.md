@@ -4,7 +4,7 @@
 
 This guide covers first deployment, production upgrades, backup, restore, rollback, and acceptance checks for current `main`. Replace every `<...>` placeholder. Never commit real domains, account/database IDs, bucket names, tokens, invitation codes, KEKs, production backups, or private deployment configuration to the public repository.
 
-> **Version note:** the Cloudflare archives attached to GitHub Release `v2.2.3` contain the complete code through that tag, including R2 lifecycle migrations `0011`–`0013` and revision CAS/tombstone migrations `0014`–`0016`.
+> **Version note:** GitHub `v2.2.3` is the current Cloudflare release. Use only artifacts whose names contain `cloudflare`; never deploy the Linux archive to Cloudflare.
 
 ## 1. Architecture, requirements, and trust boundary
 

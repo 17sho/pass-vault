@@ -3,6 +3,11 @@ import { dirname, resolve } from 'node:path';
 
 const root = resolve(new URL('..', import.meta.url).pathname);
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+// Public platform Releases can advance independently from the default branch's
+// application manifest. Keep homepage/download assertions tied to live release
+// identities rather than silently advertising the older manifest version.
+const publicCloudflareVersion = '2.2.3';
+const publicLinuxTag = 'v2.2.3-server';
 const versionedAssets = new Map([
   ['public/index.html', ['/theme-init.js', '/style.css', '/app-shell.css', '/app.mjs']],
   ['public/app.mjs', ['/quick-unlock-device.mjs', '/passkey-assisted-device.mjs', '/history-diff.mjs', '/pinned-order.mjs', '/dialog-ui.mjs', '/password-generator.mjs']],
@@ -54,7 +59,7 @@ for (const [file, text] of contents) {
 }
 for (const file of ['README.md', 'README.en.md']) {
   const text = contents.get(file);
-  for (const required of [`v${pkg.version}`, `/releases/tag/v${pkg.version}`, `pass-vault-v2-cloudflare-${pkg.version}.tar.gz`, 'SHA256SUMS']) {
+  for (const required of [`v${publicCloudflareVersion}`, `/releases/tag/v${publicCloudflareVersion}`, `pass-vault-v2-cloudflare-${publicCloudflareVersion}.tar.gz`, publicLinuxTag, 'pass-vault-v2-linux-2.2.3.tar.gz', 'SHA256SUMS']) {
     if (!text.includes(required)) throw new Error(`${file}: missing current release reference ${required}`);
   }
   if (text.includes('latest stable release (v1.1.59)') || text.includes('最新稳定版（v1.1.59）')) {
@@ -76,7 +81,7 @@ for (const [file, trustBoundary] of [
 ]) {
   const text = contents.get(file);
   if (!text) continue;
-  for (const required of [`v${pkg.version}`,'SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0008_session_metadata.sql','0009_passkey_assisted_unlock.sql','PASSKEY_UNLOCK_KEK','PASSKEY_RP_ID','PASSKEY_ORIGIN',...trustBoundary,'registration_unavailable','invalid_invite']) {
+  for (const required of [`v${publicCloudflareVersion}`,'SHA256SUMS','apps/worker/migrations/','wrangler secret put INVITE_CODE','0008_session_metadata.sql','0009_passkey_assisted_unlock.sql','PASSKEY_UNLOCK_KEK','PASSKEY_RP_ID','PASSKEY_ORIGIN',...trustBoundary,'registration_unavailable','invalid_invite']) {
     if (!text.includes(required)) throw new Error(`${file}: missing ${required}`);
   }
 }
