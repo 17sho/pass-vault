@@ -46,7 +46,14 @@ export function requestOrigin(req) {
   const proto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
   return `${proto}://${req.headers.host}`;
 }
-export function sameOrigin(req) { return req.headers.origin === requestOrigin(req); }
+export function sameOrigin(req) {
+  const expected = requestOrigin(req);
+  if (typeof req.headers.origin === 'string' && req.headers.origin) return req.headers.origin === expected;
+  if (typeof req.headers.referer === 'string' && req.headers.referer) {
+    try { return new URL(req.headers.referer).origin === expected; } catch { return false; }
+  }
+  return req.headers['sec-fetch-site'] === 'same-origin';
+}
 
 export function readCookie(req, name) {
   return (req.headers.cookie || '').split(';').map(v => v.trim().split('=')).find(v => v[0] === name)?.[1];

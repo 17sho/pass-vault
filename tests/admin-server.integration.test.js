@@ -98,6 +98,18 @@ test('Linux修改主密码和用户名均立即撤销既有Admin独立会话',as
  }
 });
 
+test('Linux Admin原生表单在Origin缺失时用同源Referer或Fetch Metadata登录',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-native-form-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
+  const encoded=new URLSearchParams({username:'admin',password:'correct horse battery'}).toString();
+  for(const headers of [{referer:admin.base+'/'},{'sec-fetch-site':'same-origin'}]){
+   const r=await fetch(admin.base+'/login',{method:'POST',redirect:'manual',headers:{'content-type':'application/x-www-form-urlencoded',...headers},body:encoded});assert.equal(r.status,303);assert.equal(r.headers.get('location'),'/');assert.match(r.headers.get('set-cookie'),/^pv_admin_session=/);
+  }
+  const cross=await fetch(admin.base+'/login',{method:'POST',redirect:'manual',headers:{referer:'https://evil.example/','content-type':'application/x-www-form-urlencoded'},body:encoded});assert.equal(cross.status,403);
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
 test('Linux Admin未登录显示独立登录页而非空白控制台',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-login-page-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
