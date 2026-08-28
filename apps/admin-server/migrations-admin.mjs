@@ -283,6 +283,147 @@ export function migratePendingDeletionsSize(db) {
   } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+export function migrateAdminFileDeletions(db) {
+  if (tableExists(db, 'admin_file_deletions')) return false;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(`CREATE TABLE admin_file_deletions(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tree TEXT NOT NULL CHECK(tree IN ('attachment','share')),
+      object_key TEXT NOT NULL,
+      dir_hash TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      CHECK((tree='attachment' AND length(object_key)=64 AND object_key NOT GLOB '*[^0-9a-f]*' AND length(dir_hash)=64 AND dir_hash NOT GLOB '*[^0-9a-f]*') OR (tree='share' AND length(object_key)=87 AND substr(object_key,44,1)='/' AND length(substr(object_key,1,43))=43 AND substr(object_key,1,43) NOT GLOB '*[^A-Za-z0-9_-]*' AND length(substr(object_key,45))=43 AND substr(object_key,45) NOT GLOB '*[^A-Za-z0-9_-]*' AND dir_hash='')),
+      UNIQUE(tree,object_key,dir_hash)
+    );
+    CREATE INDEX idx_admin_file_deletions_created ON admin_file_deletions(created_at)`);
+    db.exec('COMMIT');
+    return true;
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
+const ATTACHMENT_IDENTITY_SQL = "tree='attachment' AND length(object_key)=64 AND object_key NOT GLOB '*[^0-9a-f]*' AND length(dir_hash)=64 AND dir_hash NOT GLOB '*[^0-9a-f]*'";
+const SHARE_IDENTITY_SQL = "tree='share' AND length(object_key)=87 AND substr(object_key,44,1)='/' AND length(substr(object_key,1,43))=43 AND substr(object_key,1,43) NOT GLOB '*[^A-Za-z0-9_-]*' AND length(substr(object_key,45))=43 AND substr(object_key,45) NOT GLOB '*[^A-Za-z0-9_-]*' AND dir_hash=''";
+const FILE_IDENTITY_SQL = `((${ATTACHMENT_IDENTITY_SQL}) OR (${SHARE_IDENTITY_SQL}))`;
+const lifecycleTriggers = ['file_lifecycle_attachments_insert', 'file_lifecycle_attachments_update', 'file_lifecycle_share_insert', 'file_lifecycle_share_update'];
+
+function lifecycleCurrent(db) {
+  if (['filesystem_maintenance_fence', 'file_write_intents', 'file_deletion_outbox', 'legacy_file_deletion_quarantine', 'admin_file_deletions'].some(name => !tableExists(db, name))) return false;
+  const fence = columnNames(db, 'filesystem_maintenance_fence'), outbox = columnNames(db, 'file_deletion_outbox');
+  if (!['owner_id', 'phase', 'previous_owner_id'].every(name => fence.has(name)) || !['claim_token', 'claimed_at'].every(name => outbox.has(name))) return false;
+  const schemas = ['file_write_intents', 'file_deletion_outbox', 'admin_file_deletions'].map(name => db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name)?.sql || '');
+  if (schemas.some(sql => !sql.replace(/\s+/g, '').includes('length(substr(object_key,1,43))=43'))) return false;
+  return lifecycleTriggers.every(name => db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(name));
+}
+
+function selectColumn(columns, name, fallback = 'NULL') { return columns.has(name) ? name : fallback; }
+
+// Persistent, fail-closed coordination for Linux filesystem writes/deletes.
+// Every old lifecycle shape is rebuilt under one BEGIN IMMEDIATE: constraints,
+// compatible rows, quarantine, added columns and reference triggers become visible atomically.
+export function migrateFileLifecycle(db) {
+  if (lifecycleCurrent(db)) return false;
+  const existed = Object.fromEntries(['filesystem_maintenance_fence', 'file_write_intents', 'file_deletion_outbox', 'legacy_file_deletion_quarantine', 'admin_file_deletions']
+    .map(name => [name, tableExists(db, name)]));
+  const columns = Object.fromEntries(Object.entries(existed).map(([name, yes]) => [name, yes ? columnNames(db, name) : new Set()]));
+  const now = Date.now();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    for (const name of lifecycleTriggers) db.exec(`DROP TRIGGER IF EXISTS ${name}`);
+    for (const name of ['idx_file_write_intents_created', 'idx_file_deletion_outbox_created', 'idx_legacy_file_deletion_quarantine_time', 'idx_admin_file_deletions_created']) db.exec(`DROP INDEX IF EXISTS ${name}`);
+    for (const [name, yes] of Object.entries(existed)) if (yes) db.exec(`ALTER TABLE ${name} RENAME TO ${name}_lifecycle_old`);
+    db.exec(`CREATE TABLE filesystem_maintenance_fence(
+      name TEXT PRIMARY KEY CHECK(name='delete'), token TEXT NOT NULL CHECK(length(token) BETWEEN 1 AND 200), run_id INTEGER,
+      acquired_at INTEGER NOT NULL, owner_id TEXT, phase TEXT NOT NULL DEFAULT 'active' CHECK(phase IN ('active','recovering')), previous_owner_id TEXT
+    );
+    CREATE TABLE file_write_intents(
+      tree TEXT NOT NULL CHECK(tree IN ('attachment','share')), object_key TEXT NOT NULL, dir_hash TEXT NOT NULL DEFAULT '', user_id TEXT,
+      token TEXT NOT NULL CHECK(length(token) BETWEEN 1 AND 200), expected_size INTEGER NOT NULL CHECK(expected_size>=0), created_at INTEGER NOT NULL,
+      PRIMARY KEY(tree,dir_hash,object_key), CHECK(${FILE_IDENTITY_SQL}),
+      CHECK((tree='attachment' AND user_id IS NOT NULL) OR (tree='share' AND user_id IS NULL))
+    );
+    CREATE INDEX idx_file_write_intents_created ON file_write_intents(created_at);
+    CREATE TABLE file_deletion_outbox(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, tree TEXT NOT NULL CHECK(tree IN ('attachment','share')), object_key TEXT NOT NULL,
+      dir_hash TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL CHECK(length(reason) BETWEEN 1 AND 200), created_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts>=0), last_error TEXT, claim_token TEXT, claimed_at INTEGER,
+      UNIQUE(tree,dir_hash,object_key), CHECK(${FILE_IDENTITY_SQL})
+    );
+    CREATE INDEX idx_file_deletion_outbox_created ON file_deletion_outbox(created_at,id);
+    CREATE TABLE legacy_file_deletion_quarantine(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL CHECK(source IN ('pending_file_deletions','admin_file_deletions','file_write_intents','file_deletion_outbox')),
+      source_key TEXT NOT NULL CHECK(length(source_key) BETWEEN 1 AND 200), error_code TEXT NOT NULL CHECK(length(error_code) BETWEEN 1 AND 100),
+      created_at INTEGER NOT NULL, quarantined_at INTEGER NOT NULL
+    );
+    CREATE INDEX idx_legacy_file_deletion_quarantine_time ON legacy_file_deletion_quarantine(quarantined_at,id);
+    CREATE TABLE admin_file_deletions(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, tree TEXT NOT NULL CHECK(tree IN ('attachment','share')), object_key TEXT NOT NULL,
+      dir_hash TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, CHECK(${FILE_IDENTITY_SQL}), UNIQUE(tree,object_key,dir_hash)
+    );
+    CREATE INDEX idx_admin_file_deletions_created ON admin_file_deletions(created_at);`);
+
+    if (existed.filesystem_maintenance_fence) db.exec(`INSERT INTO filesystem_maintenance_fence(name,token,run_id,acquired_at,owner_id,phase,previous_owner_id)
+      SELECT name,token,${selectColumn(columns.filesystem_maintenance_fence, 'run_id')},acquired_at,${selectColumn(columns.filesystem_maintenance_fence, 'owner_id')},${selectColumn(columns.filesystem_maintenance_fence, 'phase', "'active'")},${selectColumn(columns.filesystem_maintenance_fence, 'previous_owner_id')}
+      FROM filesystem_maintenance_fence_lifecycle_old`);
+    if (existed.legacy_file_deletion_quarantine) db.exec(`INSERT INTO legacy_file_deletion_quarantine(id,source,source_key,error_code,created_at,quarantined_at)
+      SELECT id,source,source_key,error_code,created_at,quarantined_at FROM legacy_file_deletion_quarantine_lifecycle_old
+      WHERE source IN ('pending_file_deletions','admin_file_deletions','file_write_intents','file_deletion_outbox')`);
+    if (existed.file_write_intents) {
+      db.exec(`INSERT INTO legacy_file_deletion_quarantine(source,source_key,error_code,created_at,quarantined_at)
+        SELECT 'file_write_intents',substr(COALESCE(tree,'')||':'||COALESCE(dir_hash,'')||':'||COALESCE(object_key,''),1,200),'invalid_identity',COALESCE(created_at,0),${now}
+        FROM file_write_intents_lifecycle_old WHERE NOT (${FILE_IDENTITY_SQL}) OR expected_size<0 OR length(token) NOT BETWEEN 1 AND 200 OR (tree='attachment')<>(user_id IS NOT NULL);
+        INSERT INTO file_write_intents(tree,object_key,dir_hash,user_id,token,expected_size,created_at)
+        SELECT tree,object_key,dir_hash,user_id,token,expected_size,created_at FROM file_write_intents_lifecycle_old
+        WHERE ${FILE_IDENTITY_SQL} AND expected_size>=0 AND length(token) BETWEEN 1 AND 200 AND (tree='attachment')=(user_id IS NOT NULL)`);
+    }
+    if (existed.file_deletion_outbox) {
+      db.exec(`INSERT INTO legacy_file_deletion_quarantine(source,source_key,error_code,created_at,quarantined_at)
+        SELECT 'file_deletion_outbox',substr(COALESCE(tree,'')||':'||COALESCE(dir_hash,'')||':'||COALESCE(object_key,''),1,200),'invalid_identity',COALESCE(created_at,0),${now}
+        FROM file_deletion_outbox_lifecycle_old WHERE NOT (${FILE_IDENTITY_SQL}) OR COALESCE(attempts,0)<0 OR length(reason) NOT BETWEEN 1 AND 200;
+        INSERT INTO file_deletion_outbox(id,tree,object_key,dir_hash,reason,created_at,attempts,last_error,claim_token,claimed_at)
+        SELECT id,tree,object_key,dir_hash,reason,created_at,COALESCE(attempts,0),${selectColumn(columns.file_deletion_outbox, 'last_error')},${selectColumn(columns.file_deletion_outbox, 'claim_token')},${selectColumn(columns.file_deletion_outbox, 'claimed_at')}
+        FROM file_deletion_outbox_lifecycle_old WHERE ${FILE_IDENTITY_SQL} AND COALESCE(attempts,0)>=0 AND length(reason) BETWEEN 1 AND 200`);
+    }
+    if (existed.admin_file_deletions) {
+      db.exec(`INSERT INTO legacy_file_deletion_quarantine(source,source_key,error_code,created_at,quarantined_at)
+        SELECT 'admin_file_deletions',substr(CAST(id AS TEXT),1,200),'invalid_identity',COALESCE(created_at,0),${now}
+        FROM admin_file_deletions_lifecycle_old WHERE NOT (${FILE_IDENTITY_SQL});
+        INSERT INTO admin_file_deletions(id,tree,object_key,dir_hash,created_at)
+        SELECT id,tree,object_key,dir_hash,created_at FROM admin_file_deletions_lifecycle_old WHERE ${FILE_IDENTITY_SQL}`);
+    }
+    for (const [name, yes] of Object.entries(existed)) if (yes) db.exec(`DROP TABLE ${name}_lifecycle_old`);
+
+    // Placeholders for v2 shares are inserted before bytes exist. Every transition
+    // that creates a live filesystem reference still requires its matching intent.
+    db.exec(`CREATE TRIGGER file_lifecycle_attachments_insert BEFORE INSERT ON attachments BEGIN
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM filesystem_maintenance_fence WHERE name='delete') THEN RAISE(ABORT,'file_lifecycle_fence') END;
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM file_deletion_outbox WHERE tree='attachment' AND object_key=NEW.object_key) THEN RAISE(ABORT,'file_lifecycle_outbox') END;
+      SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM file_write_intents WHERE tree='attachment' AND object_key=NEW.object_key AND user_id=NEW.user_id AND expected_size=NEW.ciphertext_size) THEN RAISE(ABORT,'file_lifecycle_intent') END;
+    END;
+    CREATE TRIGGER file_lifecycle_attachments_update BEFORE UPDATE OF user_id,object_key,ciphertext_size ON attachments
+    WHEN OLD.user_id IS NOT NEW.user_id OR OLD.object_key IS NOT NEW.object_key OR OLD.ciphertext_size IS NOT NEW.ciphertext_size BEGIN
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM filesystem_maintenance_fence WHERE name='delete') THEN RAISE(ABORT,'file_lifecycle_fence') END;
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM file_deletion_outbox WHERE tree='attachment' AND object_key=NEW.object_key) THEN RAISE(ABORT,'file_lifecycle_outbox') END;
+      SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM file_write_intents WHERE tree='attachment' AND object_key=NEW.object_key AND user_id=NEW.user_id AND expected_size=NEW.ciphertext_size) THEN RAISE(ABORT,'file_lifecycle_intent') END;
+    END;
+    CREATE TRIGGER file_lifecycle_share_insert BEFORE INSERT ON secure_share_objects BEGIN
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM filesystem_maintenance_fence WHERE name='delete') THEN RAISE(ABORT,'file_lifecycle_fence') END;
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM file_deletion_outbox WHERE tree='share' AND object_key=NEW.object_key) THEN RAISE(ABORT,'file_lifecycle_outbox') END;
+      SELECT CASE WHEN NOT (NEW.uploaded_at IS NULL AND NEW.ciphertext_size IS NULL AND NEW.upload_lease_token IS NULL)
+        AND NOT EXISTS(SELECT 1 FROM file_write_intents WHERE tree='share' AND object_key=NEW.object_key AND expected_size=COALESCE(NEW.ciphertext_size,NEW.expected_size) AND (NEW.upload_lease_token IS NULL OR token=NEW.upload_lease_token))
+        THEN RAISE(ABORT,'file_lifecycle_intent') END;
+    END;
+    CREATE TRIGGER file_lifecycle_share_update BEFORE UPDATE OF object_key,expected_size,ciphertext_size,uploaded_at,upload_lease_token ON secure_share_objects
+    WHEN OLD.object_key IS NOT NEW.object_key OR OLD.expected_size IS NOT NEW.expected_size OR OLD.ciphertext_size IS NOT NEW.ciphertext_size OR OLD.uploaded_at IS NOT NEW.uploaded_at OR OLD.upload_lease_token IS NOT NEW.upload_lease_token BEGIN
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM filesystem_maintenance_fence WHERE name='delete') THEN RAISE(ABORT,'file_lifecycle_fence') END;
+      SELECT CASE WHEN EXISTS(SELECT 1 FROM file_deletion_outbox WHERE tree='share' AND object_key=NEW.object_key) THEN RAISE(ABORT,'file_lifecycle_outbox') END;
+      SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM file_write_intents WHERE tree='share' AND object_key=NEW.object_key AND expected_size=COALESCE(NEW.ciphertext_size,NEW.expected_size) AND token=COALESCE(NEW.upload_lease_token,OLD.upload_lease_token)) THEN RAISE(ABORT,'file_lifecycle_intent') END;
+    END`);
+    db.exec('COMMIT');
+    return true;
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
 // Run every admin migration in dependency order. Returns the list of applied names.
 export function runAdminMigrations(db) {
   const steps = [
@@ -298,6 +439,8 @@ export function runAdminMigrations(db) {
     ['maintenance_runs', migrateMaintenanceRuns],
     ['maintenance_reports', migrateMaintenanceReports],
     ['maintenance_leases', migrateMaintenanceLeases],
+    ['admin_file_deletions', migrateAdminFileDeletions],
+    ['file_lifecycle', migrateFileLifecycle],
     ['users_admin_fields', migrateUsersAdminFields],
     ['pending_deletions_size', migratePendingDeletionsSize]
   ];

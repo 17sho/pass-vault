@@ -59,7 +59,8 @@ function adminIdentity(req) {
   db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(Date.now());
   const raw = readCookie(req, COOKIE_NAME);
   if (!raw) return null;
-  const row = db.prepare('SELECT s.user_id,s.id_hash,u.username FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>?').get(digest(raw), Date.now());
+  const now = Date.now();
+  const row = db.prepare('SELECT s.user_id,s.id_hash,u.username FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>? AND (u.banned_until IS NULL OR (u.banned_until<>-1 AND u.banned_until<?))').get(digest(raw), now, now);
   if (!row) return null;
   return { userId: row.user_id, username: String(row.username || ''), sessionHash: row.id_hash };
 }
@@ -100,7 +101,7 @@ const server = createServer(async (req, res) => {
     // --- Auth gate: valid session + admin allowlist membership ---
     const identity = adminIdentity(req);
     if (!identity) return json(res, 401, { error: 'auth_required' });
-    if (!ADMINS.size || !ADMINS.has(identity.username.toLowerCase())) return json(res, 403, { error: 'forbidden' });
+    if (!ADMINS.size || !ADMINS.has(identity.username)) return json(res, 403, { error: 'forbidden' });
 
     // Health endpoint (read-only).
     if (req.method === 'GET' && path === '/api/health') {

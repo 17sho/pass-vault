@@ -63,6 +63,20 @@ export function checkAttachmentQuota(db, userId, addedBytes, isNew = true) {
   return null;
 }
 
+// Replacement imports discard existing attachments but retain committed share
+// objects. Gate against that final state rather than adding to the old files.
+export function checkAttachmentReplacementQuota(db, userId, replacementCount, replacementBytes) {
+  const q = userQuota(db, userId);
+  const shareBytes = Number(db.prepare(`SELECT COALESCE(SUM(ciphertext_size),0) bytes FROM (
+    SELECT o.object_key,MAX(o.ciphertext_size) ciphertext_size FROM secure_share_objects o
+    JOIN secure_share_packages p ON p.token_hash=o.share_token_hash
+    WHERE p.user_id=? AND o.uploaded_at IS NOT NULL GROUP BY o.object_key
+  )`).get(userId)?.bytes || 0);
+  if (replacementCount > q.attachment_count_limit) return { quota: 'attachments', limit: q.attachment_count_limit };
+  if (shareBytes + Math.max(0, replacementBytes) > q.attachment_bytes_limit) return { quota: 'attachment_bytes', limit: q.attachment_bytes_limit };
+  return null;
+}
+
 // ---- Invite codes -------------------------------------------------------
 function inviteDigest(code, pepper) {
   return 'hmac-sha256:v1:' + createHmac('sha256', Buffer.from(pepper, 'utf8')).update(code, 'utf8').digest('base64url');

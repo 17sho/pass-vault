@@ -7,6 +7,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { startTestServer, TEST_INVITE_CODE } from './fixtures.mjs';
+import { checkAttachmentReplacementQuota } from '../apps/server/enforcement.mjs';
+import { retryMaintenance, repairMaintenance } from '../apps/admin-server/maintenance.mjs';
+import { migrateAdminFileDeletions, migrateFileLifecycle } from '../apps/admin-server/migrations-admin.mjs';
 
 const kdf={salt:'c2FsdHNhbHRzYWx0c2FsdA==',iterations:310000,hash:'SHA-256'};
 const wrappedKey={iv:'dGVzdGl2MTIzNDU2',ciphertext:'ZW5jcnlwdGVk'};
@@ -53,6 +56,19 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
  assert.match(style,/@media\(max-width:|@media \(max-width:/);assert.match(script,/\/api\/overview/);assert.match(script,/\/api\/users/);
 });
 
+test('Linux Admin管理员白名单大小写精确匹配且封禁会话失效',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-auth-boundary-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  const cookie=await registerAndLogin(dbPath,'Admin');
+  admin=await startAdmin({dbPath,username:'admin'});
+  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,403,'Admin 不得匹配 admin 白名单');
+  await admin.stop();admin=await startAdmin({dbPath,username:'Admin'});
+  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,200);
+  const sql=new DatabaseSync(dbPath);sql.prepare('UPDATE users SET banned_until=-1 WHERE username=?').run('Admin');sql.close();
+  assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401,'封禁账户的既有管理员会话必须失效');
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
 test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端点集成',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-server-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
@@ -82,6 +98,119 @@ test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端
   r=await req(admin.base,'/logout',{method:'POST',cookie,origin:''});assert.equal(r.status,403);
   r=await req(admin.base,'/logout',{method:'POST',cookie,redirect:'manual'});assert.equal(r.status,302);assert.match(r.headers.get('set-cookie'),/Domain=\.passkey\.23cm\.me/);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
+test('旧生命周期schema原子升级为43/43约束并保留协调状态',()=>{
+ const db=new DatabaseSync(':memory:'),attachmentKey='a'.repeat(64),dirHash='b'.repeat(64),shareKey=`${'c'.repeat(43)}/${'D'.repeat(43)}`;
+ try{
+  db.exec(`CREATE TABLE attachments(user_id TEXT,object_key TEXT);CREATE TABLE secure_share_objects(object_key TEXT,uploaded_at INTEGER,upload_lease_token TEXT);
+  CREATE TABLE filesystem_maintenance_fence(name TEXT PRIMARY KEY,token TEXT,run_id INTEGER,acquired_at INTEGER);
+  CREATE TABLE file_write_intents(tree TEXT,object_key TEXT,dir_hash TEXT DEFAULT '',user_id TEXT,token TEXT,expected_size INTEGER,created_at INTEGER,PRIMARY KEY(tree,dir_hash,object_key));
+  CREATE TABLE file_deletion_outbox(id INTEGER PRIMARY KEY AUTOINCREMENT,tree TEXT,object_key TEXT,dir_hash TEXT DEFAULT '',reason TEXT,created_at INTEGER,attempts INTEGER DEFAULT 0,last_error TEXT,UNIQUE(tree,dir_hash,object_key));
+  CREATE TABLE admin_file_deletions(id INTEGER PRIMARY KEY AUTOINCREMENT,tree TEXT,object_key TEXT,dir_hash TEXT DEFAULT '',created_at INTEGER);
+  INSERT INTO filesystem_maintenance_fence VALUES('delete','fence',7,8);
+  INSERT INTO file_write_intents VALUES('attachment','${attachmentKey}','${dirHash}','u','intent',16,9);
+  INSERT INTO file_write_intents VALUES('share','bad','','u','bad-intent',-1,10);
+  INSERT INTO file_deletion_outbox(tree,object_key,dir_hash,reason,created_at,attempts,last_error) VALUES('share','${shareKey}','','delete',11,2,'retry');
+  INSERT INTO file_deletion_outbox(tree,object_key,dir_hash,reason,created_at) VALUES('attachment','bad','','bad',12);
+  INSERT INTO admin_file_deletions(tree,object_key,dir_hash,created_at) VALUES('attachment','${attachmentKey}','${dirHash}',13),('share','bad','',14)`);
+  assert.equal(migrateFileLifecycle(db),true);assert.equal(migrateAdminFileDeletions(db),false);
+  assert.deepEqual({...db.prepare('SELECT token,run_id,acquired_at,owner_id,phase FROM filesystem_maintenance_fence').get()},{token:'fence',run_id:7,acquired_at:8,owner_id:null,phase:'active'});
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM file_write_intents').get().c,1);assert.equal(db.prepare('SELECT COUNT(*) c FROM file_deletion_outbox').get().c,1);
+  assert.deepEqual({...db.prepare('SELECT reason,attempts,last_error,claim_token,claimed_at FROM file_deletion_outbox').get()},{reason:'delete',attempts:2,last_error:'retry',claim_token:null,claimed_at:null});
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM admin_file_deletions').get().c,1);assert.equal(db.prepare('SELECT COUNT(*) c FROM legacy_file_deletion_quarantine').get().c,3);
+  assert.throws(()=>db.prepare("INSERT INTO file_write_intents VALUES('share','bad','','x','t',1,1)").run(),/constraint/i);
+  const sql=db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='file_deletion_outbox'").get().sql;assert.match(sql,/length\(substr\(object_key,1,43\)\)=43/);
+ }finally{db.close()}
+});
+
+test('生命周期升级失败回滚旧表、列、数据与trigger',()=>{
+ const db=new DatabaseSync(':memory:');
+ try{
+  db.exec(`CREATE TABLE attachments(user_id TEXT,object_key TEXT);CREATE TABLE secure_share_objects(object_key TEXT,uploaded_at INTEGER,upload_lease_token TEXT);
+  CREATE TABLE filesystem_maintenance_fence(name TEXT PRIMARY KEY,token TEXT,run_id INTEGER,acquired_at INTEGER);
+  CREATE TABLE file_write_intents(tree TEXT,object_key TEXT,dir_hash TEXT,user_id TEXT,token TEXT,expected_size INTEGER,created_at INTEGER);
+  CREATE TABLE file_deletion_outbox(id INTEGER PRIMARY KEY,tree TEXT,object_key TEXT,dir_hash TEXT,reason TEXT,created_at INTEGER,attempts INTEGER,last_error TEXT);
+  CREATE TABLE legacy_file_deletion_quarantine(id INTEGER PRIMARY KEY,source TEXT,source_key TEXT,error_code TEXT,created_at INTEGER,quarantined_at INTEGER);
+  INSERT INTO file_write_intents VALUES('attachment','${'a'.repeat(64)}','${'b'.repeat(64)}','u','one',1,1);
+  INSERT INTO file_write_intents VALUES('attachment','${'a'.repeat(64)}','${'b'.repeat(64)}','u','two',1,2)`);
+  assert.throws(()=>migrateFileLifecycle(db),/constraint/i);
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM file_write_intents').get().c,2);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM pragma_table_info('filesystem_maintenance_fence') WHERE name='owner_id'").get().c,0);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type='trigger' AND name LIKE 'file_lifecycle_%'").get().c,0);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type='table' AND name LIKE '%_lifecycle_old'").get().c,0);
+ }finally{db.close()}
+});
+
+test('文件引用trigger在fence/outbox下fail-closed并兼容intent及稳定更新',()=>{
+ const db=new DatabaseSync(':memory:'),key='a'.repeat(64),dir='b'.repeat(64),share=`${'c'.repeat(43)}/${'D'.repeat(43)}`;
+ try{
+  db.exec(`CREATE TABLE attachments(user_id TEXT,id TEXT,object_key TEXT,ciphertext_size INTEGER);CREATE TABLE secure_share_objects(object_key TEXT,expected_size INTEGER,ciphertext_size INTEGER,uploaded_at INTEGER,upload_lease_token TEXT)`);migrateFileLifecycle(db);
+  assert.throws(()=>db.prepare('INSERT INTO attachments VALUES(?,?,?,?)').run('u','a',key,16),/file_lifecycle/i);
+  db.prepare('INSERT INTO file_write_intents VALUES(?,?,?,?,?,?,?)').run('attachment',key,dir,'u','intent',16,1);db.prepare('INSERT INTO attachments VALUES(?,?,?,?)').run('u','a',key,16);
+  db.prepare("INSERT INTO filesystem_maintenance_fence(name,token,acquired_at) VALUES('delete','f',1)").run();
+  db.prepare("UPDATE attachments SET id='renamed' WHERE id='a'").run();assert.throws(()=>db.prepare('INSERT INTO attachments VALUES(?,?,?,?)').run('u','b',key,16),/file_lifecycle/i);
+  db.prepare('DELETE FROM filesystem_maintenance_fence').run();db.prepare('DELETE FROM file_write_intents').run();db.prepare('INSERT INTO file_deletion_outbox(tree,object_key,dir_hash,reason,created_at) VALUES(?,?,?,?,?)').run('attachment',key,dir,'delete',1);
+  assert.throws(()=>db.prepare('INSERT INTO attachments VALUES(?,?,?,?)').run('u','c',key,16),/file_lifecycle/i);
+  db.prepare('DELETE FROM file_deletion_outbox').run();db.prepare('INSERT INTO file_write_intents VALUES(?,?,?,?,?,?,?)').run('share',share,'',null,'share-intent',9,1);db.prepare('INSERT INTO secure_share_objects VALUES(?,?,?,?,?)').run(share,9,null,null,null);
+  db.prepare('UPDATE secure_share_objects SET upload_lease_token=? WHERE object_key=?').run('share-intent',share);db.prepare('UPDATE secure_share_objects SET ciphertext_size=9,uploaded_at=2,upload_lease_token=NULL WHERE object_key=?').run(share);
+ }finally{db.close()}
+});
+
+test('维护重试拒绝非法持久与旧队列路径且保留失败行',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-maint-path-')),attachments=join(dir,'attachments'),shares=join(dir,'shares'),dbPath=join(dir,'vault.sqlite');
+ const db=new DatabaseSync(dbPath);
+ try{
+  db.exec(`CREATE TABLE attachments(object_key TEXT);CREATE TABLE secure_share_objects(object_key TEXT,uploaded_at INTEGER,upload_lease_token TEXT);
+  CREATE TABLE maintenance_leases(name TEXT PRIMARY KEY,token TEXT,expires_at INTEGER);
+  CREATE TABLE pending_file_deletions(object_key TEXT PRIMARY KEY,user_id TEXT,created_at INTEGER,ciphertext_size INTEGER DEFAULT 0);
+  CREATE TABLE admin_file_deletions(id INTEGER PRIMARY KEY,tree TEXT,object_key TEXT,dir_hash TEXT,created_at INTEGER);
+  CREATE TABLE admin_audit_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_email TEXT,action TEXT,target_username TEXT,details_json TEXT,created_at INTEGER)`);
+  migrateFileLifecycle(db);
+  db.prepare('INSERT INTO pending_file_deletions VALUES(?,?,?,0)').run('../../../../etc/passwd','user',Date.now());
+  assert.throws(()=>db.prepare('INSERT INTO admin_file_deletions VALUES(1,?,?,?,?)').run('attachment','../outside','bad',Date.now()),/constraint/i);
+  const result=await retryMaintenance(db,{ATTACHMENTS_DIR:attachments,SHARES_DIR:shares,DB_PATH:dbPath},'admin');
+  assert.equal(result.failed,0);assert.equal(result.processed,0);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM pending_file_deletions').get().count,0);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM admin_file_deletions').get().count,0);
+ }finally{db.close();await rm(dir,{recursive:true,force:true})}
+});
+
+test('维护repair拒绝非法报告路径且不结算报告项',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-repair-path-')),dbPath=join(dir,'vault.sqlite'),db=new DatabaseSync(dbPath);
+ try{
+  db.exec(`CREATE TABLE attachments(object_key TEXT);CREATE TABLE secure_share_objects(object_key TEXT,uploaded_at INTEGER,upload_lease_token TEXT);
+  CREATE TABLE secure_share_packages(token_hash TEXT);CREATE TABLE pending_file_deletions(object_key TEXT PRIMARY KEY,user_id TEXT,created_at INTEGER,ciphertext_size INTEGER);
+  CREATE TABLE maintenance_reports(id INTEGER PRIMARY KEY,status TEXT,repaired_at INTEGER);
+  CREATE TABLE maintenance_report_items(report_id INTEGER,object_key TEXT,ciphertext_size INTEGER,tree TEXT,user_id TEXT,dir_hash TEXT,PRIMARY KEY(report_id,object_key));
+  CREATE TABLE admin_audit_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_email TEXT,action TEXT,target_username TEXT,details_json TEXT,created_at INTEGER)`);
+  migrateFileLifecycle(db);
+  db.exec(`INSERT INTO maintenance_reports VALUES(1,'ready',NULL);
+  INSERT INTO maintenance_report_items VALUES(1,'../../../../etc/passwd',0,'share',NULL,NULL)`);
+  const result=await repairMaintenance(db,{ATTACHMENTS_DIR:join(dir,'attachments'),SHARES_DIR:join(dir,'shares'),DB_PATH:dbPath},'admin',1,{confirm:'REPAIR:1'});
+  assert.equal(result.status,'ready');assert.equal(result.remaining,1);assert.equal(result.unlinked,0);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM maintenance_report_items').get().count,1);
+ }finally{db.close();await rm(dir,{recursive:true,force:true})}
+});
+
+test('v2附件替换配额按导入后最终数量和保留分享字节计算',()=>{
+ const dir=new DatabaseSync(':memory:');
+ dir.exec(`CREATE TABLE user_quotas(user_id TEXT,entry_limit INTEGER,attachment_count_limit INTEGER,attachment_bytes_limit INTEGER,expires_at INTEGER);
+ CREATE TABLE secure_share_packages(token_hash TEXT PRIMARY KEY,user_id TEXT);
+ CREATE TABLE secure_share_objects(share_token_hash TEXT,object_key TEXT,ciphertext_size INTEGER,uploaded_at INTEGER);
+ CREATE TABLE attachments(user_id TEXT,object_key TEXT,ciphertext_size INTEGER);
+ INSERT INTO user_quotas VALUES('u',100,1,100,NULL);
+ INSERT INTO attachments VALUES('u','old',90);
+ INSERT INTO secure_share_packages VALUES('share','u');
+ INSERT INTO secure_share_objects VALUES('share','shared',40,1)`);
+ assert.deepEqual(checkAttachmentReplacementQuota(dir,'u',2,32),{quota:'attachments',limit:1});
+ assert.deepEqual(checkAttachmentReplacementQuota(dir,'u',1,61),{quota:'attachment_bytes',limit:100});
+ assert.deepEqual(checkAttachmentReplacementQuota(dir,'u',0,0),null,'仅保留分享且未超额时允许空附件替换');
+ dir.prepare('UPDATE user_quotas SET attachment_bytes_limit=39 WHERE user_id=?').run('u');
+ assert.deepEqual(checkAttachmentReplacementQuota(dir,'u',0,0),{quota:'attachment_bytes',limit:39},'空附件替换也必须检查保留分享字节');
+ dir.prepare('UPDATE user_quotas SET attachment_bytes_limit=100 WHERE user_id=?').run('u');
+ assert.equal(checkAttachmentReplacementQuota(dir,'u',1,60),null,'旧附件字节不应计入替换后的最终状态');
+ dir.close();
 });
 
 test('登录失败/限流与备份导入配额产生安全事件与429（enforcement 全入口覆盖）',async()=>{

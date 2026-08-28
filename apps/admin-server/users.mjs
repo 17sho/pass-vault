@@ -6,18 +6,23 @@
 //
 // Local adaptations vs Cloudflare:
 //   - unixepoch()*1000 SQL literals -> bound Date.now() params (node:sqlite has no unixepoch()*1000 idiom issues, but we bind for parity/portability)
-//   - R2 object deletion -> unlink physical files (attachments under ATTACHMENTS_DIR/<sha256(userId)>/, shares under SHARES_DIR)
+//   - R2 object deletion -> unified durable outbox + fenced local unlink
 //   - No attachment_versions / r2_inflight_uploads tables (server has neither)
 //   - password_iterations column -> parsed from users.kdf JSON
-import { createHash } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
-import { join, resolve, dirname } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { join, dirname, resolve } from 'node:path';
+import { acquireMaintenanceFence, releaseMaintenanceFence, enqueueFileDeletion, processFileDeletionOutbox, ATTACHMENT_KEY_RE, SHARE_PATH_RE } from '../server/file-lifecycle.mjs';
 import { DEFAULT_USER_QUOTA, mapUser } from './overview.mjs';
 
 const digest = x => createHash('sha256').update(x).digest('hex');
 
-function userDir(attachmentsDir, userId) { return join(attachmentsDir, digest(userId)); }
 function sharesDir(env) { return resolve(env.SHARES_DIR || join(dirname(env.DB_PATH), 'shares')); }
+
+async function processSelectedOutbox(db, env, fenceToken, queueIds) {
+  const ids = new Set(queueIds.filter(id => Number.isSafeInteger(id) && id > 0));
+  if (!ids.size) return { processed: 0, failed: 0, protected: 0 };
+  return processFileDeletionOutbox(db, env, { fenceToken, limit: ids.size, filter: row => ids.has(Number(row.id)) });
+}
 
 export function auditLog(db, actor, action, target, details) {
   db.prepare('INSERT INTO admin_audit_logs(actor_email,action,target_username,details_json,created_at) VALUES(?,?,?,?,?)')
@@ -152,39 +157,43 @@ export function revokeSessions(db, actor, username) {
   return revoked;
 }
 
-// DELETE /api/users/:u — remove the user + cascade child rows + unlink files.
-// The server has no pending_r2_deletions worker; because pending_file_deletions
-// cascades on user delete, we collect object keys first, delete the user (cascade
-// clears entries/attachments/sessions/shares rows), then unlink physical files.
+// DELETE /api/users/:u — atomically move every owned/current legacy object into
+// the durable outbox, delete the user, then process only this deletion's queue IDs.
 export async function deleteUser(db, env, actor, username) {
   const user = db.prepare('SELECT id FROM users WHERE username=?').get(username);
   if (!user) return null;
-
-  const attachmentKeys = db.prepare('SELECT object_key FROM attachments WHERE user_id=?').all(user.id).map(r => r.object_key);
-  const shareKeys = db.prepare(`SELECT o.object_key FROM secure_share_objects o
-    JOIN secure_share_packages p ON p.token_hash=o.share_token_hash
-    WHERE p.user_id=? AND o.uploaded_at IS NOT NULL`).all(user.id).map(r => r.object_key);
-
-  db.exec('BEGIN IMMEDIATE');
+  const token = randomUUID();
+  if (!acquireMaintenanceFence(db, { token })) return { deleted: false, error: 'locked' };
+  const dirHash = digest(user.id);
+  let attachmentKeys = [], shareKeys = [], queueIds = [];
   try {
-    const r = db.prepare('DELETE FROM users WHERE id=?').run(user.id);
-    if (Number(r.changes) < 1) { db.exec('ROLLBACK'); throw new Error('delete_user_conflict'); }
-    auditLog(db, actor, 'delete_user', username, { status: 'deleted', attachments: attachmentKeys.length, shares: shareKeys.length });
-    db.exec('COMMIT');
-  } catch (e) { db.exec('ROLLBACK'); throw e; }
-
-  // Best-effort physical cleanup (rows are already gone; missing files are fine).
-  // Any non-ENOENT failure leaves the file as a discoverable orphan: the maintenance
-  // scan walks ATTACHMENTS_DIR/<sha256(userId)> and SHARES_DIR/<tokenHash>/ and finds
-  // files with no DB reference, and repair unlinks them. We surface the failure count
-  // (audit + return) so an admin knows to run a maintenance scan when cleanup is partial.
-  const dir = userDir(env.ATTACHMENTS_DIR, user.id);
-  const sdir = sharesDir(env);
-  let removed = 0, failed = 0;
-  for (const key of attachmentKeys) { try { await unlink(join(dir, key)); removed++; } catch (e) { if (e.code !== 'ENOENT') failed++; } }
-  for (const key of shareKeys) { try { await unlink(join(sdir, key)); removed++; } catch (e) { if (e.code !== 'ENOENT') failed++; } }
-  if (failed > 0) { try { auditLog(db, actor, 'delete_user', username, { status: 'cleanup_incomplete', filesRemoved: removed, filesFailed: failed, hint: 'run maintenance scan' }); } catch {} }
-  return { deleted: true, filesRemoved: removed, filesFailed: failed };
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      attachmentKeys = db.prepare('SELECT object_key FROM attachments WHERE user_id=?').all(user.id).map(r => r.object_key);
+      shareKeys = db.prepare(`SELECT o.object_key FROM secure_share_objects o JOIN secure_share_packages p ON p.token_hash=o.share_token_hash WHERE p.user_id=?`).all(user.id).map(r => r.object_key);
+      if (attachmentKeys.some(key => !ATTACHMENT_KEY_RE.test(key)) || shareKeys.some(key => !SHARE_PATH_RE.test(key))) throw new Error('invalid_user_file_key');
+      for (const row of db.prepare('SELECT object_key,created_at FROM pending_file_deletions WHERE user_id=? ORDER BY created_at,object_key').all(user.id)) {
+        if (ATTACHMENT_KEY_RE.test(row.object_key)) {
+          enqueueFileDeletion(db, { tree: 'attachment', objectKey: row.object_key, dirHash, reason: 'legacy_pending' });
+        } else {
+          db.prepare("INSERT INTO legacy_file_deletion_quarantine(source,source_key,error_code,created_at,quarantined_at) VALUES('pending_file_deletions',?,'invalid_identity',?,?)")
+            .run(String(row.object_key).slice(0, 200), row.created_at, Date.now());
+        }
+        db.prepare('DELETE FROM pending_file_deletions WHERE object_key=? AND user_id=?').run(row.object_key, user.id);
+      }
+      for (const key of attachmentKeys) enqueueFileDeletion(db, { tree: 'attachment', objectKey: key, dirHash, reason: 'user_delete' });
+      for (const key of shareKeys) enqueueFileDeletion(db, { tree: 'share', objectKey: key, reason: 'user_delete' });
+      queueIds = db.prepare("SELECT id FROM file_deletion_outbox WHERE (tree='attachment' AND dir_hash=?) OR (tree='share' AND object_key IN (SELECT o.object_key FROM secure_share_objects o JOIN secure_share_packages p ON p.token_hash=o.share_token_hash WHERE p.user_id=?))")
+        .all(dirHash, user.id).map(row => Number(row.id));
+      const r = db.prepare('DELETE FROM users WHERE id=?').run(user.id);
+      if (Number(r.changes) < 1) throw new Error('delete_user_conflict');
+      auditLog(db, actor, 'delete_user', username, { status: 'deleted', attachments: attachmentKeys.length, shares: shareKeys.length });
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    const result = await processSelectedOutbox(db, { ATTACHMENTS_DIR: env.ATTACHMENTS_DIR, SHARES_DIR: sharesDir(env) }, token, queueIds);
+    if (result.failed > 0) { try { auditLog(db, actor, 'delete_user', username, { status: 'cleanup_incomplete', filesRemoved: result.processed, filesFailed: result.failed }); } catch {} }
+    return { deleted: true, filesRemoved: result.processed, filesFailed: result.failed };
+  } finally { releaseMaintenanceFence(db, token); }
 }
 
 const csvCell = value => {

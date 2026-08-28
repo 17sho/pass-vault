@@ -6,31 +6,40 @@
 //   - R2 .list() orphan scan -> walk local filesystem:
 //       attachments: ATTACHMENTS_DIR/<sha256(userId)>/<64-hex key>
 //       shares:      SHARES_DIR/<64-hex token hash>/<base64url object key>
-//   - pending_r2_deletions -> pending_file_deletions
 //   - No attachment_versions / r2_inflight_uploads (server has neither)
-//   - "repair" queues orphans into pending_file_deletions; "retry" unlinks queued
-//     files whose DB rows are gone (double-checking they're still unreferenced).
-//   - maintenance_leases guards single-flight retry (same as CF).
+//   - Legacy local queues are migrated/quarantined into the unified durable outbox.
+//   - "repair" only settles an orphan after a stable reference or durable outbox
+//     row is confirmed; "retry" performs the physical unlink behind the file fence.
 import { createHash, randomUUID } from 'node:crypto';
-import { readdir, stat, unlink } from 'node:fs/promises';
+import { readdir, lstat } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { auditLog } from './users.mjs';
+import { acquireMaintenanceFence, releaseMaintenanceFence, enqueueFileDeletion, migrateLegacyDeletionQueues, processFileDeletionOutbox, ATTACHMENT_KEY_RE, SHARE_PATH_RE } from '../server/file-lifecycle.mjs';
 
 const digest = x => createHash('sha256').update(x).digest('hex');
 const ATTACH_KEY_RE = /^[a-f0-9]{64}$/;                 // attachment object keys
-const SHARE_KEY_RE = /^[A-Za-z0-9_-]{43}$/;             // share object keys (base64url of 32 bytes)
+const SHARE_KEY_RE = /^[A-Za-z0-9_-]{43}$/;            // share file names
 const SCAN_OBJECT_CAP = 100000;                          // safety bound like CF
 const REPORT_ITEM_CAP = 1000;
 
 function sharesDir(env) { return resolve(env.SHARES_DIR || join(dirname(env.DB_PATH), 'shares')); }
 
+async function processSelectedOutbox(db, env, fenceToken, queueIds) {
+  if (queueIds === null) return processFileDeletionOutbox(db, env, { fenceToken });
+  const ids = new Set(queueIds.filter(id => Number.isSafeInteger(id) && id > 0));
+  if (!ids.size) return { processed: 0, failed: 0, protected: 0 };
+  return processFileDeletionOutbox(db, env, { fenceToken, limit: ids.size, filter: row => ids.has(Number(row.id)) });
+}
+
 // Build the set of every object_key the DB still references (attachments + shares).
 function referencedKeys(db) {
   const known = new Set();
   for (const r of db.prepare('SELECT object_key FROM attachments').all()) known.add(r.object_key);
-  for (const r of db.prepare("SELECT object_key FROM secure_share_objects WHERE uploaded_at IS NOT NULL").all()) known.add(r.object_key);
-  // Files still queued for deletion are "known" (do not double-report as orphan).
+  for (const r of db.prepare('SELECT object_key FROM secure_share_objects').all()) known.add(r.object_key);
   for (const r of db.prepare('SELECT object_key FROM pending_file_deletions').all()) known.add(r.object_key);
+  for (const r of db.prepare('SELECT object_key FROM admin_file_deletions').all()) known.add(r.object_key);
+  for (const r of db.prepare('SELECT object_key FROM file_write_intents').all()) known.add(r.object_key);
+  for (const r of db.prepare('SELECT object_key FROM file_deletion_outbox').all()) known.add(r.object_key);
   return known;
 }
 
@@ -56,7 +65,7 @@ export async function scanMaintenance(db, env, actor) {
     if (objects >= SCAN_OBJECT_CAP) { incomplete = true; break; }
     const full = join(env.ATTACHMENTS_DIR, dirName);
     let names = [];
-    try { const s = await stat(full); if (!s.isDirectory()) continue; names = await readdir(full); }
+    try { const s = await lstat(full); if (s.isSymbolicLink() || !s.isDirectory() || !ATTACH_KEY_RE.test(dirName)) continue; names = await readdir(full); }
     catch (e) { if (e.code !== 'ENOENT') incomplete = true; continue; }
     const userId = dirIndex.get(dirName) || null;
     for (const name of names) {
@@ -65,7 +74,7 @@ export async function scanMaintenance(db, env, actor) {
       if (!known.has(name)) {
         orphan++;
         if (orphans.length < REPORT_ITEM_CAP) {
-          let size = 0; try { size = (await stat(join(full, name))).size || 0; } catch {}
+          let size = 0; try { const entry = await lstat(join(full, name)); if (entry.isSymbolicLink() || !entry.isFile()) continue; size = entry.size || 0; } catch {}
           orphans.push({ key: name, size, tree: 'attachment', userId, dirHash: dirName });
         }
       }
@@ -77,11 +86,11 @@ export async function scanMaintenance(db, env, actor) {
   let shareDirs = [];
   try { shareDirs = await readdir(sdir); } catch (e) { if (e.code !== 'ENOENT') incomplete = true; }
   for (const dirName of shareDirs) {
-    if (!ATTACH_KEY_RE.test(dirName)) continue; // token-hash dirs are 64 hex; skip stray files
+    if (!ATTACHMENT_KEY_RE.test(dirName) && !SHARE_KEY_RE.test(dirName)) continue; // current Linux shares use 43-char base64url token-hash dirs
     if (objects >= SCAN_OBJECT_CAP) { incomplete = true; break; }
     const full = join(sdir, dirName);
     let names = [];
-    try { const s = await stat(full); if (!s.isDirectory()) continue; names = await readdir(full); }
+    try { const s = await lstat(full); if (s.isSymbolicLink() || !s.isDirectory()) continue; names = await readdir(full); }
     catch (e) { if (e.code !== 'ENOENT') incomplete = true; continue; }
     for (const name of names) {
       if (!SHARE_KEY_RE.test(name)) continue; // skip .tmp and stray files
@@ -91,7 +100,7 @@ export async function scanMaintenance(db, env, actor) {
       if (!known.has(key)) {
         orphan++;
         if (orphans.length < REPORT_ITEM_CAP) {
-          let size = 0; try { size = (await stat(join(full, name))).size || 0; } catch {}
+          let size = 0; try { const entry = await lstat(join(full, name)); if (entry.isSymbolicLink() || !entry.isFile()) continue; size = entry.size || 0; } catch {}
           orphans.push({ key, size, tree: 'share', userId: null });
         }
       }
@@ -99,7 +108,8 @@ export async function scanMaintenance(db, env, actor) {
   }
 
   const truncated = incomplete || orphan > orphans.length;
-  const pending = Number(db.prepare('SELECT COUNT(*) count FROM pending_file_deletions').get()?.count) || 0;
+  const pending = (Number(db.prepare('SELECT COUNT(*) count FROM pending_file_deletions').get()?.count) || 0)
+    + (Number(db.prepare('SELECT COUNT(*) count FROM admin_file_deletions').get()?.count) || 0);
   const status = incomplete ? 'failed' : 'ready';
 
   let id = 0;
@@ -119,101 +129,60 @@ export async function scanMaintenance(db, env, actor) {
   return { id, status, orphanCount: orphan, missingCount: 0, pendingCount: pending, truncated };
 }
 
-// POST /api/maintenance/:id/repair — queue a report's orphans for deletion.
-// Requires body { confirm: "REPAIR:<id>" }. Re-checks each key is still unreferenced.
-// Attachment orphans with a resolvable user_id go through the pending_file_deletions
-// queue (bounded, retry-driven). Share orphans and orphans without a user_id cannot
-// be queued (the queue's user_id is NOT NULL), so they are unlinked directly here —
-// still gated by the explicit REPAIR confirmation.
+// POST /api/maintenance/:id/repair — durably queue a report's orphans for deletion.
+// Requires body { confirm: "REPAIR:<id>" }. The write transaction makes the
+// reference/intent decision stable: live references settle, active intents defer,
+// and unreferenced items settle only after their unified-outbox row is confirmed.
 export async function repairMaintenance(db, env, actor, id, input) {
   if (!Number.isSafeInteger(id) || id < 1 || !input || typeof input !== 'object' || input.confirm !== `REPAIR:${id}`) return null;
-  const report = db.prepare("SELECT id,status FROM maintenance_reports WHERE id=? AND status='ready'").get(id);
-  if (!report) return undefined;
-  const items = db.prepare('SELECT object_key,ciphertext_size,tree,user_id,dir_hash FROM maintenance_report_items WHERE report_id=? ORDER BY object_key LIMIT 20').all(id);
-  const sdir = sharesDir(env);
-  const stillRef = db.prepare('SELECT 1 FROM attachments WHERE object_key=? UNION SELECT 1 FROM secure_share_objects WHERE object_key=? AND uploaded_at IS NOT NULL LIMIT 1');
-
+  if (!db.prepare("SELECT id FROM maintenance_reports WHERE id=? AND status='ready'").get(id)) return undefined;
   let queued = 0;
-  // Decide each item's disposition WITHOUT mutating the report yet, then perform any
-  // physical unlinks BEFORE settling report rows. A failed (non-ENOENT) unlink leaves
-  // the report item in place so the next REPAIR retries it — no silent orphan loss.
-  const toQueue = [];   // owned attachments → retry queue (settled once enqueued)
-  const toUnlink = [];  // { item, path } share/user-gone orphans → unlink now
-  for (const item of items) {
-    if (stillRef.get(item.object_key, item.object_key)) { toQueue.push({ item, settle: true, queue: false }); continue; }
-    if (item.tree === 'attachment' && item.user_id) {
-      toQueue.push({ item, settle: true, queue: true });
-    } else if (item.tree === 'share') {
-      toUnlink.push({ item, path: join(sdir, item.object_key) });
-    } else if (item.tree === 'attachment' && !item.user_id && item.dir_hash) {
-      toUnlink.push({ item, path: join(env.ATTACHMENTS_DIR, item.dir_hash, item.object_key) });
-    } else {
-      toQueue.push({ item, settle: true, queue: false }); // unactionable shape: drop stale report row
-    }
-  }
-  // Best-effort physical deletes first; only settle the ones that actually left disk.
-  let unlinked = 0;
-  const settledKeys = new Set();
-  for (const { item, path } of toUnlink) {
-    try { await unlink(path); unlinked++; settledKeys.add(item.object_key); }
-    catch (e) { if (e.code === 'ENOENT') settledKeys.add(item.object_key); /* else: keep for retry */ }
-  }
-
   db.exec('BEGIN IMMEDIATE');
   try {
-    const enqueue = db.prepare("INSERT INTO pending_file_deletions(object_key,user_id,created_at,ciphertext_size) VALUES(?,?,?,?) ON CONFLICT(object_key) DO NOTHING");
-    const dropItem = db.prepare('DELETE FROM maintenance_report_items WHERE report_id=? AND object_key=?');
-    for (const { item, settle, queue } of toQueue) {
-      if (queue) queued += Number(enqueue.run(item.object_key, item.user_id, Date.now(), item.ciphertext_size).changes) || 0;
-      if (settle) dropItem.run(id, item.object_key);
+    const items = db.prepare('SELECT object_key,tree,user_id,dir_hash FROM maintenance_report_items WHERE report_id=? ORDER BY object_key LIMIT 20').all(id);
+    const drop = db.prepare('DELETE FROM maintenance_report_items WHERE report_id=? AND object_key=?');
+    const outbox = db.prepare('SELECT id FROM file_deletion_outbox WHERE tree=? AND dir_hash=? AND object_key=?');
+    for (const item of items) {
+      let dirHash = item.dir_hash || '';
+      if (item.tree === 'attachment' && item.user_id) {
+        const expected = digest(item.user_id);
+        if (dirHash && dirHash !== expected) continue;
+        dirHash = expected;
+      }
+      const valid = item.tree === 'attachment'
+        ? ATTACHMENT_KEY_RE.test(item.object_key) && ATTACHMENT_KEY_RE.test(dirHash)
+        : SHARE_PATH_RE.test(item.object_key) && dirHash === '';
+      if (!valid) continue;
+      const live = item.tree === 'attachment'
+        ? db.prepare('SELECT user_id FROM attachments WHERE object_key=?').all(item.object_key).some(row => digest(row.user_id) === dirHash)
+        : Boolean(db.prepare('SELECT 1 FROM secure_share_objects WHERE object_key=? AND uploaded_at IS NOT NULL').get(item.object_key));
+      if (live) {
+        drop.run(id, item.object_key);
+        continue;
+      }
+      if (db.prepare('SELECT 1 FROM file_write_intents WHERE tree=? AND dir_hash=? AND object_key=?').get(item.tree, dirHash, item.object_key)) continue;
+      queued += enqueueFileDeletion(db, { tree: item.tree, objectKey: item.object_key, dirHash, reason: 'maintenance_repair' });
+      if (outbox.get(item.tree, dirHash, item.object_key)) drop.run(id, item.object_key);
     }
-    for (const key of settledKeys) dropItem.run(id, key);
-    const remaining = Number(db.prepare('SELECT COUNT(*) count FROM maintenance_report_items WHERE report_id=?').get(id)?.count) || 0;
+    const remaining = Number(db.prepare('SELECT COUNT(*) count FROM maintenance_report_items WHERE report_id=?').get(id).count) || 0;
     const status = remaining === 0 ? 'repaired' : 'ready';
     db.prepare("UPDATE maintenance_reports SET status=?,repaired_at=CASE WHEN ?='repaired' THEN ? ELSE repaired_at END WHERE id=? AND status='ready'").run(status, status, Date.now(), id);
-    auditLog(db, actor, 'repair_maintenance', null, { reportId: id, queued, unlinked });
+    auditLog(db, actor, 'repair_maintenance', null, { reportId: id, queued });
     db.exec('COMMIT');
-    return { reportId: id, status, queued, unlinked, remaining };
-  } catch (e) { db.exec('ROLLBACK'); throw e; }
+    return { reportId: id, status, queued, unlinked: 0, remaining };
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
 }
 
-// POST /api/maintenance/retry — process the pending_file_deletions queue.
-// Unlinks files whose DB references are gone; drops rows for files that became
-// referenced again (protected). Single-flight via maintenance_leases.
-export async function retryMaintenance(db, env, actor) {
-  let processed = 0, failed = 0, protectedCount = 0;
-  auditLog(db, actor, 'retry_maintenance', null, { status: 'started' });
-  const started = Date.now(), leaseToken = randomUUID();
-  const lease = db.prepare('INSERT INTO maintenance_leases(name,token,expires_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at WHERE maintenance_leases.expires_at<=?')
-    .run('admin-retry', leaseToken, started + 15 * 60 * 1000, started);
-  if (Number(lease.changes) !== 1) return { processed, failed: 1, protected: protectedCount, error: 'locked' };
-
-  const dirIndex = userDirIndex(db);
-  const sdir = sharesDir(env);
+// POST /api/maintenance/retry — migrate legacy queues and consume the unified outbox.
+export async function retryMaintenance(db, env, actor, queueIds = null) {
+  if (queueIds !== null && !Array.isArray(queueIds)) return { processed: 0, failed: 0, protected: 0, quarantined: 0, error: 'invalid_queue_ids' };
+  const token = randomUUID();
+  if (!acquireMaintenanceFence(db, { token })) return { processed: 0, failed: 1, protected: 0, error: 'locked' };
   try {
-    const rows = db.prepare('SELECT object_key,user_id,ciphertext_size FROM pending_file_deletions ORDER BY created_at LIMIT 20').all();
-    const stillRef = db.prepare('SELECT 1 FROM attachments WHERE object_key=? UNION SELECT 1 FROM secure_share_objects WHERE object_key=? AND uploaded_at IS NOT NULL LIMIT 1');
-    for (const row of rows) {
-      try {
-        if (stillRef.get(row.object_key, row.object_key)) {
-          const done = db.prepare('DELETE FROM pending_file_deletions WHERE object_key=?').run(row.object_key);
-          if (Number(done.changes) === 1) { protectedCount++; auditLog(db, actor, 'retry_maintenance', null, { status: 'protected' }); }
-          continue;
-        }
-        // Resolve physical path: attachment (userId dir) or share (flat).
-        let target;
-        if (row.user_id && dirIndex.has(digest(row.user_id))) target = join(env.ATTACHMENTS_DIR, digest(row.user_id), row.object_key);
-        else if (ATTACH_KEY_RE.test(row.object_key) && row.user_id) target = join(env.ATTACHMENTS_DIR, digest(row.user_id), row.object_key);
-        else target = join(sdir, row.object_key);
-        try { await unlink(target); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-        const done = db.prepare('DELETE FROM pending_file_deletions WHERE object_key=?').run(row.object_key);
-        if (Number(done.changes) === 1) { processed++; auditLog(db, actor, 'retry_maintenance', null, { status: 'deleted', bytes: Number(row.ciphertext_size) || 0 }); }
-      } catch { failed++; }
-    }
-  } finally {
-    try { db.prepare('DELETE FROM maintenance_leases WHERE name=? AND token=?').run('admin-retry', leaseToken); } catch {}
-  }
-  const result = { processed, failed, protected: protectedCount };
-  try { auditLog(db, actor, 'retry_maintenance', null, result); } catch {}
-  return result;
+    const legacy = migrateLegacyDeletionQueues(db);
+    const result = await processSelectedOutbox(db, { ATTACHMENTS_DIR: env.ATTACHMENTS_DIR, SHARES_DIR: sharesDir(env) }, token, queueIds);
+    result.quarantined = legacy.quarantined;
+    try { auditLog(db, actor, 'retry_maintenance', null, result); } catch {}
+    return result;
+  } finally { releaseMaintenanceFence(db, token); }
 }
