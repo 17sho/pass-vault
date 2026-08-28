@@ -137,6 +137,7 @@ export function setSuspension(db, actor, username, input, remove = false) {
   try {
     db.prepare('UPDATE users SET banned_until=?,ban_reason=?,banned_at=?,banned_by=? WHERE id=?').run(until, reason, now, actor, user.id);
     revoked = Number(db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id).changes) || 0;
+    revoked += Number(db.prepare('DELETE FROM admin_sessions WHERE user_id=?').run(user.id).changes) || 0;
     auditLog(db, actor, 'suspend_user', username, { until, reason, revoked: true });
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
@@ -151,6 +152,7 @@ export function revokeSessions(db, actor, username) {
   db.exec('BEGIN IMMEDIATE');
   try {
     revoked = Number(db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id).changes) || 0;
+    revoked += Number(db.prepare('DELETE FROM admin_sessions WHERE user_id=?').run(user.id).changes) || 0;
     if (revoked > 0) auditLog(db, actor, 'revoke_sessions', username, { revoked });
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }

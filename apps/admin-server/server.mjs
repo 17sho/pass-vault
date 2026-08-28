@@ -5,23 +5,25 @@
 // + health endpoint. Later phases add the overview/users/maintenance/etc. handlers.
 //
 // Auth model (replaces Cloudflare Access):
-//   1. The visitor must present a valid pv_session cookie for an existing user
-//      (same sessions table as the main app — the admin runs on the same DB).
-//   2. That user's username must be in ADMIN_USERNAMES (comma-separated).
+//   1. A visitor may authenticate directly with an allowlisted vault account; the
+//      Admin issues a host-only pv_admin_session. Existing shared pv_session
+//      cookies remain supported for compatibility, but are not required.
+//   2. The resolved username must exactly match ADMIN_USERNAMES.
 //   Both checks must pass or the request is rejected (401 unauthenticated / 403
 //   not-an-admin). Mutations additionally require same-origin.
 import { createServer } from 'node:http';
 import { resolve, join, dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
+import { normalizeSessionIp } from '../../shared/session-metadata.mjs';
 import { runAdminMigrations } from './migrations-admin.mjs';
-import { json, requestOrigin, sameOrigin, readCookie, digest, adminAllowlist, COOKIE_NAME, SECURITY_HEADERS } from './runtime.mjs';
+import { json, requestOrigin, sameOrigin, readCookie, digest, adminAllowlist, COOKIE_NAME, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, SECURITY_HEADERS } from './runtime.mjs';
 import { overview } from './overview.mjs';
 import { pagedUsers, pagedAudit, updateUserQuota, resetUserQuota, setSuspension, revokeSessions, deleteUser, exportUser } from './users.mjs';
 import { scanMaintenance, repairMaintenance, retryMaintenance } from './maintenance.mjs';
 import { updateRegistration, createInvite, deleteInvite, revealInvite, reviewSecurityEvent } from './settings.mjs';
 import { refreshDiskStats, refreshNotifications } from './refresh.mjs';
-import { adminPage } from './ui/page.mjs';
+import { adminPage, adminLoginPage } from './ui/page.mjs';
 import { ADMIN_SCRIPT } from './ui/script.mjs';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -30,8 +32,8 @@ const DB_PATH = resolve(process.env.DB_PATH || join(process.cwd(), 'data', 'pass
 const ATTACHMENTS_DIR = resolve(process.env.ATTACHMENTS_DIR || join(dirname(DB_PATH), 'attachments'));
 const SHARES_DIR = resolve(process.env.SHARES_DIR || join(dirname(DB_PATH), 'shares'));
 const MAIN_SITE_URL = process.env.MAIN_SITE_URL || '';
-const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || '').trim();
 const ADMINS = adminAllowlist(process.env);
+const TRUSTED_IP_HEADER = (process.env.CLIENT_IP_HEADER || '').trim().toLowerCase();
 const APP_VERSION = process.env.APP_VERSION || 'unknown';
 // Env bag passed to endpoint modules (keeps them free of process.env coupling).
 const env = { DB_PATH, ATTACHMENTS_DIR, SHARES_DIR, MAIN_SITE_URL, APP_VERSION, INVITE_CODE_PEPPER: process.env.INVITE_CODE_PEPPER || '', INVITE_CODE_ENCRYPTION_KEY: process.env.INVITE_CODE_ENCRYPTION_KEY || '' };
@@ -51,18 +53,61 @@ db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FUL
 // Ensure admin schema exists (idempotent). The admin-server owns these migrations
 // so the console works even if the main app hasn't been restarted.
 const applied = runAdminMigrations(db);
+db.exec(`CREATE TABLE IF NOT EXISTS admin_sessions(
+  id_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions(user_id);`);
 if (applied.length) console.log(`[admin] applied migrations: ${applied.join(', ')}`);
 
 // Resolve the current admin identity, or null. Mirrors the main app's auth():
 // expired sessions are swept, the cookie is hashed, and we join to users.
 function adminIdentity(req) {
-  db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(Date.now());
+  const now = Date.now();
+  db.prepare('DELETE FROM admin_sessions WHERE expires_at<=?').run(now);
+  const own = readCookie(req, ADMIN_COOKIE_NAME);
+  if (own) {
+    const row = db.prepare('SELECT s.user_id,s.id_hash,u.username FROM admin_sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>? AND (u.banned_until IS NULL OR (u.banned_until<>-1 AND u.banned_until<?))').get(digest(own), now, now);
+    if (row) return { userId: row.user_id, username: String(row.username || ''), sessionHash: row.id_hash, own: true };
+  }
+  db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(now);
   const raw = readCookie(req, COOKIE_NAME);
   if (!raw) return null;
-  const now = Date.now();
   const row = db.prepare('SELECT s.user_id,s.id_hash,u.username FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id_hash=? AND s.expires_at>? AND (u.banned_until IS NULL OR (u.banned_until<>-1 AND u.banned_until<?))').get(digest(raw), now, now);
   if (!row) return null;
-  return { userId: row.user_id, username: String(row.username || ''), sessionHash: row.id_hash };
+  return { userId: row.user_id, username: String(row.username || ''), sessionHash: row.id_hash, own: false };
+}
+
+function adminClientIp(req) {
+  if (TRUSTED_IP_HEADER) {
+    const raw = req.headers[TRUSTED_IP_HEADER], value = Array.isArray(raw) ? '' : raw;
+    const normalized = normalizeSessionIp(value);
+    if (normalized !== 'unknown') return normalized;
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+function attemptAdminLogin(req, username, password) {
+  const now = Date.now(), key = `admin-login:${adminClientIp(req)}`;
+  db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now - 60_000);
+  const attempts = db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key, now - 60_000).count;
+  if (attempts >= 10) return { status: 429 };
+  const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
+  const verifier = user || { password_salt: 'YWRtaW4tbG9naW4tZHVtbQ==', password_hash: 'vBbk9d107EZJVUMR5I4Ym426nc9INhq3vFrD+D+UNlY=' };
+  const passwordOk = verifyPassword(password, verifier);
+  if (!user || !ADMINS.has(username) || !passwordOk || user.banned_until === -1 || (Number.isFinite(user.banned_until) && user.banned_until > now)) {
+    let slot = now; while (db.prepare('SELECT 1 FROM auth_attempts WHERE key=? AND attempted_at=?').get(key, slot)) slot++;
+    db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key, slot);
+    return { status: 401 };
+  }
+  const raw = newAdminSession();
+  db.prepare('INSERT INTO admin_sessions(id_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)').run(digest(raw), user.id, now + ADMIN_SESSION_MS, now);
+  return { status: 200, raw };
+}
+
+async function readForm(req) {
+  let size = 0, text = '';
+  for await (const chunk of req) { size += chunk.length; if (size > 8192) throw Object.assign(new Error('too_large'), { status: 413 }); text += chunk; }
+  return new URLSearchParams(text);
 }
 
 async function fetchMainHealth(base) {
@@ -82,19 +127,35 @@ const server = createServer(async (req, res) => {
     // --- Static console shell (public: contains no data; all data is behind /api gate) ---
     if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });
-      return res.end(adminPage());
+      const identity = adminIdentity(req);
+      return res.end(identity && ADMINS.has(identity.username) ? adminPage() : adminLoginPage(url.searchParams.get('error') === '1'));
     }
     if (req.method === 'GET' && path === '/app.js') {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store, max-age=0', ...SECURITY_HEADERS });
       return res.end(ADMIN_SCRIPT);
     }
+    // Independent Admin login: verifies the vault account directly and issues a
+    // host-only cookie, avoiding cross-subdomain cookie-container dependencies.
+    if (req.method === 'POST' && path === '/api/admin-login') {
+      if (!sameOrigin(req)) return json(res, 403, { error: 'invalid_origin' });
+      const body = await readBody(req), result = attemptAdminLogin(req, typeof body.username === 'string' ? body.username : '', body.password);
+      if (result.status !== 200) return json(res, result.status, { error: result.status === 429 ? 'rate_limited' : 'invalid_credentials' });
+      return json(res, 200, { ok: true }, { 'set-cookie': adminCookie(result.raw) });
+    }
+    if (req.method === 'POST' && path === '/login') {
+      if (!sameOrigin(req)) return json(res, 403, { error: 'invalid_origin' });
+      const form = await readForm(req), result = attemptAdminLogin(req, form.get('username') || '', form.get('password') || '');
+      res.writeHead(303, { location: result.status === 200 ? '/' : '/?error=1', ...(result.status === 200 ? { 'set-cookie': adminCookie(result.raw) } : {}), ...SECURITY_HEADERS });
+      return res.end();
+    }
+
     // Logout: revoke the current session (if any) and clear the cookie, then redirect home.
     if (path === '/logout') {
       if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { error: 'invalid_origin' });
-      const raw = readCookie(req, COOKIE_NAME);
-      if (raw) db.prepare('DELETE FROM sessions WHERE id_hash=?').run(digest(raw));
-      const domain = COOKIE_DOMAIN ? ` Domain=${COOKIE_DOMAIN};` : '';
-      res.writeHead(302, { location: '/', 'set-cookie': `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Secure;${domain} Max-Age=0`, ...SECURITY_HEADERS });
+      const own = readCookie(req, ADMIN_COOKIE_NAME), raw = readCookie(req, COOKIE_NAME);
+      if (own) db.prepare('DELETE FROM admin_sessions WHERE id_hash=?').run(digest(own));
+      else if (raw) db.prepare('DELETE FROM sessions WHERE id_hash=?').run(digest(raw));
+      res.writeHead(302, { location: '/', 'set-cookie': adminCookie('', 0), ...SECURITY_HEADERS });
       return res.end();
     }
 

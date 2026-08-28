@@ -24,7 +24,7 @@ async function reservePort(){
 
 async function startAdmin({dbPath,username='admin',extraEnv={}}){
  const port=await reservePort(),base=`http://127.0.0.1:${port}`;
- const child=spawn(process.execPath,['apps/admin-server/server.mjs'],{env:{...process.env,HOST:'127.0.0.1',ADMIN_PORT:String(port),DB_PATH:dbPath,ADMIN_USERNAMES:username,INVITE_CODE_PEPPER:'admin-server-test-pepper',INVITE_CODE_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64url'),MAIN_SITE_URL:'',...extraEnv},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['apps/admin-server/server.mjs'],{env:{...process.env,HOST:'127.0.0.1',ADMIN_PORT:String(port),DB_PATH:dbPath,ADMIN_USERNAMES:username,CLIENT_IP_HEADER:'',INVITE_CODE_PEPPER:'admin-server-test-pepper',INVITE_CODE_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64url'),MAIN_SITE_URL:'',...extraEnv},stdio:['ignore','pipe','pipe']});
  let output='';for(const stream of [child.stdout,child.stderr]){stream.setEncoding('utf8');stream.on('data',chunk=>{output=(output+chunk).slice(-8000)})}
  const exited=new Promise(resolve=>child.once('exit',(code,signal)=>resolve({code,signal})));
  const deadline=Date.now()+8000;
@@ -47,7 +47,64 @@ async function registerAndLogin(dbPath,username='admin',extraEnv={}){
  }finally{await main.stop()}
 }
 
-const req=(base,path,{method='GET',cookie,body,origin=base,redirect='follow'}={})=>fetch(base+path,{method,redirect,headers:{...(cookie?{cookie}:{}),...(origin?{origin}:{}),...(body===undefined?{}:{'content-type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});
+const req=(base,path,{method='GET',cookie,body,origin=base,redirect='follow',headers={}}={})=>fetch(base+path,{method,redirect,headers:{...(cookie?{cookie}:{}),...(origin?{origin}:{}),...(body===undefined?{}:{'content-type':'application/json'}),...headers},body:body===undefined?undefined:JSON.stringify(body)});
+
+test('Linux Admin独立登录签发host-only会话且退出后立即失效',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-own-login-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  await registerAndLogin(dbPath,'admin');
+  admin=await startAdmin({dbPath});
+  let r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'wrong'}});assert.equal(r.status,401);
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',origin:'',body:{username:'admin',password:'correct horse battery'}})).status,403);
+  for(let i=0;i<9;i++) assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'missing',password:'wrong'}})).status,401);
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}})).status,429);
+  const rateDb=new DatabaseSync(dbPath);rateDb.prepare("DELETE FROM auth_attempts WHERE key LIKE 'admin-login:%'").run();rateDb.close();
+  r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}});assert.equal(r.status,200,await r.text());
+  const setCookie=r.headers.get('set-cookie');assert.match(setCookie,/^pv_admin_session=/);assert.doesNotMatch(setCookie,/Domain=/i);assert.match(setCookie,/HttpOnly/);assert.match(setCookie,/SameSite=Strict/);
+  const cookie=setCookie.split(';',1)[0];assert.equal((await req(admin.base,'/api/overview',{cookie})).status,200);
+  r=await req(admin.base,'/logout',{method:'POST',cookie,redirect:'manual'});assert.equal(r.status,302);assert.match(r.headers.get('set-cookie'),/^pv_admin_session=;/);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
+test('Linux Admin可信反代客户端IP隔离登录限流且未配置时忽略伪造头',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-client-ip-')),dbPath=join(dir,'vault.sqlite');let admin;
+ const login=(ip)=>req(admin.base,'/api/admin-login',{method:'POST',headers:{'cf-connecting-ip':ip},body:{username:'admin',password:'wrong'}});
+ try{
+  await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath,extraEnv:{CLIENT_IP_HEADER:'cf-connecting-ip'}});
+  for(let i=0;i<10;i++)assert.equal((await login('198.51.100.10')).status,401);
+  assert.equal((await login('198.51.100.10')).status,429);
+  assert.equal((await login('198.51.100.11')).status,401,'不同可信客户端IP不得连坐');
+  const rateDb=new DatabaseSync(dbPath);rateDb.prepare("DELETE FROM auth_attempts WHERE key LIKE 'admin-login:%'").run();rateDb.close();
+  for(let i=0;i<10;i++)assert.equal((await login(':::')).status,401);
+  assert.equal((await login('1::2::3')).status,429,'非法IPv6必须回退同一个socket限流桶');
+  await admin.stop();admin=await startAdmin({dbPath,extraEnv:{CLIENT_IP_HEADER:''}});
+  const sql=new DatabaseSync(dbPath);sql.prepare("DELETE FROM auth_attempts WHERE key LIKE 'admin-login:%'").run();sql.close();
+  for(let i=0;i<10;i++)assert.equal((await login(`203.0.113.${i+1}`)).status,401);
+  assert.equal((await login('203.0.113.250')).status,429,'未配置可信头时伪造头不得绕过socket限流');
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
+test('Linux修改主密码和用户名均立即撤销既有Admin独立会话',async()=>{
+ for(const mutation of ['password','username']){
+  const dir=await mkdtemp(join(tmpdir(),`pv2-admin-revoke-${mutation}-`)),dbPath=join(dir,'vault.sqlite');let admin,main;
+  try{
+   await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
+   let r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'correct horse battery'}});assert.equal(r.status,200);const adminCookie=r.headers.get('set-cookie').split(';',1)[0];
+   main=await startTestServer({dbPath,env:{CLIENT_IP_HEADER:''}});r=await fetch(main.base+'/api/login',{method:'POST',headers:{origin:main.base,'content-type':'application/json'},body:JSON.stringify({username:'admin',password:'correct horse battery'})});assert.equal(r.status,200);const login=await r.json(),mainCookie=r.headers.get('set-cookie').split(';',1)[0];
+   const path=mutation==='password'?'/api/change-password':'/api/change-username',body=mutation==='password'?{currentPassword:'correct horse battery',newPassword:'new admin password',kdf,wrappedKey}:{currentPassword:'correct horse battery',newUsername:'admin-renamed'};
+   r=await fetch(main.base+path,{method:'POST',headers:{origin:main.base,cookie:mainCookie,'x-csrf-token':login.csrf,'content-type':'application/json'},body:JSON.stringify(body)});assert.equal(r.status,200,await r.text());
+   assert.equal((await req(admin.base,'/api/overview',{cookie:adminCookie})).status,401,`${mutation}后旧Admin会话必须失效`);
+  }finally{if(main)await main.stop();if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+ }
+});
+
+test('Linux Admin未登录显示独立登录页而非空白控制台',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-login-page-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  await registerAndLogin(dbPath,'admin');admin=await startAdmin({dbPath});
+  const page=await fetch(admin.base+'/').then(r=>r.text());assert.match(page,/data-admin-login/);assert.match(page,/管理员独立登录/);assert.doesNotMatch(page,/data-nav-page="users"/);
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
 
 test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',async()=>{
  const page=await readFile('apps/admin-server/ui/page.mjs','utf8'),script=await readFile('apps/admin-server/ui/script.mjs','utf8'),style=await readFile('apps/admin-server/ui/style.mjs','utf8');
@@ -73,7 +130,7 @@ test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-server-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
   const cookie=await registerAndLogin(dbPath,'admin',{COOKIE_DOMAIN:'.passkey.23cm.me'});admin=await startAdmin({dbPath,extraEnv:{COOKIE_DOMAIN:'.passkey.23cm.me'}});
-  let r=await fetch(admin.base+'/');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/text\/html/);assert.match(await r.text(),/data-nav-page="audit"/);
+  let r=await req(admin.base,'/',{cookie});assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/text\/html/);assert.match(await r.text(),/data-nav-page="audit"/);
   r=await fetch(admin.base+'/app.js');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/javascript/);
   assert.equal((await fetch(admin.base+'/api/overview')).status,401);
   r=await req(admin.base,'/api/overview',{cookie});assert.equal(r.status,200);let data=await r.json();assert.equal(data.summary.users,1);assert.equal(data.runtime.version,'unknown');
@@ -96,7 +153,7 @@ test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端
   r=await req(admin.base,'/api/security-events/review',{method:'PUT',cookie,body:{category:'authentication',code:'password_failed',status:'handled',note:'已处理'}});assert.equal(r.status,200);
   r=await req(admin.base,`/api/invite-codes/${encodeURIComponent(invite.id)}`,{method:'DELETE',cookie});assert.equal(r.status,200);
   r=await req(admin.base,'/logout',{method:'POST',cookie,origin:''});assert.equal(r.status,403);
-  r=await req(admin.base,'/logout',{method:'POST',cookie,redirect:'manual'});assert.equal(r.status,302);assert.match(r.headers.get('set-cookie'),/Domain=\.passkey\.23cm\.me/);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
+  r=await req(admin.base,'/logout',{method:'POST',cookie,redirect:'manual'});assert.equal(r.status,302);assert.match(r.headers.get('set-cookie'),/^pv_admin_session=;/);assert.doesNotMatch(r.headers.get('set-cookie'),/Domain=/i);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 

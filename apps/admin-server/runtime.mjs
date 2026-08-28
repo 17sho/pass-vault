@@ -2,17 +2,30 @@
 // so the admin console behaves identically to the main app (cookie name, session
 // hashing, origin checks, security headers). Kept in one module so server.mjs and
 // future endpoint modules import a single source of truth.
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 export const COOKIE_NAME = 'pv_session';
+export const ADMIN_COOKIE_NAME = 'pv_admin_session';
+export const ADMIN_SESSION_MS = 8 * 60 * 60 * 1000;
 export const MAX_BODY = 2_000_000;
+
+export function verifyPassword(password, user) {
+  if (typeof password !== 'string' || password.length < 1 || password.length > 1024) return false;
+  try {
+    const actual = scryptSync(password, Buffer.from(user.password_salt, 'base64'), 32, { N: 32768, maxmem: 64 * 1024 * 1024 });
+    const expected = Buffer.from(user.password_hash, 'base64');
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  } catch { return false; }
+}
+export const newAdminSession = () => randomBytes(32).toString('base64url');
+export const adminCookie = (raw, maxAge = 28800) => `${ADMIN_COOKIE_NAME}=${raw}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 
 // Same session-id hashing as the main app: sha256 hex of the raw cookie value.
 export const digest = x => createHash('sha256').update(x).digest('hex');
 
 // Content-Security-Policy for the admin console. Mirrors the CF admin-worker CSP
 // (script-src 'self' so the external /app.js loads; no inline scripts).
-const CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'";
+const CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
 export const SECURITY_HEADERS = {
   'x-content-type-options': 'nosniff',
