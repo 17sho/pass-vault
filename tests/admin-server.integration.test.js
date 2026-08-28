@@ -33,8 +33,8 @@ async function startAdmin({dbPath,username='admin',extraEnv={}}){
  if(child.exitCode===null)child.kill('SIGTERM');await exited;throw new Error(`admin readiness timeout: ${output}`);
 }
 
-async function registerAndLogin(dbPath,username='admin'){
- const main=await startTestServer({dbPath,env:{CLIENT_IP_HEADER:''}});
+async function registerAndLogin(dbPath,username='admin',extraEnv={}){
+ const main=await startTestServer({dbPath,env:{CLIENT_IP_HEADER:'',...extraEnv}});
  try{
   let r=await fetch(main.base+'/api/register',{method:'POST',headers:{origin:main.base,'content-type':'application/json'},body:JSON.stringify({username,password:'correct horse battery',inviteCode:TEST_INVITE_CODE,kdf,wrappedKey})});
   assert.equal(r.status,201,await r.text());
@@ -44,7 +44,7 @@ async function registerAndLogin(dbPath,username='admin'){
  }finally{await main.stop()}
 }
 
-const req=(base,path,{method='GET',cookie,body,origin=base}={})=>fetch(base+path,{method,headers:{...(cookie?{cookie}:{}),...(origin?{origin}:{}),...(body===undefined?{}:{'content-type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});
+const req=(base,path,{method='GET',cookie,body,origin=base,redirect='follow'}={})=>fetch(base+path,{method,redirect,headers:{...(cookie?{cookie}:{}),...(origin?{origin}:{}),...(body===undefined?{}:{'content-type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});
 
 test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',async()=>{
  const page=await readFile('apps/admin-server/ui/page.mjs','utf8'),script=await readFile('apps/admin-server/ui/script.mjs','utf8'),style=await readFile('apps/admin-server/ui/style.mjs','utf8');
@@ -56,7 +56,7 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
 test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端点集成',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-server-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
-  const cookie=await registerAndLogin(dbPath);admin=await startAdmin({dbPath});
+  const cookie=await registerAndLogin(dbPath,'admin',{COOKIE_DOMAIN:'.passkey.23cm.me'});admin=await startAdmin({dbPath,extraEnv:{COOKIE_DOMAIN:'.passkey.23cm.me'}});
   let r=await fetch(admin.base+'/');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/text\/html/);assert.match(await r.text(),/data-nav-page="audit"/);
   r=await fetch(admin.base+'/app.js');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/javascript/);
   assert.equal((await fetch(admin.base+'/api/overview')).status,401);
@@ -80,7 +80,7 @@ test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端
   r=await req(admin.base,'/api/security-events/review',{method:'PUT',cookie,body:{category:'authentication',code:'password_failed',status:'handled',note:'已处理'}});assert.equal(r.status,200);
   r=await req(admin.base,`/api/invite-codes/${encodeURIComponent(invite.id)}`,{method:'DELETE',cookie});assert.equal(r.status,200);
   r=await req(admin.base,'/logout',{method:'POST',cookie,origin:''});assert.equal(r.status,403);
-  r=await req(admin.base,'/logout',{method:'POST',cookie});assert.equal(r.status,200);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
+  r=await req(admin.base,'/logout',{method:'POST',cookie,redirect:'manual'});assert.equal(r.status,302);assert.match(r.headers.get('set-cookie'),/Domain=\.passkey\.23cm\.me/);assert.equal((await req(admin.base,'/api/overview',{cookie})).status,401);
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 

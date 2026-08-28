@@ -50,6 +50,8 @@ runAdminMigrations(db);
 // Enforcement env bag: static invite fallback + invite-code secrets (parity with CF).
 const enforceEnv={INVITE_CODE:process.env.INVITE_CODE||'',INVITE_CODE_PEPPER:process.env.INVITE_CODE_PEPPER||'',INVITE_CODE_ENCRYPTION_KEY:process.env.INVITE_CODE_ENCRYPTION_KEY||''};
 const cookieName='pv_session',SESSION_MS=8*60*60*1000,ACTIVITY_WRITE_MS=5*60*1000,MAX_BODY=2_000_000;
+const COOKIE_DOMAIN=(process.env.COOKIE_DOMAIN||'').trim();
+if(COOKIE_DOMAIN&&!/^\.?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(COOKIE_DOMAIN))throw Error('invalid COOKIE_DOMAIN');
 const TRUSTED_IP_HEADER=(process.env.CLIENT_IP_HEADER||'').trim().toLowerCase();
 const PASSKEY_UNLOCK_KEK=parsePasskeyUnlockKek(process.env.PASSKEY_UNLOCK_KEK),PASSKEY_RP_ID=(process.env.PASSKEY_RP_ID||'').trim(),PASSKEY_ORIGIN=(process.env.PASSKEY_ORIGIN||'').trim(),PASSKEY_CHALLENGE_MS=5*60*1000;
 function clientIp(req){if(TRUSTED_IP_HEADER){const raw=req.headers[TRUSTED_IP_HEADER],value=Array.isArray(raw)?'':raw,normalized=normalizeSessionIp(value);if(normalized!=='unknown')return normalized}return req.socket.remoteAddress||'unknown'}
@@ -81,7 +83,7 @@ function auth(req){db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(Da
 function limited(key,{record=true}={}){const now=Date.now();db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now-60_000);const count=db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key,now-60_000).count;if(record)db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key,now);return count>=10}
 function takeRateSlot(key){const now=Date.now();db.exec('BEGIN IMMEDIATE');try{db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now-60_000);const count=db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key,now-60_000).count;if(count>=10){db.exec('ROLLBACK');return null}let slot=now;while(db.prepare('SELECT 1 FROM auth_attempts WHERE key=? AND attempted_at=?').get(key,slot))slot++;db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key,slot);db.exec('COMMIT');return slot}catch(error){db.exec('ROLLBACK');throw error}}
 function inviteMatches(value,secret){const a=createHash('sha256').update(value).digest(),b=createHash('sha256').update(secret).digest();return timingSafeEqual(a,b)}
-function cookie(raw,maxAge=28800){const secure=process.env.COOKIE_SECURE!=='false';return `${cookieName}=${raw}; HttpOnly; ${secure?'Secure; ':''}SameSite=Strict; Path=/; Max-Age=${maxAge}`}
+function cookie(raw,maxAge=28800){const secure=process.env.COOKIE_SECURE!=='false',domain=COOKIE_DOMAIN?`Domain=${COOKIE_DOMAIN}; `:'';return `${cookieName}=${raw}; HttpOnly; ${secure?'Secure; ':''}${domain}SameSite=Strict; Path=/; Max-Age=${maxAge}`}
 function envelope(row){return{id:row.id,type:row.type,version:row.version,iv:row.iv,ciphertext:row.ciphertext,...(Number.isSafeInteger(row.created_at)?{createdAt:row.created_at}:{}),...(Number.isSafeInteger(row.revision)?{revision:row.revision}:{})}}
 function attachment(row){return{id:row.id,metadata:{version:1,iv:row.metadata_iv,ciphertext:row.metadata_ciphertext},ciphertextSize:row.ciphertext_size,createdAt:row.created_at,updatedAt:row.updated_at,revision:row.revision}}
 function nextRevision(userId,resourceType,id){const row=db.prepare('SELECT last_revision FROM revision_tombstones WHERE user_id=? AND resource_type=? AND id=?').get(userId,resourceType,id);return row?row.last_revision+1:1}

@@ -85,7 +85,9 @@ test('SQLite auth、CSRF、密文 CRUD、备份及两次重启持久化',async()
  try{
   await start(db);
   let r=await api('/api/register',{method:'POST',body:{username:'alice',password:'correct horse battery',inviteCode,kdf,wrappedKey}});assert.equal(r.status,201);
-  r=await api('/api/login',{method:'POST',body:{username:'alice',password:'correct horse battery'}});assert.equal(r.status,200);let login=await r.json(),cookie=session(r);assert.match(r.headers.get('set-cookie'),/HttpOnly.*SameSite=Strict/);
+  r=await api('/api/login',{method:'POST',body:{username:'alice',password:'correct horse battery'}});assert.equal(r.status,200);let login=await r.json(),cookie=session(r);assert.match(r.headers.get('set-cookie'),/HttpOnly.*SameSite=Strict/);assert.doesNotMatch(r.headers.get('set-cookie'),/Domain=/);
+  await stop();await start(db,{COOKIE_DOMAIN:'.passkey.23cm.me'});
+  r=await api('/api/login',{method:'POST',body:{username:'alice',password:'correct horse battery'}});assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/Domain=\.passkey\.23cm\.me/);login=await r.json();cookie=session(r);
   const envelope={id:'entry_123',type:'note',version:1,iv:'aXY=',ciphertext:'Y2lwaGVy'};
   assert.equal((await api('/api/entries/entry_123',{method:'PUT',cookie,body:envelope})).status,403);
   assert.equal((await api('/api/entries/entry_123',{method:'PUT',cookie,csrf:login.csrf,body:envelope,requestOrigin:'https://evil.test'})).status,403);

@@ -30,6 +30,7 @@ const DB_PATH = resolve(process.env.DB_PATH || join(process.cwd(), 'data', 'pass
 const ATTACHMENTS_DIR = resolve(process.env.ATTACHMENTS_DIR || join(dirname(DB_PATH), 'attachments'));
 const SHARES_DIR = resolve(process.env.SHARES_DIR || join(dirname(DB_PATH), 'shares'));
 const MAIN_SITE_URL = process.env.MAIN_SITE_URL || '';
+const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || '').trim();
 const ADMINS = adminAllowlist(process.env);
 const APP_VERSION = process.env.APP_VERSION || 'unknown';
 // Env bag passed to endpoint modules (keeps them free of process.env coupling).
@@ -91,7 +92,8 @@ const server = createServer(async (req, res) => {
       if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { error: 'invalid_origin' });
       const raw = readCookie(req, COOKIE_NAME);
       if (raw) db.prepare('DELETE FROM sessions WHERE id_hash=?').run(digest(raw));
-      res.writeHead(302, { location: '/', 'set-cookie': `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Secure; Max-Age=0`, ...SECURITY_HEADERS });
+      const domain = COOKIE_DOMAIN ? ` Domain=${COOKIE_DOMAIN};` : '';
+      res.writeHead(302, { location: '/', 'set-cookie': `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Secure;${domain} Max-Age=0`, ...SECURITY_HEADERS });
       return res.end();
     }
 

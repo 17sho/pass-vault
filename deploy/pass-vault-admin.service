@@ -22,7 +22,8 @@ Environment=HOST=127.0.0.1
 Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
 Environment=ATTACHMENTS_DIR=@DATA_DIR@/attachments
 Environment=SHARES_DIR=@DATA_DIR@/shares
-# ADMIN_USERNAMES (comma-separated allowlist), MAIN_SITE_URL, APP_VERSION,
+# ADMIN_USERNAMES (comma-separated allowlist), COOKIE_DOMAIN (shared parent domain,
+# for example .passkey.23cm.me), MAIN_SITE_URL, APP_VERSION,
 # INVITE_CODE_PEPPER and INVITE_CODE_ENCRYPTION_KEY come from the shared env file.
 # The pepper/key MUST match the main service so invite-code hashes/reveals align.
 EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
