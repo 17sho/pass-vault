@@ -52,7 +52,7 @@ test('Linux-only release has no Cloudflare files or broken documentation links',
       'tests/admin-server.integration.test.js',
       'tests/linux-file-lifecycle.test.js',
       'tests/deployment.test.js',
-      'docs/releases/release-notes-v2.2.3-server.1.md',
+      'docs/releases/release-notes-v2.2.3-server.md',
       'AGENTS.md',
     ]) await readFile(join(root, requiredPath), 'utf8');
     const adminIntegration = spawnSync(process.execPath, ['--test', 'tests/admin-server.integration.test.js'], { cwd: root, encoding: 'utf8' });

@@ -1,8 +1,8 @@
-# PassVault v2.2.3-server.1
+# PassVault v2.2.3-server
 
 ## 中文
 
-这是 Linux/SQLite 服务器版 v2.2.3 的增量发行，不替换 Cloudflare `v2.2.3` 或既有 `v2.2.3-server`。本版补齐独立 Admin 控制台、文件生命周期保护及响应式管理界面，并包含部署和回归测试所需的完整源码。
+这是 Linux/SQLite 服务器版 v2.2.3 的当前完整发行，替换此前的 `v2.2.3-server` 服务器归档；Cloudflare `v2.2.3` 保持不变。本版补齐独立 Admin 控制台、文件生命周期保护及响应式管理界面，并包含部署和回归测试所需的完整源码。
 
 ### 新增与改进
 
@@ -30,7 +30,7 @@
 
 ## English
 
-This is an incremental Linux/SQLite server release for v2.2.3. It does not replace the Cloudflare `v2.2.3` release or the existing `v2.2.3-server` release. It adds the independent Admin console, file-lifecycle safeguards, responsive administration UI, and the complete source needed for deployment and regression testing.
+This is the current complete Linux/SQLite server release for v2.2.3. It replaces the previous `v2.2.3-server` server archives while leaving the Cloudflare `v2.2.3` release unchanged. It adds the independent Admin console, file-lifecycle safeguards, responsive administration UI, and the complete source needed for deployment and regression testing.
 
 ### Added and improved
 

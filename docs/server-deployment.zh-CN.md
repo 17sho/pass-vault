@@ -45,7 +45,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 当前发布状态
 
-Cloudflare 版使用 `v2.2.3`；Linux 增量版使用独立的 `v2.2.3-server.1` tag 和 Linux 归档。不要把任一制品跨运行时部署。
+Cloudflare 版使用 `v2.2.3`；Linux 版使用独立的 `v2.2.3-server` tag 和 Linux 归档。不要把任一制品跨运行时部署。
 
 使用当前稳定 tag 或已审核提交，并记录准确 commit SHA：
 
@@ -53,7 +53,7 @@ Cloudflare 版使用 `v2.2.3`；Linux 增量版使用独立的 `v2.2.3-server.1`
 cd /tmp
 git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
-git checkout v2.2.3-server.1
+git checkout v2.2.3-server
 git rev-parse HEAD
 ```
 

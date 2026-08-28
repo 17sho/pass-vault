@@ -44,7 +44,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Current artifact status
 
-The Cloudflare edition uses `v2.2.3`; the incremental Linux edition uses the independent `v2.2.3-server.1` tag and Linux archives. Never deploy either artifact across runtime boundaries.
+The Cloudflare edition uses `v2.2.3`; the Linux edition uses the independent `v2.2.3-server` tag and Linux archives. Never deploy either artifact across runtime boundaries.
 
 Use the current stable tag or a reviewed commit and record the exact commit SHA:
 
@@ -52,7 +52,7 @@ Use the current stable tag or a reviewed commit and record the exact commit SHA:
 cd /tmp
 git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
-git checkout v2.2.3-server.1
+git checkout v2.2.3-server
 git rev-parse HEAD
 ```
 
