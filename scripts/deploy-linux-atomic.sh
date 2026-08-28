@@ -14,7 +14,7 @@ PV_POST_DEPLOY_COMMAND=${PV_POST_DEPLOY_COMMAND:-true}
 [[ "$PV_HEALTH_INTERVAL" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo 'invalid health interval' >&2; exit 2; }
 
 [[ "$PV_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+]g[0-9a-f]{12})?$ ]] || { echo 'invalid version' >&2; exit 2; }
-[[ -d "$PV_SOURCE/dist" && -d "$PV_SOURCE/apps/server" && -d "$PV_SOURCE/shared" && -f "$PV_SOURCE/package.json" ]] || { echo 'incomplete source' >&2; exit 2; }
+[[ -d "$PV_SOURCE/dist" && -d "$PV_SOURCE/apps/server" && -d "$PV_SOURCE/apps/admin-server" && -d "$PV_SOURCE/shared" && -f "$PV_SOURCE/package.json" ]] || { echo 'incomplete source' >&2; exit 2; }
 source_version=$(node -p "require(process.argv[1]).version" "$PV_SOURCE/package.json")
 release_version=${PV_VERSION%%+g*}
 [[ "$source_version" == "$release_version" ]] || { echo 'package version mismatch' >&2; exit 2; }
@@ -58,6 +58,7 @@ rm -rf "$temporary"
 mkdir -p "$temporary/apps"
 cp -a "$PV_SOURCE/dist" "$temporary/dist"
 cp -a "$PV_SOURCE/apps/server" "$temporary/apps/server"
+cp -a "$PV_SOURCE/apps/admin-server" "$temporary/apps/admin-server"
 cp -a "$PV_SOURCE/shared" "$temporary/shared"
 cp -a "$PV_SOURCE/package.json" "$temporary/package.json"
 [[ ! -f "$PV_SOURCE/package-lock.json" ]] || cp -a "$PV_SOURCE/package-lock.json" "$temporary/package-lock.json"
