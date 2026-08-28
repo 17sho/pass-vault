@@ -154,6 +154,9 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
  const page=await readFile('apps/admin-server/ui/page.mjs','utf8'),script=await readFile('apps/admin-server/ui/script.mjs','utf8'),style=await readFile('apps/admin-server/ui/style.mjs','utf8');
  for(const name of ['overview','users','registration','operations','security','audit'])assert.match(page,new RegExp(`data-nav-page=\\"${name}\\"`));
  assert.match(page,/data-admin-logout/);assert.doesNotMatch(page,/href=\"\/logout\"/);assert.match(script,/fetch\('\/logout',\{method:'POST'/);assert.doesNotMatch(page+script,/cdn-cgi\/access\/logout|Cloudflare Access/);
+ assert.match(page,/class=\"skip-link\"/);assert.match(page,/name=\"theme-color\"/);assert.match(page,/aria-live=\"polite\"/);assert.doesNotMatch(page,/required autofocus/);
+ assert.match(style,/prefers-reduced-motion/);assert.match(style,/min-height:100dvh/);assert.match(style,/\.empty-state/);assert.match(style,/\.quota-state/);
+ assert.match(script,/配额未设置/);assert.match(script,/重新统计附件/);assert.doesNotMatch(script,/SQLite 正常 · SQLite/);
  assert.match(style,/@media\(max-width:|@media \(max-width:/);assert.match(script,/\/api\/overview/);assert.match(script,/\/api\/users/);
 });
 
