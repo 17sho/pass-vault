@@ -45,20 +45,19 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 当前发布状态
 
-GitHub `v1.1.72` Release同时提供独立的 Cloudflare 与 Linux 压缩包及 `SHA256SUMS`；请只使用目标运行时对应的制品，不要跨运行时部署。
+Linux 当前正式版为独立的 [GitHub `v2.2.3-server` Release](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server)，提供 Linux tar.gz、zip 和 `SHA256SUMS`。请勿使用 Cloudflare 归档部署 Linux。
 
-Linux新部署或升级优先下载并校验 Release 中的 Linux 制品；如需从源码构建，再使用当前`main`的已审核提交并记录准确commit SHA：
+Linux 新部署或升级优先下载并校验 `v2.2.3-server` 中的 Linux 制品；如需从源码构建，请检出服务器 tag 并记录准确 commit SHA：
 
 ```bash
 cd /tmp
 git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
-git checkout main
-git pull --ff-only
+git checkout v2.2.3-server
 git rev-parse HEAD
 ```
 
-不得移动旧tag或替换Release资产来伪造Linux包。当前 `v1.1.72` 已列出 Linux tar.gz、zip 和统一 `SHA256SUMS`，应按 Release 页面真实名称下载并校验；后续版本同样只有在 Release 实际列出对应资产时才使用制品流程。
+当前资产名称为 `pass-vault-v2-linux-2.2.3.tar.gz`、`pass-vault-v2-linux-2.2.3.zip` 和 `SHA256SUMS`。从 Release 页面下载所需归档与校验文件，在同一目录执行 `sha256sum -c SHA256SUMS`，结果必须为 `OK`。
 
 ### 3.2 从源码构建并原子安装
 
@@ -278,7 +277,7 @@ sudo ss -ltnp | grep -E ':(80|443|3000)\b'
 
 ## 9. 升级与回滚
 
-### 升级当前 `main`（包含 v1.1.72 功能）
+### 升级到当前 `v2.2.3-server`
 
 从旧版本升级前，先做SQLite与附件目录的一致性备份，记录当前`current`目标及环境变量名称清单。首次启用辅助Passkey才生成独立`PASSKEY_UNLOCK_KEK`并配置精确`PASSKEY_RP_ID`/`PASSKEY_ORIGIN`；已经启用时必须保留原KEK和两个域变量。安装到新的不可变版本目录并原子切换。服务启动会幂等创建缺失的辅助Passkey、会话元数据和认证方式表；无需重加密现有密文或vault key。
 

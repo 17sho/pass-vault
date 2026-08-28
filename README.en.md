@@ -1,6 +1,6 @@
 # Pass Vault V2
 
-[![Latest release](https://img.shields.io/github/v/release/17sho/pass-vault-v2?sort=semver)](https://github.com/17sho/pass-vault-v2/releases/latest) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
@@ -18,7 +18,7 @@ A mobile-first, browser-encrypted, self-hosted open-source password vault. The s
 - Responsive desktop and mobile interfaces with no native client required
 - Revision CAS, deletion tombstones, CSRF, origin checks, session controls, and rate limits
 
-Cloudflare v2.2.0 also provides standalone `custom` records, encrypted history and Recovery Center, Secure Share v2, cross-tab favorites, and optional Cloudflare Admin and quota controls. See **[Features](docs/FEATURES.en.md)** for the complete list and platform scope.
+Cloudflare v2.2.3 provides standalone `custom` records, encrypted history and Recovery Center, Secure Share v2, cross-tab favorites, and optional Cloudflare Admin and quota controls. Linux v2.2.3-server provides secure sharing, an independent Admin console, and file-lifecycle safeguards. See **[Features](docs/FEATURES.en.md)** for the complete list and platform scope.
 
 ## Encryption and deployment boundaries
 
@@ -67,9 +67,14 @@ These screenshots use isolated environments and fictional test data. They contai
 
 ## Get a release
 
-Latest stable release: [**v2.2.1**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.1)
+The runtimes use separate tags, archives, and data stores. Never deploy an artifact across platforms:
 
-Current public assets are `pass-vault-v2-cloudflare-2.2.1.tar.gz`, `.zip`, and `SHA256SUMS`. Install Linux from source using its deployment guide. Verify downloads with `SHA256SUMS`.
+| Platform | Stable release | Download and deployment |
+|---|---|---|
+| Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) | `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/cloudflare-deployment.en.md) |
+| Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) | `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/server-deployment.en.md) |
+
+Each Release includes `SHA256SUMS`. Download one archive for the selected platform plus the checksum file into the same directory, then run `sha256sum -c SHA256SUMS`.
 
 ## Security note
 

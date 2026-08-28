@@ -44,20 +44,19 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Current artifact status
 
-GitHub Release `v1.1.72` contains separate Cloudflare and Linux archives plus `SHA256SUMS`. Use only the archive for the selected runtime; never deploy the Cloudflare archive to Linux or the Linux archive to Cloudflare.
+The current Linux release is the independent [GitHub `v2.2.3-server` Release](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server), with Linux tar.gz, zip, and `SHA256SUMS` assets. Never deploy the Cloudflare archive to Linux.
 
-Prefer the Linux artifact published in the Release and verify it first. If building from source, use a reviewed current `main` commit and record its exact SHA:
+Prefer and verify the Linux artifact from `v2.2.3-server`. If building from source, check out the server tag and record its exact SHA:
 
 ```bash
 cd /tmp
 git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
-git checkout main
-git pull --ff-only
+git checkout v2.2.3-server
 git rev-parse HEAD
 ```
 
-Do not move an old tag or replace Release assets to fabricate a Linux package. `v1.1.72` currently lists Linux tar.gz, zip, and a shared `SHA256SUMS`; download and verify the exact names shown on that Release page. For later versions, use the artifact workflow only when the Release actually lists matching assets.
+The current assets are `pass-vault-v2-linux-2.2.3.tar.gz`, `pass-vault-v2-linux-2.2.3.zip`, and `SHA256SUMS`. Download the required archive and checksum file from the Release page into the same directory and run `sha256sum -c SHA256SUMS`; the result must be `OK`.
 
 ### 3.2 Build from source and install atomically
 
@@ -269,7 +268,7 @@ If it fails, check value length, file path, and the unit's actual `EnvironmentFi
 
 ## 9. Upgrade and rollback
 
-### Upgrading current `main` (including v1.1.72 features)
+### Upgrading to current `v2.2.3-server`
 
 Before upgrading, make a consistent SQLite plus attachment-directory backup and record the active `current` target and environment-variable names. Generate an independent `PASSKEY_UNLOCK_KEK` and exact `PASSKEY_RP_ID`/`PASSKEY_ORIGIN` only when enabling assisted Passkey for the first time; preserve the original KEK and domain variables when already enabled. Install into a new immutable release directory and switch atomically. Startup idempotently creates missing assisted-Passkey, session-metadata, and authentication-method tables. Existing ciphertext and vault keys need no re-encryption.
 
