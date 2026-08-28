@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { scryptSync } from 'node:crypto';
+import { validateAdminVerifier } from '../apps/admin-server/runtime.mjs';
 import { startTestServer, TEST_INVITE_CODE } from './fixtures.mjs';
 import { checkAttachmentReplacementQuota } from '../apps/server/enforcement.mjs';
 import { retryMaintenance, repairMaintenance } from '../apps/admin-server/maintenance.mjs';
@@ -53,6 +54,11 @@ async function registerAndLogin(dbPath,username='admin',extraEnv={}){
 }
 
 const req=(base,path,{method='GET',cookie,body,origin=base,redirect='follow',headers={}}={})=>fetch(base+path,{method,redirect,headers:{...(cookie?{cookie}:{}),...(origin?{origin}:{}),...(body===undefined?{}:{'content-type':'application/json'}),...headers},body:body===undefined?undefined:JSON.stringify(body)});
+
+test('Linux Admin凭据配置严格拒绝非规范Base64和错误解码长度',()=>{
+ assert.deepEqual(validateAdminVerifier(ADMIN_SALT,ADMIN_HASH),{password_salt:ADMIN_SALT,password_hash:ADMIN_HASH});
+ for(const [salt,hash] of [['',ADMIN_HASH],[ADMIN_SALT+'!',ADMIN_HASH],[ADMIN_SALT.replace(/=$/,'')+'A',ADMIN_HASH],[Buffer.alloc(7).toString('base64'),ADMIN_HASH],[ADMIN_SALT,ADMIN_HASH+'garbage'],[ADMIN_SALT,Buffer.alloc(31).toString('base64')],[ADMIN_SALT,Buffer.alloc(33).toString('base64')]])assert.throws(()=>validateAdminVerifier(salt,hash),/invalid admin password verifier/);
+});
 
 test('Linux Admin独立凭据不依赖密码库用户且会话principal不关联users表',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-separate-identity-')),dbPath=join(dir,'vault.sqlite');let admin;

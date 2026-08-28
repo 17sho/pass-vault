@@ -16,7 +16,7 @@ import { mkdir } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { normalizeSessionIp } from '../../shared/session-metadata.mjs';
 import { runAdminMigrations } from './migrations-admin.mjs';
-import { json, sameOrigin, readCookie, digest, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, SECURITY_HEADERS } from './runtime.mjs';
+import { json, sameOrigin, readCookie, digest, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, validateAdminVerifier, SECURITY_HEADERS } from './runtime.mjs';
 import { overview } from './overview.mjs';
 import { pagedUsers, pagedAudit, updateUserQuota, resetUserQuota, setSuspension, revokeSessions, deleteUser, exportUser } from './users.mjs';
 import { scanMaintenance, repairMaintenance, retryMaintenance } from './maintenance.mjs';
@@ -35,7 +35,7 @@ const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || '').trim();
 const ADMIN_PASSWORD_SALT = (process.env.ADMIN_PASSWORD_SALT || '').trim();
 const ADMIN_PASSWORD_HASH = (process.env.ADMIN_PASSWORD_HASH || '').trim();
 if (!ADMIN_USERNAME || !ADMIN_PASSWORD_SALT || !ADMIN_PASSWORD_HASH) throw new Error('ADMIN_USERNAME, ADMIN_PASSWORD_SALT and ADMIN_PASSWORD_HASH are required');
-const ADMIN_VERIFIER = { password_salt: ADMIN_PASSWORD_SALT, password_hash: ADMIN_PASSWORD_HASH };
+const ADMIN_VERIFIER = validateAdminVerifier(ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH);
 const TRUSTED_IP_HEADER = (process.env.CLIENT_IP_HEADER || '').trim().toLowerCase();
 const APP_VERSION = process.env.APP_VERSION || 'unknown';
 // Env bag passed to endpoint modules (keeps them free of process.env coupling).
