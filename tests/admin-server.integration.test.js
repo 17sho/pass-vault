@@ -89,6 +89,27 @@ test('Linux Admin独立登录签发host-only会话且退出后立即失效',asyn
  }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
 });
 
+test('Linux Admin修改独立管理员密码后持久生效并撤销全部Admin会话',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'pv2-admin-change-password-')),dbPath=join(dir,'vault.sqlite');let admin;
+ try{
+  await registerAndLogin(dbPath,'vault-owner');admin=await startAdmin({dbPath});
+  let r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}});assert.equal(r.status,200,await r.text());const own=r.headers.get('set-cookie').split(';',1)[0];
+  r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}});assert.equal(r.status,200);const other=r.headers.get('set-cookie').split(';',1)[0];
+  assert.equal((await req(admin.base,'/api/admin-password',{method:'PUT',cookie:own,origin:'https://evil.example',body:{currentPassword:ADMIN_PASSWORD,newPassword:'replacement admin secret'}})).status,403);
+  assert.equal((await req(admin.base,'/api/admin-password',{method:'PUT',cookie:own,body:{currentPassword:'wrong',newPassword:'replacement admin secret'}})).status,401);
+  assert.equal((await req(admin.base,'/api/admin-password',{method:'PUT',cookie:own,body:{currentPassword:ADMIN_PASSWORD,newPassword:'short'}})).status,400);
+  assert.equal((await req(admin.base,'/api/admin-password',{method:'PUT',cookie:own,body:{currentPassword:ADMIN_PASSWORD,newPassword:ADMIN_PASSWORD}})).status,400);
+  r=await req(admin.base,'/api/admin-password',{method:'PUT',cookie:own,body:{currentPassword:ADMIN_PASSWORD,newPassword:'replacement admin secret'}});assert.equal(r.status,200,await r.text());assert.match(r.headers.get('set-cookie'),/^pv_admin_session=;/);
+  assert.equal((await req(admin.base,'/api/overview',{cookie:own})).status,401);assert.equal((await req(admin.base,'/api/overview',{cookie:other})).status,401);
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}})).status,401);
+  r=await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'replacement admin secret'}});assert.equal(r.status,200,await r.text());
+  const sql=new DatabaseSync(dbPath);assert.equal(sql.prepare("SELECT COUNT(*) n FROM admin_credentials WHERE principal='admin'").get().n,1);assert.equal(sql.prepare("SELECT COUNT(*) n FROM admin_audit_logs WHERE action='change_admin_password'").get().n,1);sql.close();
+  await admin.stop();admin=await startAdmin({dbPath});
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}})).status,401,'重启后不得回退到环境变量旧密码');
+  assert.equal((await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:'replacement admin secret'}})).status,200);
+ }finally{if(admin)await admin.stop();await rm(dir,{recursive:true,force:true})}
+});
+
 test('Linux Admin可信反代客户端IP隔离登录限流且未配置时忽略伪造头',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-client-ip-')),dbPath=join(dir,'vault.sqlite');let admin;
  const login=(ip)=>req(admin.base,'/api/admin-login',{method:'POST',headers:{'cf-connecting-ip':ip},body:{username:'admin',password:'wrong'}});
@@ -159,6 +180,7 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
  assert.match(script,/配额未设置/);assert.match(script,/重新统计附件/);assert.doesNotMatch(script,/SQLite 正常 · SQLite/);
  assert.match(style,/@media\(max-width:|@media \(max-width:/);assert.match(script,/\/api\/overview/);assert.match(script,/\/api\/users/);
  assert.match(style,/\.operations-actions\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);assert.match(style,/\.operations-actions button\{min-width:0;max-width:100%;white-space:normal/);assert.match(style,/operations-actions \[data-maintenance-repair\].*operations-actions \[data-maintenance\]/);assert.match(script,/class=\\"row-actions operations-actions\\"/);assert.match(script,/class=\\"detail-grid operations-metrics\\"/);
+ assert.match(page,/data-admin-password-open/);assert.match(page,/id="admin-password-dialog"/);assert.match(page,/autocomplete="current-password"/);assert.match(page,/autocomplete="new-password"/);assert.match(script,/\/api\/admin-password/);assert.match(script,/invalid_current_password/);assert.match(script,/data-admin-password-toggle/);
 });
 
 test('Linux Admin独立身份大小写精确匹配且不接受密码库共享会话',async()=>{

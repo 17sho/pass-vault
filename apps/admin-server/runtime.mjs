@@ -27,6 +27,12 @@ export function verifyPassword(password, user) {
     return actual.length === expected.length && timingSafeEqual(actual, expected);
   } catch { return false; }
 }
+
+export function createAdminVerifier(password) {
+  if (typeof password !== 'string' || password.length < 1 || password.length > 1024) throw new Error('invalid admin password');
+  const salt = randomBytes(18);
+  return { password_salt: salt.toString('base64'), password_hash: scryptSync(password, salt, 32, { N: 32768, maxmem: 64 * 1024 * 1024 }).toString('base64') };
+}
 export const newAdminSession = () => randomBytes(32).toString('base64url');
 export const adminCookie = (raw, maxAge = 28800) => `${ADMIN_COOKIE_NAME}=${raw}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 

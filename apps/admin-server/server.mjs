@@ -16,7 +16,7 @@ import { mkdir } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { normalizeSessionIp } from '../../shared/session-metadata.mjs';
 import { runAdminMigrations } from './migrations-admin.mjs';
-import { json, sameOrigin, readCookie, digest, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, validateAdminVerifier, SECURITY_HEADERS } from './runtime.mjs';
+import { json, sameOrigin, readCookie, digest, ADMIN_COOKIE_NAME, ADMIN_SESSION_MS, adminCookie, newAdminSession, verifyPassword, validateAdminVerifier, createAdminVerifier, SECURITY_HEADERS } from './runtime.mjs';
 import { overview } from './overview.mjs';
 import { pagedUsers, pagedAudit, updateUserQuota, resetUserQuota, setSuspension, revokeSessions, deleteUser, exportUser } from './users.mjs';
 import { scanMaintenance, repairMaintenance, retryMaintenance } from './maintenance.mjs';
@@ -35,7 +35,7 @@ const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || '').trim();
 const ADMIN_PASSWORD_SALT = (process.env.ADMIN_PASSWORD_SALT || '').trim();
 const ADMIN_PASSWORD_HASH = (process.env.ADMIN_PASSWORD_HASH || '').trim();
 if (!ADMIN_USERNAME || !ADMIN_PASSWORD_SALT || !ADMIN_PASSWORD_HASH) throw new Error('ADMIN_USERNAME, ADMIN_PASSWORD_SALT and ADMIN_PASSWORD_HASH are required');
-const ADMIN_VERIFIER = validateAdminVerifier(ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH);
+const ENV_ADMIN_VERIFIER = validateAdminVerifier(ADMIN_PASSWORD_SALT, ADMIN_PASSWORD_HASH);
 const TRUSTED_IP_HEADER = (process.env.CLIENT_IP_HEADER || '').trim().toLowerCase();
 const APP_VERSION = process.env.APP_VERSION || 'unknown';
 // Env bag passed to endpoint modules (keeps them free of process.env coupling).
@@ -56,6 +56,7 @@ db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FUL
 // Ensure admin schema exists (idempotent). The admin-server owns these migrations
 // so the console works even if the main app hasn't been restarted.
 const applied = runAdminMigrations(db);
+db.prepare(`INSERT INTO admin_credentials(principal,password_salt,password_hash,updated_at) VALUES(?,?,?,?) ON CONFLICT(principal) DO NOTHING`).run(ADMIN_USERNAME, ENV_ADMIN_VERIFIER.password_salt, ENV_ADMIN_VERIFIER.password_hash, Date.now());
 // Admin sessions are bound to an independent principal, never to vault users.
 const sessionColumns = db.prepare('PRAGMA table_info(admin_sessions)').all().map(row => row.name);
 if (sessionColumns.length && sessionColumns.includes('user_id')) db.exec('DROP TABLE admin_sessions');
@@ -88,7 +89,8 @@ function attemptAdminLogin(req, username, password) {
   db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now - 60_000);
   const attempts = db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key, now - 60_000).count;
   if (attempts >= 10) return { status: 429 };
-  const passwordOk = verifyPassword(password, ADMIN_VERIFIER);
+  const verifier = db.prepare('SELECT password_salt,password_hash FROM admin_credentials WHERE principal=?').get(ADMIN_USERNAME) || ENV_ADMIN_VERIFIER;
+  const passwordOk = verifyPassword(password, verifier);
   if (username !== ADMIN_USERNAME || !passwordOk) {
     let slot = now; while (db.prepare('SELECT 1 FROM auth_attempts WHERE key=? AND attempted_at=?').get(key, slot)) slot++;
     db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key, slot);
@@ -196,6 +198,31 @@ const server = createServer(async (req, res) => {
 
     // --- Mutations below require same-origin (CSRF defense) ---
     if (!['GET', 'HEAD'].includes(req.method) && !sameOrigin(req)) return json(res, 403, { error: 'invalid_origin' });
+
+    if (req.method === 'PUT' && path === '/api/admin-password') {
+      const body = await readBody(req), currentPassword = body.currentPassword, newPassword = body.newPassword;
+      if (typeof newPassword !== 'string' || newPassword.length < 12 || newPassword.length > 1024 || newPassword === currentPassword) return json(res, 400, { error: 'invalid_password' });
+      const now = Date.now(), key = `admin-password:${adminClientIp(req)}`;
+      db.prepare('DELETE FROM auth_attempts WHERE attempted_at<?').run(now - 60_000);
+      const attempts = db.prepare('SELECT COUNT(*) count FROM auth_attempts WHERE key=? AND attempted_at>?').get(key, now - 60_000).count;
+      if (attempts >= 5) return json(res, 429, { error: 'rate_limited' });
+      const next = createAdminVerifier(newPassword);
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const current = db.prepare('SELECT password_salt,password_hash FROM admin_credentials WHERE principal=?').get(ADMIN_USERNAME);
+        if (!current || !verifyPassword(currentPassword, current)) {
+          let slot = now; while (db.prepare('SELECT 1 FROM auth_attempts WHERE key=? AND attempted_at=?').get(key, slot)) slot++;
+          db.prepare('INSERT INTO auth_attempts VALUES(?,?)').run(key, slot);
+          db.exec('COMMIT');
+          return json(res, 401, { error: 'invalid_current_password' });
+        }
+        db.prepare('UPDATE admin_credentials SET password_salt=?,password_hash=?,updated_at=? WHERE principal=?').run(next.password_salt, next.password_hash, now, ADMIN_USERNAME);
+        db.prepare('DELETE FROM admin_sessions WHERE principal=?').run(ADMIN_USERNAME);
+        db.prepare("INSERT INTO admin_audit_logs(actor_email,action,target_username,details_json,created_at) VALUES(?,'change_admin_password',NULL,'{}',?)").run(identity.username, now);
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      return json(res, 200, { ok: true }, { 'set-cookie': adminCookie('', 0) });
+    }
 
     const quotaRoute = path.match(/^\/api\/users\/([^/]+)\/quota$/);
     const suspensionRoute = path.match(/^\/api\/users\/([^/]+)\/suspension$/);

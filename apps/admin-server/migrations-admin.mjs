@@ -16,8 +16,20 @@ const ADMIN_AUDIT_ACTIONS = [
   'delete_user', 'revoke_sessions', 'retry_maintenance', 'update_registration',
   'update_user_quota', 'reset_user_quota', 'create_invite_code', 'delete_invite_code',
   'suspend_user', 'unsuspend_user', 'review_security_event', 'refresh_notifications',
-  'scan_maintenance', 'repair_maintenance', 'export_user_metadata', 'reveal_invite_code'
+  'scan_maintenance', 'repair_maintenance', 'export_user_metadata', 'reveal_invite_code',
+  'change_admin_password'
 ];
+
+export function migrateAdminCredentials(db) {
+  if (tableExists(db, 'admin_credentials')) return false;
+  db.exec(`CREATE TABLE admin_credentials(
+    principal TEXT PRIMARY KEY,
+    password_salt TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+  return true;
+}
 
 function tableExists(db, name) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
@@ -427,6 +439,7 @@ export function migrateFileLifecycle(db) {
 // Run every admin migration in dependency order. Returns the list of applied names.
 export function runAdminMigrations(db) {
   const steps = [
+    ['admin_credentials', migrateAdminCredentials],
     ['admin_settings', migrateAdminSettings],
     ['admin_audit_logs', migrateAdminAuditLogs],
     ['admin_daily_metrics', migrateAdminDailyMetrics],
