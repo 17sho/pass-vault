@@ -45,6 +45,18 @@ test('Linux-only release has no Cloudflare files or broken documentation links',
     assert.equal(installed.status, 0, installed.stderr || installed.stdout);
     const integration = spawnSync(process.execPath, ['--test', 'tests/server.integration.test.js'], { cwd: root, encoding: 'utf8' });
     assert.equal(integration.status, 0, integration.stderr || integration.stdout);
+    for (const requiredPath of [
+      'apps/admin-server/server.mjs',
+      'deploy/pass-vault-admin.service',
+      'deploy/Caddyfile.admin',
+      'tests/admin-server.integration.test.js',
+      'tests/linux-file-lifecycle.test.js',
+      'tests/deployment.test.js',
+      'docs/releases/release-notes-v2.2.3-server.1.md',
+      'AGENTS.md',
+    ]) await readFile(join(root, requiredPath), 'utf8');
+    const adminIntegration = spawnSync(process.execPath, ['--test', 'tests/admin-server.integration.test.js'], { cwd: root, encoding: 'utf8' });
+    assert.equal(adminIntegration.status, 0, adminIntegration.stderr || adminIntegration.stdout);
     const members = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
     assert.equal(members.status, 0, members.stderr || members.stdout);
     assert.doesNotMatch(members.stdout, /(?:^|\/)(?:apps\/worker|docs\/cloudflare-deployment|wrangler\.jsonc)/m);

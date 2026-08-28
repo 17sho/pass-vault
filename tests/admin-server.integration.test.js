@@ -198,7 +198,7 @@ test('Linux Admin独立身份大小写精确匹配且不接受密码库共享会
 test('Linux Admin鉴权、六页读接口、写接口、配额封禁与刷新端点集成',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pv2-admin-server-')),dbPath=join(dir,'vault.sqlite');let admin;
  try{
-  await registerAndLogin(dbPath,'admin',{COOKIE_DOMAIN:'.passkey.23cm.me'});admin=await startAdmin({dbPath,extraEnv:{COOKIE_DOMAIN:'.passkey.23cm.me'}});const cookie=(await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}})).headers.get('set-cookie').split(';',1)[0];
+  await registerAndLogin(dbPath,'admin',{COOKIE_DOMAIN:'.pass.example.com'});admin=await startAdmin({dbPath,extraEnv:{COOKIE_DOMAIN:'.pass.example.com'}});const cookie=(await req(admin.base,'/api/admin-login',{method:'POST',body:{username:'admin',password:ADMIN_PASSWORD}})).headers.get('set-cookie').split(';',1)[0];
   let r=await req(admin.base,'/',{cookie});assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/text\/html/);assert.match(await r.text(),/data-nav-page="audit"/);
   r=await fetch(admin.base+'/app.js');assert.equal(r.status,200);assert.match(r.headers.get('content-type'),/javascript/);
   assert.equal((await fetch(admin.base+'/api/overview')).status,401);

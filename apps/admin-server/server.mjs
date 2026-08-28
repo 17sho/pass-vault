@@ -1,5 +1,5 @@
 // Pass Vault — Admin console server (Linux/SQLite build).
-// Server-build counterpart to the Cloudflare admin-worker (admin.pass.23cm.me).
+// Server-build counterpart to the Cloudflare admin-worker.
 //
 // This is the phase-1 skeleton: DB bootstrap + admin migrations + auth middleware
 // + health endpoint. Later phases add the overview/users/maintenance/etc. handlers.

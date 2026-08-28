@@ -44,7 +44,7 @@ sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
 
 ### 3.1 Current artifact status
 
-The current `v2.2.3` GitHub Release publishes Cloudflare artifacts only and does not provide a Linux archive. Build Linux deployments from an explicit reviewed tag/commit using this guide; never deploy the Cloudflare artifact across runtime boundaries.
+The Cloudflare edition uses `v2.2.3`; the incremental Linux edition uses the independent `v2.2.3-server.1` tag and Linux archives. Never deploy either artifact across runtime boundaries.
 
 Use the current stable tag or a reviewed commit and record the exact commit SHA:
 
@@ -52,12 +52,11 @@ Use the current stable tag or a reviewed commit and record the exact commit SHA:
 cd /tmp
 git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
 cd pass-vault-src
-git checkout main
-git pull --ff-only
+git checkout v2.2.3-server.1
 git rev-parse HEAD
 ```
 
-Do not move an old tag or replace Release assets to fabricate a Linux package. Use the artifact workflow only when the GitHub Release actually lists Linux assets; v2.2.3 has no Linux artifact.
+Never move an old tag or replace existing Release assets. Verify `SHA256SUMS` from the same Release before using a Linux archive.
 
 ### 3.2 Build from source and install atomically
 
@@ -76,8 +75,8 @@ sudo env \
   PV_SOURCE="$PWD" \
   PV_APP_ROOT=/opt/pass-vault-v2 \
   PV_VERSION=<VERSION> \
-  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2' \
-  PV_HEALTH_COMMAND='curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"'' \
+  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2 pass-vault-admin' \
+  PV_HEALTH_COMMAND='systemctl is-active --quiet pass-vault-v2 pass-vault-admin && curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"' && test "$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8120/)" = 200' \
   PV_EVIDENCE=/var/log/pass-vault-v2/deploy-<VERSION>.json \
   bash scripts/deploy-linux-atomic.sh
 sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<VERSION>.json
@@ -100,6 +99,11 @@ Never write the environment file, cookies, invitation, user data, ciphertext, or
 | `PASSKEY_UNLOCK_KEK` | required when assisted unlock is enabled | Base64URL encoding of 32 random bytes; used only to AES-256-GCM wrap vault keys; never commit or log it |
 | `PASSKEY_RP_ID` | required when assisted unlock is enabled | Exact HTTPS application hostname, such as `<APP_DOMAIN>` |
 | `PASSKEY_ORIGIN` | required when assisted unlock is enabled | Canonical HTTPS origin, such as `https://<APP_DOMAIN>`, with no path or trailing slash |
+| `ADMIN_USERNAME` | required | Admin login name, independent from vault usernames |
+| `ADMIN_PASSWORD_SALT` | required | Canonical Base64 salt for the Admin scrypt verifier; never reuse a vault-user salt |
+| `ADMIN_PASSWORD_HASH` | required | Canonical Base64 hash for the Admin scrypt verifier; never put the plaintext password in the environment file |
+| `ADMIN_PORT` | `8120` | Loopback port for the Admin service |
+| `MAIN_SITE_URL` | `https://<APP_DOMAIN>` | Main-site link used by the Admin console |
 
 Create `/etc/pass-vault-v2/pass-vault-v2.env`. To keep the invitation out of shell history and process arguments, assemble a root-only temporary file, stream randomness from `openssl`, and install it atomically:
 
@@ -129,7 +133,7 @@ All three Passkey settings must be valid together. Otherwise assisted unlock fai
 
 ## 5. systemd
 
-Create `/etc/systemd/system/pass-vault-v2.service`:
+Create `/etc/systemd/system/pass-vault-v2.service` and install the independent `/etc/systemd/system/pass-vault-admin.service` from the archive template `deploy/pass-vault-admin.service`. The two units share SQLite and ciphertext directories, but their identities, cookies, and sessions are isolated. Replace `@APP_USER@`, `@APP_DIR@`, and `@DATA_DIR@` first:
 
 ```ini
 [Unit]
@@ -165,12 +169,13 @@ WantedBy=multi-user.target
 Check `command -v node`; change `ExecStart` to its real absolute path if needed.
 
 ```bash
-sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service
+sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service /etc/systemd/system/pass-vault-admin.service
 sudo systemctl daemon-reload
 # First install: return to section 3.2 for atomic deployment, then enable at boot
-sudo systemctl enable pass-vault-v2
-sudo systemctl status pass-vault-v2 --no-pager
+sudo systemctl enable pass-vault-v2 pass-vault-admin
+sudo systemctl status pass-vault-v2 pass-vault-admin --no-pager
 curl -fsS http://127.0.0.1:3000/api/health
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8120/)" = 200
 ```
 
 Run `status` and `curl` only after the section 3.2 atomic deployment succeeds. The unit is already enabled during an upgrade, so this initialization need not be repeated.
@@ -204,6 +209,8 @@ sudo systemctl reload caddy
 ```
 
 Caddy obtains and renews the certificate automatically. Confirm issuance in `journalctl -u caddy`.
+
+The Admin console uses a separate `<ADMIN_DOMAIN>` and proxies to `127.0.0.1:8120`. Copy the archived `deploy/Caddyfile.admin` snippet and replace its placeholder. Put the public endpoint behind Cloudflare or equivalent edge access control and accept only trusted proxy traffic at the origin. Do not add shared Basic Auth in front of the independent Admin login.
 
 ### 6.2 Nginx
 
