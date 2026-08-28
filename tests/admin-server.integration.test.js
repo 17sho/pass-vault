@@ -57,6 +57,7 @@ const req=(base,path,{method='GET',cookie,body,origin=base,redirect='follow',hea
 
 test('Linux Admin凭据配置严格拒绝非规范Base64和错误解码长度',()=>{
  assert.deepEqual(validateAdminVerifier(ADMIN_SALT,ADMIN_HASH),{password_salt:ADMIN_SALT,password_hash:ADMIN_HASH});
+ const productionSalt=Buffer.alloc(18,7).toString('base64');assert.deepEqual(validateAdminVerifier(productionSalt,ADMIN_HASH),{password_salt:productionSalt,password_hash:ADMIN_HASH});
  for(const [salt,hash] of [['',ADMIN_HASH],[ADMIN_SALT+'!',ADMIN_HASH],[ADMIN_SALT.replace(/=$/,'')+'A',ADMIN_HASH],[Buffer.alloc(7).toString('base64'),ADMIN_HASH],[ADMIN_SALT,ADMIN_HASH+'garbage'],[ADMIN_SALT,Buffer.alloc(31).toString('base64')],[ADMIN_SALT,Buffer.alloc(33).toString('base64')]])assert.throws(()=>validateAdminVerifier(salt,hash),/invalid admin password verifier/);
 });
 

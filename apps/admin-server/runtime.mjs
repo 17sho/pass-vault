@@ -10,13 +10,13 @@ export const ADMIN_SESSION_MS = 8 * 60 * 60 * 1000;
 export const MAX_BODY = 2_000_000;
 
 export function validateAdminVerifier(saltText, hashText) {
-  const decode = (text, length) => {
+  const decode = (text, validLength) => {
     if (typeof text !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text)) throw new Error('invalid admin password verifier');
     const decoded = Buffer.from(text, 'base64');
-    if (decoded.length !== length || decoded.toString('base64') !== text) throw new Error('invalid admin password verifier');
+    if (!validLength(decoded.length) || decoded.toString('base64') !== text) throw new Error('invalid admin password verifier');
     return text;
   };
-  return { password_salt: decode(saltText, 16), password_hash: decode(hashText, 32) };
+  return { password_salt: decode(saltText, length => length >= 16 && length <= 64), password_hash: decode(hashText, length => length === 32) };
 }
 
 export function verifyPassword(password, user) {
