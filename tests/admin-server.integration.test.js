@@ -180,7 +180,7 @@ test('Linux Admin shell完整移植6页且无Cloudflare Access专属链接',asyn
  assert.match(script,/配额未设置/);assert.match(script,/重新统计附件/);assert.doesNotMatch(script,/SQLite 正常 · SQLite/);
  assert.match(style,/@media\(max-width:|@media \(max-width:/);assert.match(script,/\/api\/overview/);assert.match(script,/\/api\/users/);
  assert.match(style,/\.operations-actions\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);assert.match(style,/\.operations-actions button\{min-width:0;max-width:100%;white-space:normal/);assert.match(style,/operations-actions \[data-maintenance-repair\].*operations-actions \[data-maintenance\]/);assert.match(script,/class=\\"row-actions operations-actions\\"/);assert.match(script,/class=\\"detail-grid operations-metrics\\"/);
- assert.match(page,/data-admin-password-open/);assert.match(page,/id="admin-password-dialog"/);assert.match(page,/autocomplete="current-password"/);assert.match(page,/autocomplete="new-password"/);assert.match(script,/\/api\/admin-password/);assert.match(script,/invalid_current_password/);assert.match(script,/data-admin-password-toggle/);
+ assert.match(page,/data-admin-password-open/);assert.match(page,/data-admin-password-open class="nav-account-action"/);assert.match(page,/data-admin-password-open class="top-password-action"/);assert.match(page,/id="admin-password-dialog"/);assert.match(page,/autocomplete="current-password"/);assert.match(page,/autocomplete="new-password"/);assert.match(style,/@media\(max-width:760px\).*\.top-password-action\{display:none\}\.nav-account-action\{display:flex\}/);assert.match(script,/\/api\/admin-password/);assert.match(script,/invalid_current_password/);assert.match(script,/data-admin-password-toggle/);
 });
 
 test('Linux Admin独立身份大小写精确匹配且不接受密码库共享会话',async()=>{
