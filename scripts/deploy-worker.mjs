@@ -45,6 +45,7 @@ async function run(){
  const args=['wrangler','deploy','--dry-run','--config',configPath,'--keep-vars'];
  const dry=spawnSync('npx',args,{stdio:'inherit',cwd:repoRoot});if(dry.status!==0)process.exit(dry.status??1);
  if(process.env.PASS_VAULT_DEPLOY_APPROVED!=='1')throw new Error('dry-run 已通过；正式部署需 PASS_VAULT_DEPLOY_APPROVED=1');
+ for(const migrationArgs of [['d1','migrations','apply',config.d1_databases[0].database_name,'--remote','--config',configPath],['d1','migrations','list',config.d1_databases[0].database_name,'--remote','--config',configPath]]){const migration=spawnSync('npx',['wrangler',...migrationArgs],{stdio:'inherit',cwd:repoRoot});if(migration.status!==0)process.exit(migration.status??1)}
  const deploy=spawnSync('npx',['wrangler','deploy','--config',configPath,'--keep-vars'],{stdio:'inherit',cwd:repoRoot});if(deploy.status!==0)process.exit(deploy.status??1);
  await enforceQueryRedaction(config);
 }

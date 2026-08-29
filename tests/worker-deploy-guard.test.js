@@ -12,4 +12,6 @@ test('主 Worker 生产部署守卫拒绝公开入口、Preview、错误 Origin�
  ]){const config=structuredClone(valid);mutate(config);assert.throws(()=>validateWorkerDeployConfig(config,'2.2.3'))}
 });
 
+test('主 Worker 部署脚本在正式部署前应用并回读远端 D1 migrations',async()=>{const source=await readFile(new URL('../scripts/deploy-worker.mjs',import.meta.url),'utf8'),apply=source.indexOf("'d1','migrations','apply'"),list=source.indexOf("'d1','migrations','list'"),deploy=source.indexOf("'deploy','--config'");assert.ok(apply>=0);assert.ok(list>apply);assert.ok(deploy>list)});
+
 test('主 Worker 部署脚本在 Wrangler 部署后通过 Settings API 强制并回读日志查询参数脱敏',async()=>{const source=await readFile(new URL('../scripts/deploy-worker.mjs',import.meta.url),'utf8');assert.match(source,/redact_query_string:true/);assert.match(source,/method:'PATCH'/);assert.match(source,/observability\?\.redact_query_string!==true/)});

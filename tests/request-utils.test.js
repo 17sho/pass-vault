@@ -20,7 +20,8 @@ test('通用 JSON 正文按网络字节限制而非 UTF-16 字符数',async()=>{
   await assert.rejects(()=>body(streamRequest(payload)),RangeError);
 });
 
-test('通用 JSON 正文允许无 Content-Length 的限额内流式请求',async()=>{
-  const parsed=await body(streamRequest(JSON.stringify({hello:'世界'})));
-  assert.deepEqual(parsed,{hello:'世界'});
+test('通用 JSON 正文拒绝畸形 UTF-8 为客户端 JSON 错误',async()=>{
+ const bytes=new Uint8Array([0x7b,0x22,0x78,0x22,0x3a,0x22,0xc3,0x28,0x22,0x7d]);
+ const req=new Request('https://vault.test/api',{method:'POST',body:bytes,duplex:'half'});
+ await assert.rejects(body(req),SyntaxError);
 });
