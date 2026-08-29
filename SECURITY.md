@@ -11,9 +11,9 @@
 
 ## Reporting a vulnerability / 报告漏洞
 
-请勿通过公开 Issue、Discussion、PR、日志或截图披露漏洞、真实数据、密钥、数据库或可利用细节。请使用 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new) 提交私密漏洞报告；该仓库已启用此入口。不要把利用细节发送到公开渠道。
+请勿通过公开 Issue、Discussion、PR、日志或截图披露漏洞、真实数据、密钥、数据库或可利用细节。请使用 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault/security/advisories/new) 提交私密漏洞报告；该仓库已启用此入口。不要把利用细节发送到公开渠道。
 
-Do not disclose vulnerabilities, real data, secrets, databases, or exploit details in public issues, discussions, pull requests, logs, or screenshots. Use [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new); it is enabled for this repository. Do not post exploit details publicly.
+Do not disclose vulnerabilities, real data, secrets, databases, or exploit details in public issues, discussions, pull requests, logs, or screenshots. Use [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault/security/advisories/new); it is enabled for this repository. Do not post exploit details publicly.
 
 报告请包含 / Include:
 

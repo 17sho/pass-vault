@@ -21,7 +21,7 @@ Browser ──HTTPS──> Caddy/Nginx :443 ──HTTP──> 127.0.0.1:3000
                          SQLite + attachments/ (persistent ciphertext)
 ```
 
-Node binds only to loopback and systemd runs it as a dedicated user. SQLite plus its WAL/SHM files live in a persistent data directory; application releases are read-only. Repository file `deploy/pass-vault-v2.service` is a placeholder template: replace `@APP_USER@`, `@APP_DIR@`, and `@DATA_DIR@`, and set `CLIENT_IP_HEADER` for the actual proxy before installation. Do not install it verbatim.
+Node binds only to loopback and systemd runs it as a dedicated user. SQLite plus its WAL/SHM files live in a persistent data directory; application releases are read-only. Repository file `deploy/pass-vault.service` is a placeholder template: replace `@APP_USER@`, `@APP_DIR@`, and `@DATA_DIR@`, and set `CLIENT_IP_HEADER` for the actual proxy before installation. Do not install it verbatim.
 
 ## 2. Dedicated user and directories
 
@@ -30,39 +30,39 @@ sudo apt-get update
 sudo apt-get install -y ca-certificates curl git jq openssl sqlite3 tar ufw
 node --version   # must be >= 22
 npm --version
-sudo useradd --system --home /var/lib/pass-vault-v2 --shell /usr/sbin/nologin pass-vault 2>/dev/null || true
-sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault-v2/releases
-sudo install -d -o pass-vault -g pass-vault -m 0750 /var/lib/pass-vault-v2
-sudo install -d -o pass-vault -g pass-vault -m 0700 /var/lib/pass-vault-v2/attachments
-sudo install -d -o root -g pass-vault -m 0750 /etc/pass-vault-v2
-sudo install -d -o root -g root -m 0700 /var/backups/pass-vault-v2
+sudo useradd --system --home /var/lib/pass-vault --shell /usr/sbin/nologin pass-vault 2>/dev/null || true
+sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault/releases
+sudo install -d -o pass-vault -g pass-vault -m 0750 /var/lib/pass-vault
+sudo install -d -o pass-vault -g pass-vault -m 0700 /var/lib/pass-vault/attachments
+sudo install -d -o root -g pass-vault -m 0750 /etc/pass-vault
+sudo install -d -o root -g root -m 0700 /var/backups/pass-vault
 ```
 
-`/opt/pass-vault-v2/current` will point to the active release. Never store the database in the application directory.
+`/opt/pass-vault/current` will point to the active release. Never store the database in the application directory.
 
 ## 3. Obtain the code and install
 
 ### 3.1 Current artifact status
 
-The current Linux release is the independent [GitHub `v2.2.3-server` Release](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server), with Linux tar.gz, zip, and `SHA256SUMS` assets. Never deploy the Cloudflare archive to Linux.
+The current Linux release is the independent [GitHub `v2.2.3-server` Release](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server), with Linux tar.gz, zip, and `SHA256SUMS` assets. Never deploy the Cloudflare archive to Linux.
 
 Prefer and verify the Linux artifact from `v2.2.3-server`. If building from source, check out the server tag and record its exact SHA:
 
 ```bash
 cd /tmp
-git clone https://github.com/17sho/pass-vault-v2.git pass-vault-src
+git clone https://github.com/17sho/pass-vault.git pass-vault-src
 cd pass-vault-src
 git checkout v2.2.3-server
 git rev-parse HEAD
 ```
 
-The current assets are `pass-vault-v2-linux-2.2.3.tar.gz`, `pass-vault-v2-linux-2.2.3.zip`, and `SHA256SUMS`. Download the required archive and checksum file from the Release page into the same directory and run `sha256sum -c SHA256SUMS`; the result must be `OK`.
+The published assets retain their historical pre-rename names: `pass-vault-v2-linux-2.2.3.tar.gz`, `pass-vault-v2-linux-2.2.3.zip`, and `SHA256SUMS`. Download the required archive and checksum file from the Release page into the same directory and run `sha256sum -c SHA256SUMS`; the result must be `OK`. Future releases use `pass-vault-linux-*`.
 
 ### 3.2 Build from source and install atomically
 
-Do not pre-create `/opt/pass-vault-v2/releases/pass-vault-v2-linux-<VERSION>` or copy files into it: the atomic script safely refuses to overwrite an existing version. Run gates in the source directory, then let the script be the only component that creates the read-only release, installs locked production dependencies, normalizes directories to `0755` and files to `0644`, and switches a temporary symlink with `mv -T`. It automatically restores the old `current` if service restart fails or health stays unavailable after 30 one-second checks, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
+Do not pre-create `/opt/pass-vault/releases/pass-vault-linux-<VERSION>` or copy files into it: the atomic script safely refuses to overwrite an existing version. Run gates in the source directory, then let the script be the only component that creates the read-only release, installs locked production dependencies, normalizes directories to `0755` and files to `0644`, and switches a temporary symlink with `mv -T`. It automatically restores the old `current` if service restart fails or health stays unavailable after 30 one-second checks, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
 
-> **First-install order:** run the `npm` gates below, but before `sudo env ... deploy-linux-atomic.sh`, complete the section 4 environment file and write the section 5 unit, run `systemd-analyze verify` and `systemctl daemon-reload`, but do not use `enable --now`. Return here and run the atomic script; it switches `current`, starts the service, and checks health. After success, run `sudo systemctl enable pass-vault-v2`. An existing installation can run the complete block directly for upgrades.
+> **First-install order:** run the `npm` gates below, but before `sudo env ... deploy-linux-atomic.sh`, complete the section 4 environment file and write the section 5 unit, run `systemd-analyze verify` and `systemctl daemon-reload`, but do not use `enable --now`. Return here and run the atomic script; it switches `current`, starts the service, and checks health. After success, run `sudo systemctl enable pass-vault`. An existing installation can run the complete block directly for upgrades.
 
 ```bash
 npm ci
@@ -73,13 +73,13 @@ npm run lint:docs
 npm run typecheck
 sudo env \
   PV_SOURCE="$PWD" \
-  PV_APP_ROOT=/opt/pass-vault-v2 \
+  PV_APP_ROOT=/opt/pass-vault \
   PV_VERSION=<VERSION> \
-  PV_SERVICE_COMMAND='systemctl restart pass-vault-v2' \
+  PV_SERVICE_COMMAND='systemctl restart pass-vault' \
   PV_HEALTH_COMMAND='curl -fsS http://127.0.0.1:3000/api/health | grep -q '"'"'"backend":"sqlite"'"'"'' \
-  PV_EVIDENCE=/var/log/pass-vault-v2/deploy-<VERSION>.json \
+  PV_EVIDENCE=/var/log/pass-vault/deploy-<VERSION>.json \
   bash scripts/deploy-linux-atomic.sh
-sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<VERSION>.json
+sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault/deploy-<VERSION>.json
 ```
 
 Never write the environment file, cookies, invitation, user data, ciphertext, or complete response bodies into deployment evidence.
@@ -91,8 +91,8 @@ Never write the environment file, cookies, invitation, user data, ciphertext, or
 | `NODE_ENV` | `production` | Runtime marker |
 | `HOST` | `127.0.0.1` | Never bind the app directly to the public interface |
 | `PORT` | `3000` | Local reverse-proxy port |
-| `DB_PATH` | `/var/lib/pass-vault-v2/pass-vault.sqlite` | Absolute persistent SQLite path |
-| `ATTACHMENTS_DIR` | `/var/lib/pass-vault-v2/attachments` | Persistent local directory for encrypted attachment objects |
+| `DB_PATH` | `/var/lib/pass-vault/pass-vault.sqlite` | Absolute persistent SQLite path |
+| `ATTACHMENTS_DIR` | `/var/lib/pass-vault/attachments` | Persistent local directory for encrypted attachment objects |
 | `COOKIE_SECURE` | unset | Secure cookies are on by default; never set `false` in production |
 | `CLIENT_IP_HEADER` | match the proxy topology | Use `x-forwarded-for` when Caddy/Nginx connects directly and forcibly overwrites it; use `cf-connecting-ip` only when Cloudflare orange-cloud reaches the origin with that trusted header; a mismatch degrades rate limiting |
 | `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root:`pass-vault`, `0600` environment file and never log it |
@@ -100,24 +100,24 @@ Never write the environment file, cookies, invitation, user data, ciphertext, or
 | `PASSKEY_RP_ID` | required when assisted unlock is enabled | Exact HTTPS application hostname, such as `<APP_DOMAIN>` |
 | `PASSKEY_ORIGIN` | required when assisted unlock is enabled | Canonical HTTPS origin, such as `https://<APP_DOMAIN>`, with no path or trailing slash |
 
-Create `/etc/pass-vault-v2/pass-vault-v2.env`. To keep the invitation out of shell history and process arguments, assemble a root-only temporary file, stream randomness from `openssl`, and install it atomically:
+Create `/etc/pass-vault/pass-vault.env`. To keep the invitation out of shell history and process arguments, assemble a root-only temporary file, stream randomness from `openssl`, and install it atomically:
 
 ```bash
 umask 077
 tmp=$(mktemp)
 printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
   'CLIENT_IP_HEADER=x-forwarded-for' \
-  'DB_PATH=/var/lib/pass-vault-v2/pass-vault.sqlite' \
-  'ATTACHMENTS_DIR=/var/lib/pass-vault-v2/attachments' >"$tmp"
+  'DB_PATH=/var/lib/pass-vault/pass-vault.sqlite' \
+  'ATTACHMENTS_DIR=/var/lib/pass-vault/attachments' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
 openssl rand -hex 32 >>"$tmp"
 printf 'PASSKEY_UNLOCK_KEK=' >>"$tmp"
 openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' >>"$tmp"
 printf '\nPASSKEY_RP_ID=<APP_DOMAIN>\nPASSKEY_ORIGIN=https://<APP_DOMAIN>\n' >>"$tmp"
-sudo install -o root -g pass-vault -m 0600 "$tmp" /etc/pass-vault-v2/pass-vault-v2.env
+sudo install -o root -g pass-vault -m 0600 "$tmp" /etc/pass-vault/pass-vault.env
 rm -f "$tmp"
-sudo stat -c '%U:%G %a %n' /etc/pass-vault-v2/pass-vault-v2.env
-sudo grep -q '^INVITE_CODE=' /etc/pass-vault-v2/pass-vault-v2.env && echo 'INVITE_CODE name present'
+sudo stat -c '%U:%G %a %n' /etc/pass-vault/pass-vault.env
+sudo grep -q '^INVITE_CODE=' /etc/pass-vault/pass-vault.env && echo 'INVITE_CODE name present'
 ```
 
 Expected output contains only `root:pass-vault 600` and the name-presence confirmation. Do **not** use `cat`, non-quiet `grep INVITE_CODE`, or log the value. A systemd `EnvironmentFile` is not a shell; the generated hexadecimal value is safest. If an operator-supplied value is required, restrict it to printable ASCII without whitespace, quotes, backslashes, `#`, `$`, `%`, control characters, or newlines, and keep it 16–256 characters. Do not rely on shell quoting/expansion to encode a complex value.
@@ -128,19 +128,19 @@ All three Passkey settings must be valid together. Otherwise assisted unlock fai
 
 ## 5. systemd
 
-Create `/etc/systemd/system/pass-vault-v2.service`:
+Create `/etc/systemd/system/pass-vault.service`:
 
 ```ini
 [Unit]
-Description=Pass Vault V2
+Description=Pass Vault
 After=network-online.target
 Wants=network-online.target
 [Service]
 Type=simple
 User=pass-vault
 Group=pass-vault
-WorkingDirectory=/opt/pass-vault-v2/current
-EnvironmentFile=/etc/pass-vault-v2/pass-vault-v2.env
+WorkingDirectory=/opt/pass-vault/current
+EnvironmentFile=/etc/pass-vault/pass-vault.env
 ExecStart=/usr/bin/node apps/server/server.mjs
 Restart=on-failure
 RestartSec=5
@@ -156,7 +156,7 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
-ReadWritePaths=/var/lib/pass-vault-v2
+ReadWritePaths=/var/lib/pass-vault
 [Install]
 WantedBy=multi-user.target
 ```
@@ -164,11 +164,11 @@ WantedBy=multi-user.target
 Check `command -v node`; change `ExecStart` to its real absolute path if needed.
 
 ```bash
-sudo systemd-analyze verify /etc/systemd/system/pass-vault-v2.service
+sudo systemd-analyze verify /etc/systemd/system/pass-vault.service
 sudo systemctl daemon-reload
 # First install: return to section 3.2 for atomic deployment, then enable at boot
-sudo systemctl enable pass-vault-v2
-sudo systemctl status pass-vault-v2 --no-pager
+sudo systemctl enable pass-vault
+sudo systemctl status pass-vault --no-pager
 curl -fsS http://127.0.0.1:3000/api/health
 ```
 
@@ -262,7 +262,7 @@ With a new disposable account: register using the correct invitation (12+ charac
 
 ### 8.1 Rotation and rollback
 
-Rotation affects only **new registrations after rotation**. It does not invalidate existing users, change master passwords, or re-encrypt existing vaults. Retain the current value in a password manager for approved emergency rollback, then use the root-only temporary-file procedure in section 4 to generate and atomically install a replacement. Run `sudo systemctl restart pass-vault-v2`, check service status and HTTPS health, verify only file ownership/mode and the `INVITE_CODE` name, then test registration and sign-in with a disposable account.
+Rotation affects only **new registrations after rotation**. It does not invalidate existing users, change master passwords, or re-encrypt existing vaults. Retain the current value in a password manager for approved emergency rollback, then use the root-only temporary-file procedure in section 4 to generate and atomically install a replacement. Run `sudo systemctl restart pass-vault`, check service status and HTTPS health, verify only file ownership/mode and the `INVITE_CODE` name, then test registration and sign-in with a disposable account.
 
 If it fails, check value length, file path, and the unit's actual `EnvironmentFile`. For rollback, atomically reinstall the previous password-manager value with mode `0600` and restart. Never restore a value suspected of disclosure; generate another strong random value.
 
@@ -274,13 +274,13 @@ Before upgrading, make a consistent SQLite plus attachment-directory backup and 
 
 After switching and restarting, confirm no migration error, public assets match the built version, and the environment-variable name inventory has no unintended deletion. If assisted Passkey was already enabled, complete a real-device passwordless unlock with an existing credential. For first enablement, complete enrollment, lock, unlock, revocation, and re-enrollment acceptance. Confirm Security Center reports the correct authentication method and current session.
 
-1. Record `readlink -f /opt/pass-vault-v2/current`.
+1. Record `readlink -f /opt/pass-vault/current`.
 2. Make and validate a consistent SQLite + attachments backup as below; confirm adequate free disk.
 3. Install the new version into a new release directory and run all tests/build before activation.
 4. Activate with `scripts/deploy-linux-atomic.sh`; it restarts, checks health, and restores the old `current` automatically on failure. On success, inspect evidence and verify the public cache:
 
 ```bash
-sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault-v2/deploy-<NEW_VERSION>.json
+sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault/deploy-<NEW_VERSION>.json
 curl -fsS https://<APP_DOMAIN>/api/health
 node scripts/verify-production-cache.mjs https://<APP_DOMAIN> <NEW_VERSION> /tmp/cache-evidence.json
 jq '{at,version,backend,sourceVersion,revalidated,fixedVersion,status}' /tmp/cache-evidence.json
@@ -289,9 +289,9 @@ jq '{at,version,backend,sourceVersion,revalidated,fixedVersion,status}' /tmp/cac
 For a manual code rollback, use the same atomic mechanism to select a known-good release, then restart. Do not use a two-step unlink/create sequence that leaves a missing-link window:
 
 ```bash
-sudo ln -s /opt/pass-vault-v2/releases/pass-vault-v2-linux-<KNOWN_GOOD_VERSION> /opt/pass-vault-v2/current.rollback
-sudo mv -Tf /opt/pass-vault-v2/current.rollback /opt/pass-vault-v2/current
-sudo systemctl restart pass-vault-v2
+sudo ln -s /opt/pass-vault/releases/pass-vault-linux-<KNOWN_GOOD_VERSION> /opt/pass-vault/current.rollback
+sudo mv -Tf /opt/pass-vault/current.rollback /opt/pass-vault/current
+sudo systemctl restart pass-vault
 ```
 
 A code rollback does not roll back SQLite. Restore the pre-upgrade database only when schema/data compatibility requires it and only with the stopped-service restore procedure.
@@ -302,15 +302,15 @@ Database rows and attachment objects must represent the same point in time. The 
 
 ```bash
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-sudo systemctl stop pass-vault-v2
-sudo -u pass-vault sqlite3 /var/lib/pass-vault-v2/pass-vault.sqlite \
-  ".backup '/var/lib/pass-vault-v2/backup-$STAMP.sqlite'"
-sudo tar -C /var/lib/pass-vault-v2 -czf /var/backups/pass-vault-v2/attachments-$STAMP.tar.gz attachments
-sudo mv /var/lib/pass-vault-v2/backup-$STAMP.sqlite /var/backups/pass-vault-v2/
-sudo chmod 0600 /var/backups/pass-vault-v2/{backup-$STAMP.sqlite,attachments-$STAMP.tar.gz}
-sudo systemctl start pass-vault-v2
-sudo sqlite3 /var/backups/pass-vault-v2/backup-$STAMP.sqlite 'PRAGMA integrity_check;'
-sudo tar -tzf /var/backups/pass-vault-v2/attachments-$STAMP.tar.gz >/dev/null
+sudo systemctl stop pass-vault
+sudo -u pass-vault sqlite3 /var/lib/pass-vault/pass-vault.sqlite \
+  ".backup '/var/lib/pass-vault/backup-$STAMP.sqlite'"
+sudo tar -C /var/lib/pass-vault -czf /var/backups/pass-vault/attachments-$STAMP.tar.gz attachments
+sudo mv /var/lib/pass-vault/backup-$STAMP.sqlite /var/backups/pass-vault/
+sudo chmod 0600 /var/backups/pass-vault/{backup-$STAMP.sqlite,attachments-$STAMP.tar.gz}
+sudo systemctl start pass-vault
+sudo sqlite3 /var/backups/pass-vault/backup-$STAMP.sqlite 'PRAGMA integrity_check;'
+sudo tar -tzf /var/backups/pass-vault/attachments-$STAMP.tar.gz >/dev/null
 ```
 
 The result must be `ok`. Encrypt and copy backups to independent off-site storage, apply retention, and rehearse restores. Backups contain authentication material and ciphertext and remain sensitive.
@@ -320,19 +320,19 @@ The result must be `ok`. Encrypt and copy backups to independent off-site storag
 Validate the backup before a maintenance window:
 
 ```bash
-BACKUP=/var/backups/pass-vault-v2/<BACKUP_FILE>.sqlite
-ATTACHMENTS_BACKUP=/var/backups/pass-vault-v2/<ATTACHMENTS_BACKUP>.tar.gz
+BACKUP=/var/backups/pass-vault/<BACKUP_FILE>.sqlite
+ATTACHMENTS_BACKUP=/var/backups/pass-vault/<ATTACHMENTS_BACKUP>.tar.gz
 sudo sqlite3 "$BACKUP" 'PRAGMA integrity_check;'
 sudo tar -tzf "$ATTACHMENTS_BACKUP" >/dev/null
-sudo systemctl stop pass-vault-v2
-sudo cp -a /var/lib/pass-vault-v2/pass-vault.sqlite /var/backups/pass-vault-v2/failed-$(date -u +%Y%m%dT%H%M%SZ).sqlite
-sudo rm -f /var/lib/pass-vault-v2/pass-vault.sqlite-wal /var/lib/pass-vault-v2/pass-vault.sqlite-shm
-sudo install -o pass-vault -g pass-vault -m 0600 "$BACKUP" /var/lib/pass-vault-v2/pass-vault.sqlite
-sudo mv /var/lib/pass-vault-v2/attachments /var/backups/pass-vault-v2/failed-attachments-$(date -u +%Y%m%dT%H%M%SZ)
-sudo tar -C /var/lib/pass-vault-v2 -xzf "$ATTACHMENTS_BACKUP"
-sudo chown -R pass-vault:pass-vault /var/lib/pass-vault-v2/attachments
-sudo chmod 0700 /var/lib/pass-vault-v2/attachments
-sudo systemctl start pass-vault-v2
+sudo systemctl stop pass-vault
+sudo cp -a /var/lib/pass-vault/pass-vault.sqlite /var/backups/pass-vault/failed-$(date -u +%Y%m%dT%H%M%SZ).sqlite
+sudo rm -f /var/lib/pass-vault/pass-vault.sqlite-wal /var/lib/pass-vault/pass-vault.sqlite-shm
+sudo install -o pass-vault -g pass-vault -m 0600 "$BACKUP" /var/lib/pass-vault/pass-vault.sqlite
+sudo mv /var/lib/pass-vault/attachments /var/backups/pass-vault/failed-attachments-$(date -u +%Y%m%dT%H%M%SZ)
+sudo tar -C /var/lib/pass-vault -xzf "$ATTACHMENTS_BACKUP"
+sudo chown -R pass-vault:pass-vault /var/lib/pass-vault/attachments
+sudo chmod 0700 /var/lib/pass-vault/attachments
+sudo systemctl start pass-vault
 curl -fsS http://127.0.0.1:3000/api/health
 ```
 
@@ -342,17 +342,17 @@ Then verify HTTPS, sign-in, and sample items. Retain the failed-state copy until
 
 - Apply automatic security updates and promptly upgrade Node, the proxy, the OS, and project releases.
 - Disable SSH password/root login, use keys and least-privilege sudo, and restrict management sources.
-- Keep code root-owned and service-read-only; data writable only by the service; `/etc/pass-vault-v2/pass-vault-v2.env` root:`pass-vault` mode 0600, and database/backups 0600.
+- Keep code root-owned and service-read-only; data writable only by the service; `/etc/pass-vault/pass-vault.env` root:`pass-vault` mode 0600, and database/backups 0600.
 - Expose only 80/443 and restricted SSH; enforce HTTPS/HSTS and monitor certificates, disk, service health, and backups.
 - Size disk for SQLite, encrypted attachments, temporary uploads, one local backup, and upgrade headroom; monitor bytes and inodes, with suggested alerts at 70%/85%.
 - Never expose Node publicly, run it as root, disable Secure cookies, or log/share passwords, vault keys, plaintext, full ciphertext, or cookies.
-- Review `systemd-analyze security pass-vault-v2` and tighten the sandbox where compatible.
+- Review `systemd-analyze security pass-vault` and tighten the sandbox where compatible.
 
 ## 13. Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| Service fails to start | `journalctl -u pass-vault-v2 -n 200`; Node path/version, WorkingDirectory, `/etc/pass-vault-v2/pass-vault-v2.env` |
+| Service fails to start | `journalctl -u pass-vault -n 200`; Node path/version, WorkingDirectory, `/etc/pass-vault/pass-vault.env` |
 | Registration returns 503 | Missing/invalid `INVITE_CODE`, wrong env path, or restart not applied; inspect only name and permissions, never the value |
 | Correct value returns 403/429 | Check hidden whitespace/newline and length; wait for the rate-limit window and retry with a disposable account |
 | `SQLITE_CANTOPEN`/readonly | `DB_PATH`, parent ownership, service user, `ReadWritePaths`, disk space |
@@ -365,11 +365,11 @@ Then verify HTTPS, sign-in, and sample items. Retain the failed-state copy until
 | Backup check is not `ok` | Do not overwrite production; use another verified backup and retain the damaged copy |
 
 ```bash
-sudo systemctl status pass-vault-v2 --no-pager
-sudo journalctl -u pass-vault-v2 --since '30 minutes ago' --no-pager
+sudo systemctl status pass-vault --no-pager
+sudo journalctl -u pass-vault --since '30 minutes ago' --no-pager
 sudo ss -ltnp
-sudo -u pass-vault test -w /var/lib/pass-vault-v2 && echo writable
-sudo sqlite3 /var/lib/pass-vault-v2/pass-vault.sqlite 'PRAGMA quick_check;'
+sudo -u pass-vault test -w /var/lib/pass-vault && echo writable
+sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'
 ```
 
 Redact logs before sharing them. Never operate on unrelated production services or databases.

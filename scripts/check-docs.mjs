@@ -111,8 +111,8 @@ for (const [file, phrase] of [
   ['docs/DEPLOYMENT.md',`v${pkg.version} 不提供 Linux Release 归档`],
   ['docs/FEATURES.zh-CN.md',`当前 v${pkg.version} GitHub Release 不提供 Linux 下载包`],
   ['docs/FEATURES.en.md',`current v${pkg.version} GitHub Release does not provide a Linux download archive`],
-  ['docs/server-deployment.zh-CN.md',`Linux 版使用独立的 \`v${pkg.version}-server\` tag`],
-  ['docs/server-deployment.en.md',`Linux edition uses the independent \`v${pkg.version}-server\` tag`],
+  ['docs/server-deployment.zh-CN.md',`GitHub \`v${pkg.version}-server\` Release`],
+  ['docs/server-deployment.en.md',`GitHub \`v${pkg.version}-server\` Release`],
   ['docs/RELEASE.md',`v${pkg.version} 正式 Release 只发布 Cloudflare variant`],
   ['docs/RELEASE.md',`The v${pkg.version} Release publishes only the Cloudflare variant`],
   ['docs/RELEASE.md','combined deployment navigation pages remain in both archives'],
@@ -127,7 +127,7 @@ for (const phrase of ['CLIENT_IP_HEADER', 'INVITE_CODE', 'PASSKEY_UNLOCK_KEK']) 
 }
 
 const forbiddenLinuxArtifactClaims = [
-  /releases\/download\/v1\.1\.(?:65|66)\/pass-vault-v2-linux-/,
+  /releases\/download\/v1\.1\.(?:65|66)\/pass-vault-linux-/,
   /stable (?:Linux )?artifact remains[^\n]*v1\.1\.65/i,
   /Linux\s*稳定制品仍为[^\n]*v1\.1\.65/i,
 ];

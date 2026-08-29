@@ -1,6 +1,6 @@
-# Pass Vault V2
+# Pass Vault
 
-[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
@@ -45,15 +45,15 @@ Cloudflare v2.2.3 提供独立 `custom` 自定义资料、加密历史与恢复�
 
 ### 桌面端密码库
 
-![桌面端密码库界面](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-desktop.png)
+![桌面端密码库界面](https://raw.githubusercontent.com/17sho/pass-vault/main/docs/images/vault-desktop.png)
 
 ### 移动端密码库
 
-<img src="https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-mobile.png" alt="移动端密码库界面" width="390">
+<img src="https://raw.githubusercontent.com/17sho/pass-vault/main/docs/images/vault-mobile.png" alt="移动端密码库界面" width="390">
 
 ### 安全中心与 Passkey
 
-![安全中心与 Passkey 设置](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/security-center.png)
+![安全中心与 Passkey 设置](https://raw.githubusercontent.com/17sho/pass-vault/main/docs/images/security-center.png)
 
 ## 文档
 
@@ -71,8 +71,8 @@ Cloudflare v2.2.3 提供独立 `custom` 自定义资料、加密历史与恢复�
 
 | 平台 | 正式版本 | 下载与部署 |
 |---|---|---|
-| Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) | `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [部署指南](docs/cloudflare-deployment.zh-CN.md) |
-| Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) | `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [部署指南](docs/server-deployment.zh-CN.md) |
+| Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) | 历史资产 `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [部署指南](docs/cloudflare-deployment.zh-CN.md) |
+| Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) | 历史资产 `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [部署指南](docs/server-deployment.zh-CN.md) |
 
 每个 Release 都附带 `SHA256SUMS`。下载对应平台的两个归档之一及校验文件后，在同一目录运行 `sha256sum -c SHA256SUMS`。
 
@@ -80,6 +80,6 @@ Cloudflare v2.2.3 提供独立 `custom` 自定义资料、加密历史与恢复�
 
 这是安全敏感软件。请在部署前审查源码和威胁模型，只通过 HTTPS 使用，并保留经过恢复验证的加密备份。项目尚未经过独立第三方安全审计。
 
-安全漏洞请通过 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new) 私下报告。
+安全漏洞请通过 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault/security/advisories/new) 私下报告。
 
 [贡献指南](CONTRIBUTING.md) · [MIT License](LICENSE)

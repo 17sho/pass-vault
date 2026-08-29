@@ -4,7 +4,7 @@
 
 ## In one sentence
 
-Pass Vault V2 is **one repository, one browser frontend, and two independent backend adapters**:
+Pass Vault is **one repository, one browser frontend, and two independent backend adapters**:
 
 ```text
 One public/ + shared/ source tree
@@ -81,8 +81,8 @@ The backend maintains a monotonically increasing `revision` for every record and
 
 Each stable version publishes:
 
-- `pass-vault-v2-cloudflare-<VERSION>.tar.gz` / `.zip`
-- `pass-vault-v2-linux-<VERSION>.tar.gz` / `.zip`
+- `pass-vault-cloudflare-<VERSION>.tar.gz` / `.zip`
+- `pass-vault-linux-<VERSION>.tar.gz` / `.zip`
 - `SHA256SUMS`
 
 Both archives contain the shared frontend, but only their respective backend and deployment guide. Production configuration, databases, attachments, routes, resource IDs, and secrets are excluded.

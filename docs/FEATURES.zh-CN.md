@@ -2,7 +2,7 @@
 
 [中文](FEATURES.zh-CN.md) · [English](FEATURES.en.md) · [返回 README](../README.md)
 
-Pass Vault V2 是移动优先、浏览器端加密的自托管密码库。Cloudflare 与 Linux 共享基础前端和密文契约，但账户、会话、数据库与附件存储完全独立。
+Pass Vault 是移动优先、浏览器端加密的自托管密码库。Cloudflare 与 Linux 共享基础前端和密文契约，但账户、会话、数据库与附件存储完全独立。
 
 ## 核心资料管理
 

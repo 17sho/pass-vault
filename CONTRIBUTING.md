@@ -1,14 +1,14 @@
 # Contributing / 贡献指南
 
-感谢贡献。Pass Vault V2 是安全敏感软件：小改动也可能影响密文兼容、会话隔离或两个运行时。/ Thank you for contributing. Pass Vault V2 is security-sensitive: even a small change can affect ciphertext compatibility, session isolation, or both runtimes.
+感谢贡献。Pass Vault 是安全敏感软件：小改动也可能影响密文兼容、会话隔离或两个运行时。/ Thank you for contributing. Pass Vault is security-sensitive: even a small change can affect ciphertext compatibility, session isolation, or both runtimes.
 
 ## 开始 / Getting started
 
 要求 Node.js 22+。
 
 ```bash
-git clone https://github.com/17sho/pass-vault-v2.git
-cd pass-vault-v2
+git clone https://github.com/17sho/pass-vault.git
+cd pass-vault
 npm ci
 npm test
 npm run lint
@@ -84,6 +84,6 @@ PR 应写明：
 
 ## 安全问题 / Security reports
 
-不要用公开 Issue、Discussion 或 PR 报告可利用漏洞。请使用 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new)；详见 [`SECURITY.md`](SECURITY.md)。
+不要用公开 Issue、Discussion 或 PR 报告可利用漏洞。请使用 [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault/security/advisories/new)；详见 [`SECURITY.md`](SECURITY.md)。
 
 贡献一经合并，将按仓库根目录的 [MIT License](LICENSE) 分发。

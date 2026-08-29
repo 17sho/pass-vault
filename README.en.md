@@ -1,6 +1,6 @@
-# Pass Vault V2
+# Pass Vault
 
-[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault-v2)](LICENSE)
+[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
@@ -45,15 +45,15 @@ These screenshots use isolated environments and fictional test data. They contai
 
 ### Desktop vault
 
-![Desktop vault interface](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-desktop.png)
+![Desktop vault interface](https://raw.githubusercontent.com/17sho/pass-vault/main/docs/images/vault-desktop.png)
 
 ### Mobile vault
 
-<img src="https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/vault-mobile.png" alt="Mobile vault interface" width="390">
+<img src="https://raw.githubusercontent.com/17sho/pass-vault/main/docs/images/vault-mobile.png" alt="Mobile vault interface" width="390">
 
 ### Security Center and Passkey
 
-![Security Center and Passkey settings](https://raw.githubusercontent.com/17sho/pass-vault-v2/main/docs/images/security-center.png)
+![Security Center and Passkey settings](https://raw.githubusercontent.com/17sho/pass-vault/main/docs/images/security-center.png)
 
 ## Documentation
 
@@ -71,8 +71,8 @@ The runtimes use separate tags, archives, and data stores. Never deploy an artif
 
 | Platform | Stable release | Download and deployment |
 |---|---|---|
-| Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3) | `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/cloudflare-deployment.en.md) |
-| Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3-server) | `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/server-deployment.en.md) |
+| Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) | Historical asset `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/cloudflare-deployment.en.md) |
+| Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) | Historical asset `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/server-deployment.en.md) |
 
 Each Release includes `SHA256SUMS`. Download one archive for the selected platform plus the checksum file into the same directory, then run `sha256sum -c SHA256SUMS`.
 
@@ -80,6 +80,6 @@ Each Release includes `SHA256SUMS`. Download one archive for the selected platfo
 
 This is security-sensitive software. Review the source and threat model before deployment, use HTTPS, and keep tested encrypted backups. The project has not undergone an independent third-party security audit.
 
-Report vulnerabilities privately through [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault-v2/security/advisories/new).
+Report vulnerabilities privately through [GitHub Private Vulnerability Reporting](https://github.com/17sho/pass-vault/security/advisories/new).
 
 [Contributing](CONTRIBUTING.md) · [MIT License](LICENSE)

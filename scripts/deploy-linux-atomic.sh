@@ -22,7 +22,7 @@ grep -Fq "app.mjs?v=$release_version" "$PV_SOURCE/dist/index.html" || { echo 'as
 
 releases="$PV_APP_ROOT/releases"
 current="$PV_APP_ROOT/current"
-candidate="$releases/pass-vault-v2-linux-$PV_VERSION"
+candidate="$releases/pass-vault-linux-$PV_VERSION"
 temporary="$candidate.tmp.$$"
 old_target=''
 health=false

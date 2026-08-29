@@ -32,8 +32,8 @@
 ### 2.1 推荐：从当前 `main` 部署
 
 ```bash
-git clone https://github.com/17sho/pass-vault-v2.git
-cd pass-vault-v2
+git clone https://github.com/17sho/pass-vault.git
+cd pass-vault
 git checkout main
 git pull --ff-only
 # 记录并审核实际提交；生产证据只记录SHA，不记录任何秘密
@@ -52,14 +52,14 @@ npm run build
 
 本Release的Cloudflare资产包括：
 
-- `pass-vault-v2-cloudflare-2.2.3.tar.gz`
-- `pass-vault-v2-cloudflare-2.2.3.zip`
+- `pass-vault-v2-cloudflare-2.2.3.tar.gz`（品牌改名前的历史资产名）
+- `pass-vault-v2-cloudflare-2.2.3.zip`（品牌改名前的历史资产名）
 - `SHA256SUMS`
 
 ```bash
 VERSION=2.2.3
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
+curl -fLO "https://github.com/17sho/pass-vault/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
+curl -fLO "https://github.com/17sho/pass-vault/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 

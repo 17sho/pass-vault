@@ -6,5 +6,5 @@ This legacy URL remains as a short navigation page to prevent broken links. Choo
 
 - [Cloudflare deployment guide](cloudflare-deployment.en.md) · [中文](cloudflare-deployment.zh-CN.md)
 - [Linux server deployment guide](server-deployment.en.md) · [中文](server-deployment.zh-CN.md)
-- [v2.2.3 Cloudflare artifacts and SHA256SUMS](https://github.com/17sho/pass-vault-v2/releases/tag/v2.2.3)
+- [v2.2.3 Cloudflare artifacts and SHA256SUMS](https://github.com/17sho/pass-vault/releases/tag/v2.2.3)
 - [Back to the English README](../README.en.md)

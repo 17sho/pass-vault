@@ -33,7 +33,7 @@ test('Linux-only release has no Cloudflare files or broken documentation links',
   const destination = await mkdtemp(join(tmpdir(), 'pv-linux-package-'));
   try {
     const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-    const archiveName = (await readdir('release')).find(name => name.startsWith(`pass-vault-v2-linux-${pkg.version}-snapshot-`) && name.endsWith('.tar.gz'));
+    const archiveName = (await readdir('release')).find(name => name.startsWith(`pass-vault-linux-${pkg.version}-snapshot-`) && name.endsWith('.tar.gz'));
     assert.ok(archiveName, 'snapshot archive missing');
     const archive = join('release', archiveName);
     const extracted = spawnSync('tar', ['-xzf', archive, '-C', destination], { encoding: 'utf8' });
@@ -76,7 +76,7 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   const destination = await mkdtemp(join(tmpdir(), 'pv-cloudflare-package-'));
   try {
     const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-    const archiveName = (await readdir('release')).find(name => name.startsWith(`pass-vault-v2-cloudflare-${pkg.version}-snapshot-`) && name.endsWith('.tar.gz'));
+    const archiveName = (await readdir('release')).find(name => name.startsWith(`pass-vault-cloudflare-${pkg.version}-snapshot-`) && name.endsWith('.tar.gz'));
     assert.ok(archiveName, 'snapshot archive missing');
     const archive = join('release', archiveName);
     const extracted = spawnSync('tar', ['-xzf', archive, '-C', destination], { encoding: 'utf8' });

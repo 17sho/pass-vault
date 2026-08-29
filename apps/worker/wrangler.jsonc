@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "pass-vault-v2",
+  "name": "pass-vault",
   "workers_dev": true,
   "main": "src/index.ts",
   "compatibility_date": "2026-07-11",

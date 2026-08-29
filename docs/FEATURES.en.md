@@ -2,7 +2,7 @@
 
 [中文](FEATURES.zh-CN.md) · [English](FEATURES.en.md) · [Back to README](../README.en.md)
 
-Pass Vault V2 is a mobile-first, browser-encrypted, self-hosted password vault. Cloudflare and Linux share the base frontend and ciphertext contract, while accounts, sessions, databases, and attachment stores remain independent.
+Pass Vault is a mobile-first, browser-encrypted, self-hosted password vault. Cloudflare and Linux share the base frontend and ciphertext contract, while accounts, sessions, databases, and attachment stores remain independent.
 
 ## Core record management
 

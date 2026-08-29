@@ -8,8 +8,8 @@
 
 `npm run package:release` 默认生成 Cloudflare 源码制品；只有明确设置 `RELEASE_VARIANTS=linux` 时才生成 Linux 制品：
 
-- `pass-vault-v2-cloudflare-<VERSION>`：共享浏览器前端、Worker 后端和 D1 migrations；
-- `pass-vault-v2-linux-<VERSION>`：共享浏览器前端、Node 后端和由运维者配置的 SQLite/附件持久路径。
+- `pass-vault-cloudflare-<VERSION>`：共享浏览器前端、Worker 后端和 D1 migrations；
+- `pass-vault-linux-<VERSION>`：共享浏览器前端、Node 后端和由运维者配置的 SQLite/附件持久路径。
 
 每个被选择的 variant 提供 `.tar.gz`、`.zip` 和统一 `SHA256SUMS`。v2.2.3 正式 Release 只发布 Cloudflare variant。压缩包不包含依赖、运行数据、部署证据、秘密、生产路由或真实资源配置。
 
@@ -53,8 +53,8 @@
 
 `npm run package:release` produces the Cloudflare source distribution by default; the Linux variant is generated only when `RELEASE_VARIANTS=linux` is explicitly selected:
 
-- `pass-vault-v2-cloudflare-<VERSION>`: shared browser frontend, Worker backend, and D1 migrations;
-- `pass-vault-v2-linux-<VERSION>`: shared browser frontend, Node backend, and operator-configured persistent SQLite/attachment paths.
+- `pass-vault-cloudflare-<VERSION>`: shared browser frontend, Worker backend, and D1 migrations;
+- `pass-vault-linux-<VERSION>`: shared browser frontend, Node backend, and operator-configured persistent SQLite/attachment paths.
 
 Each selected variant provides `.tar.gz`, `.zip`, and a common `SHA256SUMS`. The v2.2.3 Release publishes only the Cloudflare variant. Archives exclude dependencies, runtime data, deployment evidence, secrets, production routes, and real resource configuration.
 

@@ -2,7 +2,7 @@
 
 > 公开部署者应使用完整的 [Cloudflare中文](cloudflare-deployment.zh-CN.md) / [English](cloudflare-deployment.en.md) 或 [Linux中文](server-deployment.zh-CN.md) / [English](server-deployment.en.md) 指南。本页是维护者门禁摘要，不包含真实域名、资源ID或秘密快捷方式。
 
-Pass Vault V2有两个独立后端：
+Pass Vault有两个独立后端：
 
 - Cloudflare：Worker + Static Assets + D1 + R2；
 - Linux：Node.js + SQLite + 本地附件目录。
@@ -97,12 +97,12 @@ npx wrangler rollback <KNOWN_GOOD_VERSION_ID> --config <PRODUCTION_CONFIG>
 
 ### 4.1 发布前
 
-- 记录`readlink -f /opt/pass-vault-v2/current`和当前commit/version；
+- 记录`readlink -f /opt/pass-vault/current`和当前commit/version；
 - 生成仅含名称的环境变量清单，保留`INVITE_CODE`、原`PASSKEY_UNLOCK_KEK`、RP ID/Origin、数据库/附件路径和`CLIENT_IP_HEADER`；
 - 停止服务后用SQLite `.backup`和附件tar生成同点备份并验证完整性；
 - 从已审核的明确 tag 或 commit 构建到新不可变版本目录；v2.2.3 不提供 Linux Release 归档。
 
-不能在升级时重建环境文件并漏掉变量，也不能无意重新生成已有KEK。`deploy/pass-vault-v2.service`是带占位符模板，安装前必须替换用户/路径并按代理拓扑设置可信客户端IP头。
+不能在升级时重建环境文件并漏掉变量，也不能无意重新生成已有KEK。`deploy/pass-vault.service`是带占位符模板，安装前必须替换用户/路径并按代理拓扑设置可信客户端IP头。
 
 ### 4.2 原子切换与验收
 

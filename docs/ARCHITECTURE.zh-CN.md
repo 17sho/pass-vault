@@ -4,7 +4,7 @@
 
 ## 一句话说明
 
-Pass Vault V2 是**一个仓库、一套浏览器前端、两个独立后端适配**：
+Pass Vault 是**一个仓库、一套浏览器前端、两个独立后端适配**：
 
 ```text
 同一套 public/ + shared/
@@ -81,8 +81,8 @@ Cloudflare 与 Linux 的用户、会话、条目、附件和配额彼此独立�
 
 每个稳定版本分别提供：
 
-- `pass-vault-v2-cloudflare-<VERSION>.tar.gz` / `.zip`
-- `pass-vault-v2-linux-<VERSION>.tar.gz` / `.zip`
+- `pass-vault-cloudflare-<VERSION>.tar.gz` / `.zip`
+- `pass-vault-linux-<VERSION>.tar.gz` / `.zip`
 - `SHA256SUMS`
 
 两个压缩包都包含共享前端，但只包含各自后端和部署文档。生产配置、数据库、附件、路由、资源 ID 和秘密不进入制品。

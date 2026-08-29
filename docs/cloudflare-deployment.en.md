@@ -32,8 +32,8 @@ By default, the Worker has no server key that can independently recover the vaul
 ### 2.1 Recommended: deploy current `main`
 
 ```bash
-git clone https://github.com/17sho/pass-vault-v2.git
-cd pass-vault-v2
+git clone https://github.com/17sho/pass-vault.git
+cd pass-vault
 git checkout main
 git pull --ff-only
 # Record and review the exact commit; evidence must contain no secrets
@@ -52,14 +52,14 @@ Every command must naturally exit 0. Do not substitute interrupted, timed-out, o
 
 The Cloudflare assets in this Release are:
 
-- `pass-vault-v2-cloudflare-2.2.3.tar.gz`
-- `pass-vault-v2-cloudflare-2.2.3.zip`
+- `pass-vault-v2-cloudflare-2.2.3.tar.gz` (historical pre-rename asset name)
+- `pass-vault-v2-cloudflare-2.2.3.zip` (historical pre-rename asset name)
 - `SHA256SUMS`
 
 ```bash
 VERSION=2.2.3
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
-curl -fLO "https://github.com/17sho/pass-vault-v2/releases/download/v$VERSION/SHA256SUMS"
+curl -fLO "https://github.com/17sho/pass-vault/releases/download/v$VERSION/pass-vault-v2-cloudflare-$VERSION.tar.gz"
+curl -fLO "https://github.com/17sho/pass-vault/releases/download/v$VERSION/SHA256SUMS"
 grep "pass-vault-v2-cloudflare-$VERSION.tar.gz" SHA256SUMS | sha256sum -c -
 ```
 

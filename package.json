@@ -1,17 +1,17 @@
 {
-  "name": "pass-vault-v2",
+  "name": "pass-vault",
   "version": "2.2.3",
   "private": true,
   "description": "Mobile-first encrypted vault with one browser frontend packaged for independent Cloudflare D1/R2 and Linux SQLite deployments",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/17sho/pass-vault-v2.git"
+    "url": "git+https://github.com/17sho/pass-vault.git"
   },
   "bugs": {
-    "url": "https://github.com/17sho/pass-vault-v2/issues"
+    "url": "https://github.com/17sho/pass-vault/issues"
   },
-  "homepage": "https://github.com/17sho/pass-vault-v2#readme",
+  "homepage": "https://github.com/17sho/pass-vault#readme",
   "packageManager": "npm@11.5.2",
   "type": "module",
   "scripts": {
