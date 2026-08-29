@@ -92,4 +92,3 @@ CREATE INDEX idx_security_events_last_seen ON security_events(last_seen_at DESC)
 CREATE INDEX idx_security_events_category_time ON security_events(category,last_seen_at DESC);
 
 PRAGMA foreign_keys=ON;
-PRAGMA foreign_key_check;

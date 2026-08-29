@@ -20,7 +20,7 @@ const out = join(root, 'release');
 const epoch = Number(process.env.SOURCE_DATE_EPOCH || 1783728000); // 2026-07-11 UTC
 const common = ['package-lock.json','LICENSE','README.md','README.en.md','AGENTS.md','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md','specs',`docs/releases/release-notes-v${pkg.version}.md`,'public','shared','scripts/build.mjs','scripts/check.mjs','scripts/check-docs.mjs','docs/API.md','docs/ARCHITECTURE.zh-CN.md','docs/ARCHITECTURE.en.md','docs/DEVELOPMENT.md','docs/REPOSITORY.md','docs/RELEASE.md','docs/DEPLOYMENT.md','docs/deployment.zh-CN.md','docs/deployment.en.md','docs/FEATURES.zh-CN.md','docs/FEATURES.en.md'];
 const variants = {
-  cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','apps/admin-worker/src','scripts/deploy-admin.mjs','tests/fixtures.mjs','tests/admin-deploy-guard.test.js','tests/admin-navigation-ui.test.js','tests/admin-module-boundaries.test.js','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/worker.test.js','tests/custom-records-contract.test.js','tests/custom-records-migration.test.js','tests/admin-worker.test.js','tests/admin-responsive-ui.test.js','tests/cloudflare-core-module-boundaries.test.js','tests/cloudflare-frontend-dead-code.test.js','tests/cloudflare-render-performance.test.js','tests/cloudflare-safe-utils-boundaries.test.js','tests/dialog-ui-module.test.js','tests/password-generator-module.test.js','tests/production-assets.test.js','tests/secret-residue-lifecycle.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
+  cloudflare: ['apps/worker/src','apps/worker/migrations','apps/worker/tsconfig.json','apps/admin-worker/src','scripts/deploy-worker.mjs','scripts/deploy-admin.mjs','tests/fixtures.mjs','tests/worker-deploy-guard.test.js','tests/request-utils.test.js','tests/cloudflare-migration-chain.test.js','tests/history-share-d1.test.js','tests/r2-cleanup-migration.test.js','tests/passkey-assisted-migration.test.js','tests/session-auth-method-migration.test.js','tests/totp-migration.test.js','tests/entries-created-at-migration.test.js','tests/admin-deploy-guard.test.js','tests/admin-navigation-ui.test.js','tests/admin-module-boundaries.test.js','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/worker.test.js','tests/custom-records-contract.test.js','tests/custom-records-migration.test.js','tests/admin-worker.test.js','tests/admin-responsive-ui.test.js','tests/cloudflare-core-module-boundaries.test.js','tests/cloudflare-frontend-dead-code.test.js','tests/cloudflare-render-performance.test.js','tests/cloudflare-safe-utils-boundaries.test.js','tests/dialog-ui-module.test.js','tests/password-generator-module.test.js','tests/production-assets.test.js','tests/secret-residue-lifecycle.test.js','docs/cloudflare-deployment.zh-CN.md','docs/cloudflare-deployment.en.md'],
   linux: ['apps/server','apps/admin-server','deploy/pass-vault.service','deploy/pass-vault-admin.service','deploy/Caddyfile','deploy/Caddyfile.admin','deploy/nginx.conf','scripts/deploy-linux-atomic.sh','tests/fixtures.mjs','tests/attachment.test.js','tests/contract.test.js','tests/session-metadata.test.js','tests/server.integration.test.js','tests/admin-server.integration.test.js','tests/linux-file-lifecycle.test.js','tests/deployment.test.js','docs/releases/release-notes-v2.2.3-server.md','docs/server-deployment.zh-CN.md','docs/server-deployment.en.md'],
 };
 const requestedVariants = (process.env.RELEASE_VARIANTS || 'cloudflare')
@@ -87,11 +87,12 @@ for (const variant of requestedVariants) {
     ...pkg,
     private: true,
     scripts: variant === 'cloudflare' ? {
-      test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/admin-deploy-guard.test.js tests/admin-navigation-ui.test.js tests/admin-module-boundaries.test.js tests/attachment.test.js tests/contract.test.js tests/session-metadata.test.js tests/worker.test.js tests/custom-records-contract.test.js tests/custom-records-migration.test.js tests/admin-worker.test.js tests/admin-responsive-ui.test.js tests/cloudflare-core-module-boundaries.test.js tests/cloudflare-frontend-dead-code.test.js tests/cloudflare-render-performance.test.js tests/cloudflare-safe-utils-boundaries.test.js tests/dialog-ui-module.test.js tests/password-generator-module.test.js tests/production-assets.test.js tests/secret-residue-lifecycle.test.js',
+      test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/worker-deploy-guard.test.js tests/request-utils.test.js tests/cloudflare-migration-chain.test.js tests/history-share-d1.test.js tests/r2-cleanup-migration.test.js tests/passkey-assisted-migration.test.js tests/session-auth-method-migration.test.js tests/totp-migration.test.js tests/entries-created-at-migration.test.js tests/admin-deploy-guard.test.js tests/admin-navigation-ui.test.js tests/admin-module-boundaries.test.js tests/attachment.test.js tests/contract.test.js tests/session-metadata.test.js tests/worker.test.js tests/custom-records-contract.test.js tests/custom-records-migration.test.js tests/admin-worker.test.js tests/admin-responsive-ui.test.js tests/cloudflare-core-module-boundaries.test.js tests/cloudflare-frontend-dead-code.test.js tests/cloudflare-render-performance.test.js tests/cloudflare-safe-utils-boundaries.test.js tests/dialog-ui-module.test.js tests/password-generator-module.test.js tests/production-assets.test.js tests/secret-residue-lifecycle.test.js',
       lint: 'node scripts/check.mjs',
       'lint:docs': 'node scripts/check-docs.mjs',
       typecheck: 'tsc --noEmit -p apps/worker/tsconfig.json',
       build: 'node scripts/build.mjs',
+      'deploy:worker': 'node scripts/deploy-worker.mjs',
       'deploy:admin': 'node scripts/deploy-admin.mjs'
     } : {
       test: 'node scripts/build.mjs && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.js',
@@ -107,13 +108,13 @@ for (const variant of requestedVariants) {
     await rewriteCloudflareOnlyLinks(stage);
     const placeholderDatabaseId = '00000000-0000-0000-0000-000000000000';
     await writeFile(join(stage, 'apps/worker/wrangler.jsonc'), JSON.stringify({
-      name: 'pass-vault', workers_dev: true, main: 'src/index.ts',
+      name: 'pass-vault', workers_dev: true, preview_urls: false, main: 'src/index.ts',
       compatibility_date: '2026-07-11', compatibility_flags: ['nodejs_compat'],
       d1_databases: [{ binding: 'DB', database_name: 'your-d1-database-name', database_id: placeholderDatabaseId, migrations_dir: 'migrations' }],
       r2_buckets: [{ binding: 'ATTACHMENTS', bucket_name: 'your-r2-attachments-bucket' }],
       assets: { directory: '../../dist', binding: 'ASSETS', run_worker_first: true },
-      vars: { APP_VERSION: pkg.version },
-      observability: { enabled: true, head_sampling_rate: 1 },
+      vars: { APP_VERSION: pkg.version, APP_ORIGIN: 'https://pass.example.com' },
+      observability: { enabled: true, head_sampling_rate: 1, logs: { enabled: true } },
       triggers: { crons: ['17 * * * *'] }
     }, null, 2) + '\n');
     await mkdir(join(stage, 'apps/admin-worker'), { recursive: true });

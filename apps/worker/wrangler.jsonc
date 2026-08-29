@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pass-vault",
   "workers_dev": true,
+  "preview_urls": false,
   "main": "src/index.ts",
   "compatibility_date": "2026-07-11",
   "compatibility_flags": ["nodejs_compat"],
@@ -20,7 +21,8 @@
     }
   ],
   "vars": {
-    "APP_VERSION": "2.2.3"
+    "APP_VERSION": "2.2.3",
+    "APP_ORIGIN": "https://pass.example.com"
   },
   "assets": {
     "directory": "../../dist",
@@ -29,7 +31,10 @@
   },
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true
+    }
   },
   "triggers": {
     "crons": ["17 * * * *"]

@@ -21,6 +21,7 @@
     "lint:docs": "node scripts/check-docs.mjs",
     "typecheck": "tsc --noEmit -p apps/worker/tsconfig.json",
     "build": "node scripts/build.mjs",
+    "deploy:worker": "node scripts/deploy-worker.mjs",
     "deploy:admin": "node scripts/deploy-admin.mjs",
     "start": "node apps/server/server.mjs",
     "package:release": "node scripts/package-release.mjs"

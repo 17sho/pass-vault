@@ -88,9 +88,14 @@ test('Cloudflare-only release has no Linux files or broken documentation links',
   assert.match(await readFile(join(root, 'apps/worker/migrations/0012_backup_import_locks.sql'), 'utf8'), /CREATE TABLE backup_import_locks/);
   assert.match(await readFile(join(root, 'apps/worker/migrations/0013_r2_inflight_uploads.sql'), 'utf8'), /CREATE TABLE r2_inflight_uploads/);
   assert.match(await readFile(join(root, 'apps/worker/migrations/0034_admin_control_center.sql'), 'utf8'), /CREATE TABLE admin_notifications/);
+  assert.match(await readFile(join(root, 'apps/worker/migrations/0035_attachments_object_key_index.sql'), 'utf8'), /idx_attachments_object_key/);
+  assert.match(await readFile(join(root, 'scripts/deploy-worker.mjs'), 'utf8'), /validateWorkerDeployConfig/);
   assert.match(await readFile(join(root, 'scripts/deploy-admin.mjs'), 'utf8'), /validateAdminDeployConfig/);
   assert.match(await readFile(join(root, 'tests/fixtures.mjs'), 'utf8'), /export/);
   for (const testPath of [
+    'tests/worker-deploy-guard.test.js',
+    'tests/request-utils.test.js',
+    'tests/cloudflare-migration-chain.test.js',
     'tests/admin-module-boundaries.test.js',
     'tests/cloudflare-core-module-boundaries.test.js',
     'tests/cloudflare-frontend-dead-code.test.js',

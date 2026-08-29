@@ -1,0 +1,24 @@
+name: Cloudflare gates
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cloudflare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run lint:docs
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Cloudflare-only tests
+        run: node --experimental-strip-types --test --test-concurrency=1 tests/worker-deploy-guard.test.js tests/request-utils.test.js tests/cloudflare-migration-chain.test.js tests/history-share-d1.test.js tests/r2-cleanup-migration.test.js tests/passkey-assisted-migration.test.js tests/session-auth-method-migration.test.js tests/totp-migration.test.js tests/entries-created-at-migration.test.js tests/worker.test.js tests/attachment.test.js tests/contract.test.js tests/session-metadata.test.js tests/custom-records-contract.test.js tests/custom-records-migration.test.js tests/production-assets.test.js tests/secret-residue-lifecycle.test.js
