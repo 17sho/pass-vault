@@ -23,6 +23,95 @@
 
 Node 只监听回环地址；systemd 以专用用户运行。SQLite 及 WAL/SHM 位于持久数据目录，代码位于只读的版本目录。仓库内`deploy/pass-vault.service`是带占位符的模板；安装时必须替换`@APP_USER@`、`@APP_DIR@`和`@DATA_DIR@`，并按实际代理设置`CLIENT_IP_HEADER`，不能原样复制启动。
 
+### 1.1 从品牌改名前的 Linux 布局迁移
+
+如果现有安装仍使用`/opt/pass-vault-v2`、`/var/lib/pass-vault-v2`、`/etc/pass-vault-v2/pass-vault-v2.env`或`pass-vault-v2.service`，**不要直接执行本指南后面的普通升级代码块**。这次是运行布局迁移，不是数据库格式迁移；旧目录和旧 unit 必须保留到新布局验收完成。
+
+先安排维护窗口并让反向代理进入维护模式，避免切换期间产生新写入。以下流程沿用现有服务用户`pass-vault`；如果旧 unit 使用其他用户，先统一新 unit 的`User`/`Group`，不要在同一次迁移中擅自改变数据所有者。
+
+1. 记录旧`current`目标和 unit 状态；只检查环境变量名称，不输出值。创建并异地验证 SQLite、附件和分享对象备份。
+2. 依次停止 Admin 和主站，确认两者均为 inactive 后再复制。必须同时复制 SQLite 主文件、WAL/SHM、`attachments/`和`shares/`；不要只复制`.sqlite`。
+3. 使用`cp -a`保留时间、owner和mode，把旧数据复制到新目录；旧数据目录保持原样作为回滚点。复制环境文件时只改路径变量，保留`INVITE_CODE`、`PASSKEY_UNLOCK_KEK`及所有 Admin 密钥原值。
+4. 安装新代码和新 unit；先启动`pass-vault.service`，再启动`pass-vault-admin.service`。在恢复公网流量前完成健康、登录解锁、附件、匿名分享和备份恢复抽查。
+
+停机复制示例（不会显示秘密）：
+
+```bash
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+sudo install -d -o root -g root -m 0700 "/var/backups/pass-vault/layout-$STAMP"
+sudo systemctl status pass-vault-v2 pass-vault-admin --no-pager || true
+sudo readlink -f /opt/pass-vault-v2/current
+sudo awk -F= '/^[A-Za-z_][A-Za-z0-9_]*=/{print $1}' \
+  /etc/pass-vault-v2/pass-vault-v2.env | sort
+sudo sqlite3 /var/lib/pass-vault-v2/pass-vault.sqlite 'PRAGMA quick_check;'
+
+sudo systemctl stop pass-vault-admin pass-vault-v2
+test "$(systemctl is-active pass-vault-admin || true)" = inactive
+test "$(systemctl is-active pass-vault-v2 || true)" = inactive
+sudo cp -a /etc/systemd/system/pass-vault-v2.service \
+  "/var/backups/pass-vault/layout-$STAMP/" 2>/dev/null || true
+sudo cp -a /etc/systemd/system/pass-vault-admin.service \
+  "/var/backups/pass-vault/layout-$STAMP/" 2>/dev/null || true
+sudo cp -a /etc/pass-vault-v2/pass-vault-v2.env \
+  "/var/backups/pass-vault/layout-$STAMP/"
+
+sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault/releases /etc/pass-vault
+sudo test ! -e /var/lib/pass-vault/pass-vault.sqlite
+sudo install -d -o pass-vault -g pass-vault -m 0750 /var/lib/pass-vault
+sudo cp -a /var/lib/pass-vault-v2/. /var/lib/pass-vault/
+sudo env SRC=/etc/pass-vault-v2/pass-vault-v2.env \
+  DST=/etc/pass-vault/pass-vault.env python3 - <<'PY'
+import os, stat, tempfile
+src, dst = os.environ['SRC'], os.environ['DST']
+updates = {
+    'DB_PATH': '/var/lib/pass-vault/pass-vault.sqlite',
+    'ATTACHMENTS_DIR': '/var/lib/pass-vault/attachments',
+    'SHARES_DIR': '/var/lib/pass-vault/shares',
+}
+st = os.stat(src)
+lines = open(src, encoding='utf-8').read().splitlines()
+seen = set()
+out = []
+for line in lines:
+    key = line.split('=', 1)[0] if '=' in line else ''
+    if key in updates:
+        out.append(f'{key}={updates[key]}')
+        seen.add(key)
+    else:
+        out.append(line)
+for key, value in updates.items():
+    if key not in seen:
+        out.append(f'{key}={value}')
+fd, tmp = tempfile.mkstemp(prefix='.pass-vault.env.', dir=os.path.dirname(dst))
+try:
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write('\n'.join(out) + '\n')
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chown(tmp, st.st_uid, st.st_gid)
+    os.chmod(tmp, stat.S_IMODE(st.st_mode))
+    os.replace(tmp, dst)
+finally:
+    if os.path.exists(tmp): os.unlink(tmp)
+PY
+sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'
+sudo test -d /var/lib/pass-vault/attachments
+sudo test -d /var/lib/pass-vault/shares
+```
+
+随后按第3.2、4、5节安装新版本和两个新 unit。确认`systemd-analyze verify`通过后：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now pass-vault
+sudo systemctl enable --now pass-vault-admin
+curl -fsS http://127.0.0.1:3000/api/health
+sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'
+sudo systemctl disable pass-vault-v2
+```
+
+只有在主站和 Admin 健康、已有账户可解锁、已有附件可读、已有匿名分享可读、加密备份可导出并在隔离环境恢复后，才能解除维护模式。迁移验收前若失败：停止新 unit，从`/var/backups/pass-vault/layout-$STAMP/`把两个旧 unit 复制回`/etc/systemd/system/`，执行`daemon-reload`，重新启用并启动`pass-vault-v2`和旧 Admin；因为旧数据目录从未修改，回滚不会覆盖它。**一旦新布局恢复公网写入，就不能直接回到旧数据副本**；应先停止写入、备份新数据并制定数据回迁方案。
+
 ## 2. 专用用户与目录
 
 ```bash
@@ -63,7 +152,7 @@ git rev-parse HEAD
 
 不要提前创建`/opt/pass-vault/releases/pass-vault-linux-<VERSION>`或向其中复制文件；原子脚本会安全拒绝覆盖同版本目录。先在源码目录完成门禁，再由脚本唯一负责创建只读版本目录、安装锁定的生产依赖、统一目录`0755`/文件`0644`，并用临时软链接加`mv -T`原子切换。服务命令失败，或健康检查默认每秒一次、连续30次仍未通过时，脚本自动恢复旧`current`，并只写时间、版本、布尔结果和回滚状态到root-only JSON证据：
 
-> **首次安装顺序：** 先运行下方`npm`门禁，但在执行`sudo env ... deploy-linux-atomic.sh`前，先完成第4节环境文件，并按第5节写入unit、执行`systemd-analyze verify`和`systemctl daemon-reload`，此时不要`enable --now`。然后回到这里运行原子脚本；脚本切换`current`后会启动服务并做健康检查。成功后执行`sudo systemctl enable pass-vault`。已有服务的升级可直接执行完整代码块。
+> **首次安装顺序：** 先运行下方`npm`门禁，但在执行`sudo env ... deploy-linux-atomic.sh`前，先完成第4节环境文件，并按第5节写入unit、执行`systemd-analyze verify`和`systemctl daemon-reload`，此时不要`enable --now`。然后回到这里运行原子脚本；脚本切换`current`后会启动服务并做健康检查。成功后执行`sudo systemctl enable pass-vault`。只有已经使用`/opt/pass-vault`、`/var/lib/pass-vault`和`pass-vault.service`的新布局安装才能直接执行完整升级代码块；旧`pass-vault-v2`布局必须先完成第1.1节迁移。
 
 ```bash
 npm ci
@@ -96,6 +185,7 @@ sudo jq '{at,version,status,health,rolledBack}' /var/log/pass-vault/deploy-<VERS
 | `PORT` | `3000` | 本机反代端口，可修改 |
 | `DB_PATH` | `/var/lib/pass-vault/pass-vault.sqlite` | 持久 SQLite 绝对路径 |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault/attachments` | 附件密文对象目录；必须是持久本地磁盘 |
+| `SHARES_DIR` | `/var/lib/pass-vault/shares` | 匿名分享密文对象目录；必须与数据库一起持久化和备份 |
 | `COOKIE_SECURE` | 不设置 | 默认启用 Secure Cookie；生产绝不能设为 `false` |
 | `CLIENT_IP_HEADER` | 由代理拓扑决定 | Caddy/Nginx直连源站且代理强制覆盖时用`x-forwarded-for`；Cloudflare橙云直达源站并保留其可信头时用`cf-connecting-ip`；错误配置会让限流退化 |
 | `INVITE_CODE` | 必填 | 共享注册邀请码（16–256 字符）；保存在 root:`pass-vault`、`0600` 的环境文件中，绝不记录日志 |
@@ -111,7 +201,8 @@ tmp=$(mktemp)
 printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
   'CLIENT_IP_HEADER=x-forwarded-for' \
   'DB_PATH=/var/lib/pass-vault/pass-vault.sqlite' \
-  'ATTACHMENTS_DIR=/var/lib/pass-vault/attachments' >"$tmp"
+  'ATTACHMENTS_DIR=/var/lib/pass-vault/attachments' \
+  'SHARES_DIR=/var/lib/pass-vault/shares' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
 openssl rand -hex 32 >>"$tmp"
 printf 'PASSKEY_UNLOCK_KEK=' >>"$tmp"

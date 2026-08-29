@@ -23,6 +23,95 @@ Browser ──HTTPS──> Caddy/Nginx :443 ──HTTP──> 127.0.0.1:3000
 
 Node binds only to loopback and systemd runs it as a dedicated user. SQLite plus its WAL/SHM files live in a persistent data directory; application releases are read-only. Repository file `deploy/pass-vault.service` is a placeholder template: replace `@APP_USER@`, `@APP_DIR@`, and `@DATA_DIR@`, and set `CLIENT_IP_HEADER` for the actual proxy before installation. Do not install it verbatim.
 
+### 1.1 Migrate a pre-rename Linux layout
+
+If an existing installation still uses `/opt/pass-vault-v2`, `/var/lib/pass-vault-v2`, `/etc/pass-vault-v2/pass-vault-v2.env`, or `pass-vault-v2.service`, **do not run the ordinary upgrade block below directly**. This is a runtime-layout migration, not a database-format migration. Retain the old directories and old unit until the new layout passes acceptance.
+
+Schedule a maintenance window and put the reverse proxy into maintenance mode so no writes arrive during cutover. The example retains the existing `pass-vault` service account. If the old unit uses a different account, set the new unit's `User`/`Group` to that account; do not silently change data ownership during the same migration.
+
+1. Record the old `current` target and unit state. List environment variable names only, never values. Create and verify off-host backups of SQLite, attachments, and share objects.
+2. Stop Admin first and the main service second. Confirm both are inactive before copying. Copy the SQLite database together with WAL/SHM, `attachments/`, and `shares/`; copying only the `.sqlite` file is unsafe.
+3. Use `cp -a` to preserve timestamps, owner, and mode while copying old data to the new directory. Leave the old data tree untouched as the rollback point. Change only path variables in the copied environment file; preserve the exact `INVITE_CODE`, `PASSKEY_UNLOCK_KEK`, and Admin key values.
+4. Install the new code and units. Start `pass-vault.service` before `pass-vault-admin.service`. Before reopening public traffic, verify health, login/unlock, attachments, anonymous shares, and backup restore.
+
+Stopped-copy example (it does not print secrets):
+
+```bash
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+sudo install -d -o root -g root -m 0700 "/var/backups/pass-vault/layout-$STAMP"
+sudo systemctl status pass-vault-v2 pass-vault-admin --no-pager || true
+sudo readlink -f /opt/pass-vault-v2/current
+sudo awk -F= '/^[A-Za-z_][A-Za-z0-9_]*=/{print $1}' \
+  /etc/pass-vault-v2/pass-vault-v2.env | sort
+sudo sqlite3 /var/lib/pass-vault-v2/pass-vault.sqlite 'PRAGMA quick_check;'
+
+sudo systemctl stop pass-vault-admin pass-vault-v2
+test "$(systemctl is-active pass-vault-admin || true)" = inactive
+test "$(systemctl is-active pass-vault-v2 || true)" = inactive
+sudo cp -a /etc/systemd/system/pass-vault-v2.service \
+  "/var/backups/pass-vault/layout-$STAMP/" 2>/dev/null || true
+sudo cp -a /etc/systemd/system/pass-vault-admin.service \
+  "/var/backups/pass-vault/layout-$STAMP/" 2>/dev/null || true
+sudo cp -a /etc/pass-vault-v2/pass-vault-v2.env \
+  "/var/backups/pass-vault/layout-$STAMP/"
+
+sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault/releases /etc/pass-vault
+sudo test ! -e /var/lib/pass-vault/pass-vault.sqlite
+sudo install -d -o pass-vault -g pass-vault -m 0750 /var/lib/pass-vault
+sudo cp -a /var/lib/pass-vault-v2/. /var/lib/pass-vault/
+sudo env SRC=/etc/pass-vault-v2/pass-vault-v2.env \
+  DST=/etc/pass-vault/pass-vault.env python3 - <<'PY'
+import os, stat, tempfile
+src, dst = os.environ['SRC'], os.environ['DST']
+updates = {
+    'DB_PATH': '/var/lib/pass-vault/pass-vault.sqlite',
+    'ATTACHMENTS_DIR': '/var/lib/pass-vault/attachments',
+    'SHARES_DIR': '/var/lib/pass-vault/shares',
+}
+st = os.stat(src)
+lines = open(src, encoding='utf-8').read().splitlines()
+seen = set()
+out = []
+for line in lines:
+    key = line.split('=', 1)[0] if '=' in line else ''
+    if key in updates:
+        out.append(f'{key}={updates[key]}')
+        seen.add(key)
+    else:
+        out.append(line)
+for key, value in updates.items():
+    if key not in seen:
+        out.append(f'{key}={value}')
+fd, tmp = tempfile.mkstemp(prefix='.pass-vault.env.', dir=os.path.dirname(dst))
+try:
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write('\n'.join(out) + '\n')
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chown(tmp, st.st_uid, st.st_gid)
+    os.chmod(tmp, stat.S_IMODE(st.st_mode))
+    os.replace(tmp, dst)
+finally:
+    if os.path.exists(tmp): os.unlink(tmp)
+PY
+sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'
+sudo test -d /var/lib/pass-vault/attachments
+sudo test -d /var/lib/pass-vault/shares
+```
+
+Then install the new release and both new units using sections 3.2, 4, and 5. After `systemd-analyze verify` succeeds:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now pass-vault
+sudo systemctl enable --now pass-vault-admin
+curl -fsS http://127.0.0.1:3000/api/health
+sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'
+sudo systemctl disable pass-vault-v2
+```
+
+Leave maintenance mode only after both services are healthy, an existing account unlocks, an existing attachment and anonymous share can be read, and an encrypted backup can be exported and restored in isolation. If acceptance fails before reopening traffic, stop the new units, copy both old unit files from `/var/backups/pass-vault/layout-$STAMP/` back to `/etc/systemd/system/`, run `daemon-reload`, and re-enable/start `pass-vault-v2` plus the old Admin; the untouched old data tree remains the rollback source. **After writes are admitted to the new layout, never switch directly to the stale old data copy.** Stop writes, back up the new data, and plan an explicit reverse migration instead.
+
 ## 2. Dedicated user and directories
 
 ```bash
@@ -62,7 +151,7 @@ The published assets retain their historical pre-rename names: `pass-vault-v2-li
 
 Do not pre-create `/opt/pass-vault/releases/pass-vault-linux-<VERSION>` or copy files into it: the atomic script safely refuses to overwrite an existing version. Run gates in the source directory, then let the script be the only component that creates the read-only release, installs locked production dependencies, normalizes directories to `0755` and files to `0644`, and switches a temporary symlink with `mv -T`. It automatically restores the old `current` if service restart fails or health stays unavailable after 30 one-second checks, and writes only time, version, boolean checks, and rollback state to a root-only JSON evidence file:
 
-> **First-install order:** run the `npm` gates below, but before `sudo env ... deploy-linux-atomic.sh`, complete the section 4 environment file and write the section 5 unit, run `systemd-analyze verify` and `systemctl daemon-reload`, but do not use `enable --now`. Return here and run the atomic script; it switches `current`, starts the service, and checks health. After success, run `sudo systemctl enable pass-vault`. An existing installation can run the complete block directly for upgrades.
+> **First-install order:** run the `npm` gates below, but before `sudo env ... deploy-linux-atomic.sh`, complete the section 4 environment file and write the section 5 unit, run `systemd-analyze verify` and `systemctl daemon-reload`, but do not use `enable --now`. Return here and run the atomic script; it switches `current`, starts the service, and checks health. After success, run `sudo systemctl enable pass-vault`. Only an installation already using `/opt/pass-vault`, `/var/lib/pass-vault`, and `pass-vault.service` may run the complete upgrade block directly. A legacy `pass-vault-v2` layout must first complete section 1.1.
 
 ```bash
 npm ci
@@ -93,6 +182,7 @@ Never write the environment file, cookies, invitation, user data, ciphertext, or
 | `PORT` | `3000` | Local reverse-proxy port |
 | `DB_PATH` | `/var/lib/pass-vault/pass-vault.sqlite` | Absolute persistent SQLite path |
 | `ATTACHMENTS_DIR` | `/var/lib/pass-vault/attachments` | Persistent local directory for encrypted attachment objects |
+| `SHARES_DIR` | `/var/lib/pass-vault/shares` | Persistent encrypted anonymous-share object directory; back it up with the database |
 | `COOKIE_SECURE` | unset | Secure cookies are on by default; never set `false` in production |
 | `CLIENT_IP_HEADER` | match the proxy topology | Use `x-forwarded-for` when Caddy/Nginx connects directly and forcibly overwrites it; use `cf-connecting-ip` only when Cloudflare orange-cloud reaches the origin with that trusted header; a mismatch degrades rate limiting |
 | `INVITE_CODE` | required | Shared registration invitation (16–256 characters); keep it in the root:`pass-vault`, `0600` environment file and never log it |
@@ -108,7 +198,8 @@ tmp=$(mktemp)
 printf '%s\n' 'NODE_ENV=production' 'HOST=127.0.0.1' 'PORT=3000' \
   'CLIENT_IP_HEADER=x-forwarded-for' \
   'DB_PATH=/var/lib/pass-vault/pass-vault.sqlite' \
-  'ATTACHMENTS_DIR=/var/lib/pass-vault/attachments' >"$tmp"
+  'ATTACHMENTS_DIR=/var/lib/pass-vault/attachments' \
+  'SHARES_DIR=/var/lib/pass-vault/shares' >"$tmp"
 printf 'INVITE_CODE=' >>"$tmp"
 openssl rand -hex 32 >>"$tmp"
 printf 'PASSKEY_UNLOCK_KEK=' >>"$tmp"
