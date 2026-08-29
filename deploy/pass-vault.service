@@ -2,12 +2,12 @@
 Description=Pass Vault
 After=network.target
 
-# Template: replace @APP_USER@, @APP_DIR@, and @DATA_DIR@ before installing.
+# Template: replace @APP_USER@, @APP_GROUP@, @APP_DIR@, @DATA_DIR@, and @ENV_FILE@ before installing.
 # Keep the verified Node binary at @APP_DIR@/node while release code lives under @APP_DIR@/current.
 [Service]
 Type=simple
 User=@APP_USER@
-Group=@APP_USER@
+Group=@APP_GROUP@
 WorkingDirectory=@APP_DIR@/current
 Environment=NODE_ENV=production
 Environment=PORT=3000
@@ -17,7 +17,7 @@ Environment=HOST=127.0.0.1
 # 留空则安全回退为 socket 直连 IP（仅适用于无反代的直连部署）。
 Environment=CLIENT_IP_HEADER=cf-connecting-ip
 Environment=DB_PATH=@DATA_DIR@/pass-vault.sqlite
-EnvironmentFile=/etc/pass-vault/pass-vault.env
+EnvironmentFile=@ENV_FILE@
 ExecStart=@APP_DIR@/node apps/server/server.mjs
 Restart=on-failure
 RestartSec=5s

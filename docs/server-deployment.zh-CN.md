@@ -21,89 +21,40 @@
                          SQLite + attachments/（均为持久密文）
 ```
 
-Node 只监听回环地址；systemd 以专用用户运行。SQLite 及 WAL/SHM 位于持久数据目录，代码位于只读的版本目录。仓库内`deploy/pass-vault.service`是带占位符的模板；安装时必须替换`@APP_USER@`、`@APP_DIR@`和`@DATA_DIR@`，并按实际代理设置`CLIENT_IP_HEADER`，不能原样复制启动。
+Node 只监听回环地址；systemd 以专用用户运行。SQLite 及 WAL/SHM 位于持久数据目录，代码位于只读的版本目录。仓库内 systemd 文件是带占位符的模板；安装时必须替换`@APP_USER@`、`@APP_GROUP@`、`@APP_DIR@`、`@DATA_DIR@`和`@ENV_FILE@`，Admin 模板还必须替换`@MAIN_UNIT@`，并按实际代理设置`CLIENT_IP_HEADER`，不能原样复制启动。
 
 ### 1.1 从品牌改名前的 Linux 布局迁移
 
 如果现有安装仍使用`/opt/pass-vault-v2`、`/var/lib/pass-vault-v2`、`/etc/pass-vault-v2/pass-vault-v2.env`或`pass-vault-v2.service`，**不要直接执行本指南后面的普通升级代码块**。这次是运行布局迁移，不是数据库格式迁移；旧目录和旧 unit 必须保留到新布局验收完成。
 
-先安排维护窗口并让反向代理进入维护模式，避免切换期间产生新写入。以下流程沿用现有服务用户`pass-vault`；如果旧 unit 使用其他用户，先统一新 unit 的`User`/`Group`，不要在同一次迁移中擅自改变数据所有者。
+先安排维护窗口并让反向代理进入维护模式，避免切换期间产生新写入。以下流程先从旧主站 unit 读取服务用户和组；新目录与新 unit 必须使用相同身份，不要在同一次迁移中改变数据所有者。
 
 1. 记录旧`current`目标和 unit 状态；只检查环境变量名称，不输出值。创建并异地验证 SQLite、附件和分享对象备份。
 2. 依次停止 Admin 和主站，确认两者均为 inactive 后再复制。必须同时复制 SQLite 主文件、WAL/SHM、`attachments/`和`shares/`；不要只复制`.sqlite`。
 3. 使用`cp -a`保留时间、owner和mode，把旧数据复制到新目录；旧数据目录保持原样作为回滚点。复制环境文件时只改路径变量，保留`INVITE_CODE`、`PASSKEY_UNLOCK_KEK`及所有 Admin 密钥原值。
 4. 安装新代码和新 unit；先启动`pass-vault.service`，再启动`pass-vault-admin.service`。在恢复公网流量前完成健康、登录解锁、附件、匿名分享和备份恢复抽查。
 
-停机复制示例（不会显示秘密）：
+停机复制不再提供可逐行粘贴的命令。请从仓库根目录运行经过测试的严格模式脚本；脚本要求反向代理已进入维护模式，任何源校验、备份、停机、复制、环境转换、unit 渲染或目标校验失败都会立即停止；若已停机则自动恢复旧 unit 并尝试重新启动旧服务：
 
 ```bash
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-sudo install -d -o root -g root -m 0700 "/var/backups/pass-vault/layout-$STAMP"
-sudo systemctl status pass-vault-v2 pass-vault-admin --no-pager || true
-sudo readlink -f /opt/pass-vault-v2/current
-sudo awk -F= '/^[A-Za-z_][A-Za-z0-9_]*=/{print $1}' \
-  /etc/pass-vault-v2/pass-vault-v2.env | sort
-sudo sqlite3 /var/lib/pass-vault-v2/pass-vault.sqlite 'PRAGMA quick_check;'
-
-sudo systemctl stop pass-vault-admin pass-vault-v2
-test "$(systemctl is-active pass-vault-admin || true)" = inactive
-test "$(systemctl is-active pass-vault-v2 || true)" = inactive
-sudo cp -a /etc/systemd/system/pass-vault-v2.service \
-  "/var/backups/pass-vault/layout-$STAMP/" 2>/dev/null || true
-sudo cp -a /etc/systemd/system/pass-vault-admin.service \
-  "/var/backups/pass-vault/layout-$STAMP/" 2>/dev/null || true
-sudo cp -a /etc/pass-vault-v2/pass-vault-v2.env \
-  "/var/backups/pass-vault/layout-$STAMP/"
-
-sudo install -d -o root -g pass-vault -m 0750 /opt/pass-vault/releases /etc/pass-vault
-sudo test ! -e /var/lib/pass-vault/pass-vault.sqlite
-sudo install -d -o pass-vault -g pass-vault -m 0750 /var/lib/pass-vault
-sudo cp -a /var/lib/pass-vault-v2/. /var/lib/pass-vault/
-sudo env SRC=/etc/pass-vault-v2/pass-vault-v2.env \
-  DST=/etc/pass-vault/pass-vault.env python3 - <<'PY'
-import os, stat, tempfile
-src, dst = os.environ['SRC'], os.environ['DST']
-updates = {
-    'DB_PATH': '/var/lib/pass-vault/pass-vault.sqlite',
-    'ATTACHMENTS_DIR': '/var/lib/pass-vault/attachments',
-    'SHARES_DIR': '/var/lib/pass-vault/shares',
-}
-st = os.stat(src)
-lines = open(src, encoding='utf-8').read().splitlines()
-seen = set()
-out = []
-for line in lines:
-    key = line.split('=', 1)[0] if '=' in line else ''
-    if key in updates:
-        out.append(f'{key}={updates[key]}')
-        seen.add(key)
-    else:
-        out.append(line)
-for key, value in updates.items():
-    if key not in seen:
-        out.append(f'{key}={value}')
-fd, tmp = tempfile.mkstemp(prefix='.pass-vault.env.', dir=os.path.dirname(dst))
-try:
-    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
-        handle.write('\n'.join(out) + '\n')
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.chown(tmp, st.st_uid, st.st_gid)
-    os.chmod(tmp, stat.S_IMODE(st.st_mode))
-    os.replace(tmp, dst)
-finally:
-    if os.path.exists(tmp): os.unlink(tmp)
-PY
-sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'
-sudo test -d /var/lib/pass-vault/attachments
-sudo test -d /var/lib/pass-vault/shares
+sudo env PV_MIGRATION_MAINTENANCE_CONFIRMED=YES \
+  bash scripts/migrate-linux-layout.sh
 ```
 
-随后按第3.2、4、5节安装新版本和两个新 unit。确认`systemd-analyze verify`通过后：
+脚本会：
+
+- 从旧主站 unit 读取`User`，未设置`Group`时用`id -gn "$APP_USER"`取得真实主组；
+- 在停机前校验旧 SQLite，并备份两个旧 unit 与完整环境文件；
+- 明确停止并复查 Admin/主站均不再 active，然后用`cp -a`复制整个数据树（含 SQLite WAL/SHM、`attachments/`、`shares/`）；
+- 拒绝覆盖任何既有新布局目录，原子生成只改三个路径变量的新环境文件；
+- 使用仓库模板和实际`APP_USER`/`APP_GROUP`渲染两个新 unit，执行`systemd-analyze verify`与目标完整性检查。
+
+可通过`PV_OLD_*`、`PV_NEW_*`和`PV_SYSTEMD_UNIT_DIR`覆盖路径/unit；脚本会把自定义环境文件路径及主 unit 名同步渲染进两个模板。默认值就是本节列出的标准目录。任一新 unit 目标已存在且不是本次被替换的旧 unit 时，脚本拒绝覆盖。脚本成功后，旧服务仍保持停止，新服务也不会自动启动或 enable，操作者必须完成后续安装和验收。
+
+脚本已经用旧服务的实际身份安装并验证两个新 unit，**不要再用第5节面向全新安装的固定`pass-vault`示例覆盖它们**。接着按第3.2节安装版本；原子脚本会启动并检查主站。主站成功后再启动 Admin：
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now pass-vault
+sudo systemctl enable pass-vault
 sudo systemctl enable --now pass-vault-admin
 curl -fsS http://127.0.0.1:3000/api/health
 sudo sqlite3 /var/lib/pass-vault/pass-vault.sqlite 'PRAGMA quick_check;'

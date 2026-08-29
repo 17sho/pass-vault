@@ -5,16 +5,16 @@ After=network.target
 # owned by admin migrations and created idempotently by both processes). Order
 # after the main service so the DB file/dir exists, but do not hard-require it —
 # the admin console self-heals the schema on boot.
-After=pass-vault.service
-Wants=pass-vault.service
+After=@MAIN_UNIT@
+Wants=@MAIN_UNIT@
 
-# Template: replace @APP_USER@, @APP_DIR@, and @DATA_DIR@ before installing.
+# Template: replace @APP_USER@, @APP_GROUP@, @APP_DIR@, @DATA_DIR@, @ENV_FILE@, and @MAIN_UNIT@ before installing.
 # Reuses the verified Node binary at @APP_DIR@/node and the release code under
 # @APP_DIR@/current (same atomic release tree as the main service).
 [Service]
 Type=simple
 User=@APP_USER@
-Group=@APP_USER@
+Group=@APP_GROUP@
 WorkingDirectory=@APP_DIR@/current
 Environment=NODE_ENV=production
 Environment=ADMIN_PORT=8120
@@ -26,7 +26,7 @@ Environment=SHARES_DIR=@DATA_DIR@/shares
 # independent Admin credential. MAIN_SITE_URL, APP_VERSION,
 # INVITE_CODE_PEPPER and INVITE_CODE_ENCRYPTION_KEY come from the shared env file.
 # The pepper/key MUST match the main service so invite-code hashes/reveals align.
-EnvironmentFile=/etc/pass-vault/pass-vault.env
+EnvironmentFile=@ENV_FILE@
 ExecStart=@APP_DIR@/node apps/admin-server/server.mjs
 Restart=on-failure
 RestartSec=5s
