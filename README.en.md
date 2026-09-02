@@ -1,10 +1,10 @@
 # Pass Vault
 
-[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) [![License](https://img.shields.io/github/license/17sho/pass-vault)](LICENSE)
+[![Cloudflare release](https://img.shields.io/badge/Cloudflare-v2.2.3-f38020)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) [![Linux release](https://img.shields.io/badge/Linux-v2.2.3--server-2f81f7)](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) [![iOS native](https://img.shields.io/badge/iOS-ios--native-0b5d48)](https://github.com/17sho/pass-vault/tree/ios-native) [![License](https://img.shields.io/github/license/17sho/pass-vault)](LICENSE)
 
 [中文](README.md) · [English](README.en.md)
 
-A mobile-first, browser-encrypted, self-hosted open-source password vault. The same frontend source can be deployed independently to Cloudflare Workers + D1 + R2 or Linux Node.js + SQLite; the deployments do not share accounts, sessions, or production data.
+A mobile-first, client-encrypted, self-hosted open-source password vault. The web edition can run independently on Cloudflare Workers + D1 + R2 or Linux Node.js + SQLite, while a local-first native SwiftUI iOS client is maintained in the same repository. All three product lines have independent runtimes and data boundaries; accounts, sessions, and vault data are not synchronized automatically.
 
 > If this project helps you, a Star is appreciated ⭐️.
 
@@ -15,10 +15,12 @@ A mobile-first, browser-encrypted, self-hosted open-source password vault. The s
 - Local fuzzy search, bulk organization, and encrypted backup import/export
 - Note images and a standalone attachment library with preview, playback, download, rename, grouping, and deletion
 - Device quick unlock and optional server-assisted Passkey unlock
-- Responsive desktop and mobile interfaces with no native client required
+- Responsive desktop/mobile web interfaces plus an independent native SwiftUI iOS client
 - Revision CAS, deletion tombstones, CSRF, origin checks, session controls, and rate limits
 
 Cloudflare v2.2.3 provides standalone `custom` records, encrypted history and Recovery Center, Secure Share v2, cross-tab favorites, and optional Cloudflare Admin and quota controls. Linux v2.2.3-server provides secure sharing, an independent Admin console, and file-lifecycle safeguards. See **[Features](docs/FEATURES.en.md)** for the complete list and platform scope.
+
+The native iOS edition lives on the independent **[`ios-native` branch](https://github.com/17sho/pass-vault/tree/ios-native)**. It includes the complete SwiftUI source, XCTest/XCUITest coverage, project documentation, agent guidance, and an unsigned arm64 IPA that can be re-signed for installation. It is a local-device vault and does not connect to or automatically synchronize Cloudflare/Linux web data.
 
 ## Encryption and deployment boundaries
 
@@ -32,12 +34,12 @@ Master password (browser only)
 
 In the default mode, master passwords and record plaintext are not uploaded. Server-assisted Passkey adds a vault key wrapped by a server KEK, allowing the server to recover it and create a session after successful Passkey verification. Server-assisted Passkey changes the default zero-knowledge boundary. Read **[Architecture and security boundaries](docs/ARCHITECTURE.en.md)** before enabling it.
 
-| | Cloudflare edition | Linux edition |
-|---|---|---|
-| Runtime | Workers + Static Assets | Node.js 22+ |
-| Database / attachments | D1 + R2 | SQLite + local disk |
-| Operations | Wrangler / Dashboard | systemd + Caddy/Nginx |
-| Data sync | No automatic Linux sync | No automatic Cloudflare sync |
+| | Cloudflare edition | Linux edition | Native iOS edition |
+|---|---|---|---|
+| Runtime | Workers + Static Assets | Node.js 22+ | iOS 17+ / SwiftUI |
+| Database / attachments | D1 + R2 | SQLite + local disk | Encrypted on-device storage |
+| Operations / installation | Wrangler / Dashboard | systemd + Caddy/Nginx | Re-sign the unsigned IPA |
+| Data sync | No automatic cross-edition sync | No automatic cross-edition sync | No automatic web sync |
 
 ## Screenshots
 
@@ -73,8 +75,9 @@ The runtimes use separate tags, archives, and data stores. Never deploy an artif
 |---|---|---|
 | Cloudflare Workers + D1 + R2 | [**v2.2.3**](https://github.com/17sho/pass-vault/releases/tag/v2.2.3) | Historical asset `pass-vault-v2-cloudflare-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/cloudflare-deployment.en.md) |
 | Linux Node.js + SQLite | [**v2.2.3-server**](https://github.com/17sho/pass-vault/releases/tag/v2.2.3-server) | Historical asset `pass-vault-v2-linux-2.2.3.tar.gz` / `.zip` · [Deployment guide](docs/server-deployment.en.md) |
+| Native iOS 17+ | [`ios-native`](https://github.com/17sho/pass-vault/tree/ios-native) | [Unsigned arm64 IPA](https://raw.githubusercontent.com/17sho/pass-vault/ios-native/PassVault-unsigned-arm64.ipa) · [SHA-256](https://github.com/17sho/pass-vault/blob/ios-native/SHA256SUMS) · complete source and tests on the branch |
 
-Each Release includes `SHA256SUMS`. Download one archive for the selected platform plus the checksum file into the same directory, then run `sha256sum -c SHA256SUMS`.
+Cloudflare and Linux Releases include `SHA256SUMS`; the iOS branch has its own checksum file. Download the IPA and checksum file into the same directory, then run `sha256sum -c SHA256SUMS`. The unsigned IPA must be re-signed with your own certificate and provisioning profile before installation.
 
 ## Security note
 
