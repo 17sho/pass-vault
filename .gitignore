@@ -1,0 +1,11 @@
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.env
+*.p12
+*.mobileprovision
+*.ipa
+.DS_Store
+*.ipa
+!PassVault-unsigned-arm64.ipa

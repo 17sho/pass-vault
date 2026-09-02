@@ -1,0 +1,195 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Verification tier
+        required: true
+        default: ui-smoke
+        type: choice
+        options:
+          - ui-smoke
+          - ipad-acceptance
+          - ipa
+          - release
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    if: github.event_name == 'push' || inputs.mode == 'ipa' || inputs.mode == 'release'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Choose simulator
+        id: simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["name"] for runtime in d.values() for x in runtime if x["name"].startswith("iPhone")))')
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+      - name: Test
+        run: >-
+          set -o pipefail && xcodebuild test
+          -project PassVault.xcodeproj
+          -scheme PassVault
+          -destination "platform=iOS Simulator,name=${{ steps.simulator.outputs.device }}"
+          -derivedDataPath build/DerivedData
+          CODE_SIGNING_ALLOWED=NO
+      - name: Archive unsigned arm64 app
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'ipa' || inputs.mode == 'release')
+        run: >-
+          set -o pipefail && xcodebuild archive
+          -project PassVault.xcodeproj
+          -scheme PassVault
+          -archivePath build/PassVault.xcarchive
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
+          ARCHS=arm64
+          ONLY_ACTIVE_ARCH=NO
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          AD_HOC_CODE_SIGNING_ALLOWED=NO
+          | xcpretty
+      - name: Verify Release archive excludes UI-test harness
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'ipa' || inputs.mode == 'release')
+        run: |
+          APP="build/PassVault.xcarchive/Products/Applications/PassVault.app"
+          test ! -e "$APP/PlugIns/PassVaultUITests.xctest"
+          if strings "$APP/PassVault" | grep -Fq -- '-ui-testing'; then
+            echo "Release executable unexpectedly contains the UI-test launch argument" >&2
+            exit 1
+          fi
+      - name: Package unsigned IPA and SHA256
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'ipa' || inputs.mode == 'release')
+        run: bash scripts/package-unsigned-ipa.sh
+      - name: Verify artifact architecture and checksum
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'ipa' || inputs.mode == 'release')
+        working-directory: build/artifacts
+        run: |
+          shasum -a 256 -c PassVault-unsigned.ipa.sha256
+          file ../PassVault.xcarchive/Products/Applications/PassVault.app/PassVault | grep -q arm64
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'ipa' || inputs.mode == 'release')
+        with:
+          name: PassVault-unsigned-${{ github.sha }}
+          path: |
+            build/artifacts/PassVault-unsigned.ipa
+            build/artifacts/PassVault-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  screenshot-acceptance:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ipad-acceptance'
+    name: Screenshots (${{ matrix.profile }})
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.mode == 'ipad-acceptance' && '[{"profile":"ipad","device":"iPad Pro 13-inch (M4)"}]' || '[{"profile":"iphone-small","device":"iPhone SE (3rd generation)"},{"profile":"iphone-standard","device":"iPhone 16"},{"profile":"iphone-large","device":"iPhone 16 Pro Max"},{"profile":"ipad","device":"iPad Pro 13-inch (M4)"}]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Resolve simulator
+        id: simulator
+        env:
+          REQUESTED_DEVICE: ${{ matrix.device }}
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, os, sys
+          requested = os.environ["REQUESTED_DEVICE"]
+          devices = json.load(sys.stdin)["devices"]
+          matches = [device for runtime in devices.values() for device in runtime if device["name"] == requested]
+          if not matches:
+              raise SystemExit(f"Required screenshot simulator is unavailable: {requested}")
+          print(matches[0]["udid"])
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Run screenshot UI test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          rm -rf "build/ScreenshotResults-${{ matrix.profile }}.xcresult"
+          xcodebuild test \
+            -project PassVault.xcodeproj \
+            -scheme PassVaultScreenshots \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath "build/ScreenshotDerivedData-${{ matrix.profile }}" \
+            -resultBundlePath "build/ScreenshotResults-${{ matrix.profile }}.xcresult" \
+            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testCaptureCoreScreens \
+            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testAnchoredMenuAndSwipeDeleteAreFunctional \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+      - name: Export screenshot attachments
+        if: always()
+        run: |
+          RESULT="build/ScreenshotResults-${{ matrix.profile }}.xcresult"
+          OUTPUT="build/screenshots/${{ matrix.profile }}"
+          test -d "$RESULT"
+          mkdir -p "$OUTPUT"
+          xcrun xcresulttool export attachments --path "$RESULT" --output-path "$OUTPUT"
+          PNG_COUNT=$(find "$OUTPUT" -type f -name '*.png' | wc -l | tr -d ' ')
+          test "$PNG_COUNT" -eq 8
+          find "$OUTPUT" -type f -name '*.png' -print | sort
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PassVault-screenshots-${{ matrix.profile }}-${{ github.sha }}
+          path: |
+            build/screenshots/${{ matrix.profile }}/
+            build/ScreenshotResults-${{ matrix.profile }}.xcresult
+          if-no-files-found: error
+          retention-days: 14
+
+  ui-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'ui-smoke'
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Resolve standard iPhone simulator
+        id: simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          preferred = ["iPhone 16", "iPhone 15", "iPhone 14"]
+          rows = [device for runtime in devices.values() for device in runtime]
+          match = next((device for name in preferred for device in rows if device["name"] == name), None)
+          if match is None:
+              match = next((device for device in rows if device["name"].startswith("iPhone")), None)
+          if match is None:
+              raise SystemExit("No available iPhone simulator")
+          print(match["udid"])
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Run single-device UI smoke
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project PassVault.xcodeproj \
+            -scheme PassVaultScreenshots \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -derivedDataPath build/SmokeDerivedData \
+            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testMoreDestinationsAndNewItemRoutesAreReachable \
+            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testEditorDiscardAndTemplateActionsAreFunctional \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
