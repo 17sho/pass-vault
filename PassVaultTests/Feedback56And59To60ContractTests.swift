@@ -12,11 +12,11 @@ final class Feedback56And59To60ContractTests: XCTestCase {
         XCTAssertFalse(source.contains(".frame(minWidth: 260, maxWidth: 360)"))
     }
 
-    func testCategorySwitchAndScrollDoNotInstallCompetingDragOrAnimatedRowReset() throws {
+    func testCategorySwitchAndScrollResetRowsWithoutCompetingTinyDrag() throws {
         let source = try source("Features/Vault/VaultViews.swift")
         XCTAssertFalse(source.contains(".simultaneousGesture(DragGesture(minimumDistance: 2)"))
         XCTAssertTrue(source.contains("VaultScrollOffsetPreferenceKey"))
-        XCTAssertFalse(source.contains(".onChange(of: category) { _, _ in\n            selectedItem = nil\n            showingDetail = false\n            interactionResetRequest += 1"))
+        XCTAssertTrue(source.contains(".onChange(of: category) { _, _ in\n            selectedItem = nil\n            showingDetail = false\n            interactionResetRequest += 1"))
     }
 
     func testThemeSelectionUsesCoordinatedRootColorAnimation() throws {

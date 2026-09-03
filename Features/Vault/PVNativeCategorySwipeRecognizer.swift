@@ -77,7 +77,6 @@ struct PVNativeCategorySwipeRecognizer: UIViewRepresentable {
             var view: UIView? = touch.view
             while let current = view {
                 if current is UIControl || current is UITextField || current is UITextView { return false }
-                if current.accessibilityIdentifier == "vault-row-touch-surface" { return false }
                 view = current.superview
             }
             return true

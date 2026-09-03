@@ -30,7 +30,7 @@ final class Feedback75EdgeBackGestureTests: XCTestCase {
         XCTAssertTrue(recognizer.contains("UISwipeGestureRecognizer"))
         XCTAssertTrue(recognizer.contains("let directions: [UISwipeGestureRecognizer.Direction] = [.left, .right]"))
         XCTAssertTrue(recognizer.contains("current is UIControl || current is UITextField || current is UITextView"))
-        XCTAssertTrue(recognizer.contains("vault-row-touch-surface"))
+        XCTAssertFalse(recognizer.contains("current.accessibilityIdentifier == \"vault-row-touch-surface\""))
         XCTAssertTrue(vault.contains("onCategorySwipe: switchCategoryBySwipe"))
         XCTAssertTrue(vault.contains("targetIndex = index + 1"))
         XCTAssertTrue(vault.contains("targetIndex = index - 1"))

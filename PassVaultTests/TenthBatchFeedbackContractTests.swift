@@ -30,7 +30,7 @@ final class TenthBatchFeedbackContractTests: XCTestCase {
     func testAllPhoneDetailsUseDirectionalBackTransition() throws {
         let views = try source("Features/Vault/VaultViews.swift")
         XCTAssertTrue(views.contains("GeometryReader { pane in"))
-        XCTAssertTrue(views.contains(".offset(x: showingDetail ? -pane.size.width + pane.size.width * detailEdgeBackProgress * 0.30 : 0)"))
+        XCTAssertTrue(views.contains(".offset(x: showingDetail ? -pane.size.width + pane.size.width * detailEdgeBackProgress : 0)"))
         XCTAssertTrue(views.contains("PVNativeEdgeBackRecognizer("))
         XCTAssertTrue(views.contains(".transition(.move(edge: .trailing))"))
         XCTAssertTrue(views.contains("customRecordsHomePane(onOpenDetail: { openPhoneDetail() })"))

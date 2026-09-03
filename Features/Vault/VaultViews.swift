@@ -94,6 +94,7 @@ struct VaultHomeView: View {
         .onChange(of: category) { _, _ in
             selectedItem = nil
             showingDetail = false
+            interactionResetRequest += 1
         }
         .onAppear {
             fileImporter.onAttachmentDraft = { draft in
@@ -144,7 +145,7 @@ struct VaultHomeView: View {
                     }
                 }
                 .frame(width: pane.size.width, height: pane.size.height)
-                .offset(x: showingDetail ? -pane.size.width + pane.size.width * detailEdgeBackProgress * 0.30 : 0)
+                .offset(x: showingDetail ? -pane.size.width + pane.size.width * detailEdgeBackProgress : 0)
 
                 if showingDetail, let selectedItem {
                 PhoneVaultDetailDestination(
@@ -227,13 +228,18 @@ struct VaultHomeView: View {
         guard showingDetail else { return }
         if shouldReturn {
             routeDirection = .backward
-            withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.18)) {
+            let duration = reduceMotion ? 0.0 : 0.18
+            withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: duration)) {
                 detailEdgeBackProgress = 1
-                showingDetail = false
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0 : 0.18)) {
-                detailEdgeBackProgress = 0
-                detailEdgeBackActive = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    showingDetail = false
+                    detailEdgeBackProgress = 0
+                    detailEdgeBackActive = false
+                }
             }
         } else {
             withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.18)) {
