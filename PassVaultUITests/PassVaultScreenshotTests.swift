@@ -67,6 +67,25 @@ final class PassVaultScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testLongPressEntersBulkSelectionOnMainList() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-ui-testing", "-ui-testing-unlocked", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.terminate()
+        app.launch()
+
+        let item = app.descendants(matching: .any)["vault-item-\(demoAccountID)"]
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        for _ in 0..<3 where !item.isHittable { app.swipeUp() }
+        XCTAssertTrue(item.isHittable)
+        item.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.5)).press(forDuration: 0.8)
+
+        let toolbar = app.descendants(matching: .any)["bulk-selection-toolbar"]
+        XCTAssertTrue(toolbar.waitForExistence(timeout: 5), "A real long press must enter bulk selection")
+        XCTAssertTrue(app.descendants(matching: .any)["selected-item-\(demoAccountID)"].waitForExistence(timeout: 5), "The pressed row must be selected immediately")
+        XCTAssertFalse(app.buttons["item-actions-\(demoAccountID)"].exists, "Per-item actions must be hidden during bulk selection")
+    }
+
+    @MainActor
     func testAnchoredMenuAndSwipeDeleteAreFunctional() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-ui-testing", "-ui-testing-unlocked", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -170,6 +189,11 @@ final class PassVaultScreenshotTests: XCTestCase {
         settingsEntry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.descendants(matching: .any)["more-destination-settings"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any)["settings-theme-choice"].waitForExistence(timeout: 8), "Theme must live inside Settings → Appearance")
+        let clipboardChoice = app.descendants(matching: .any)["settings-clipboard-choice"]
+        if !clipboardChoice.waitForExistence(timeout: 2) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(clipboardChoice.waitForExistence(timeout: 8), "Clipboard auto-clear must live inside the actual Settings → Security section")
         app.buttons["Cancel"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.descendants(matching: .any)["more-destination-settings"].waitForNonExistence(timeout: 8))
 

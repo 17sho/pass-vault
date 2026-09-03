@@ -107,13 +107,13 @@ final class FileImportCoordinator: NSObject, ObservableObject, UIDocumentPickerD
                 switch request {
                 case .attachment:
                     let data = try await Task.detached(priority: .userInitiated) {
-                        try AttachmentImportReader.readOwnedData(from: url, maximumBytes: AttachmentPolicy.maximumFileBytes)
+                        try AttachmentImportReader.readOwnedData(from: url)
                     }.value
                     guard isCurrent(id), model.state == .unlocked else { finish(); return }
                     onAttachmentDraft?(AttachmentImportDraft(name: name, data: data))
                 case .backup:
                     let data = try await Task.detached(priority: .userInitiated) {
-                        try AttachmentImportReader.readOwnedData(from: url, maximumBytes: BackupPolicy.maximumBackupBytes)
+                        try AttachmentImportReader.readOwnedData(from: url)
                     }.value
                     guard isCurrent(id), model.state == .unlocked else { finish(); return }
                     NotificationCenter.default.post(name: .passVaultBackupImportReady, object: data)

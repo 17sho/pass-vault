@@ -379,6 +379,26 @@ public struct TrashRetentionPolicy {
     }
 }
 
+public struct RecoveryRetentionMetadata: Equatable, Sendable {
+    public let expirationDate: Date?
+    public let remainingDays: Int?
+    public let isExpired: Bool
+
+    public init(deletedAt: Date, retentionDays: Int, now: Date = Date()) {
+        guard retentionDays > 0 else {
+            self.expirationDate = nil
+            self.remainingDays = nil
+            self.isExpired = false
+            return
+        }
+        let expirationDate = deletedAt.addingTimeInterval(Double(retentionDays) * 86_400)
+        self.expirationDate = expirationDate
+        let remainingInterval = expirationDate.timeIntervalSince(now)
+        self.isExpired = remainingInterval <= 0
+        self.remainingDays = max(0, Int(ceil(remainingInterval / 86_400)))
+    }
+}
+
 public struct CustomFieldTemplateField: Codable, Equatable, Sendable {
     public var name: String
     public var value: String
@@ -558,15 +578,11 @@ public enum AttachmentMetadataPolicy {
     }
 }
 
-public enum AttachmentPolicyError: Error, Equatable { case empty, fileTooLarge, vaultTooLarge }
+public enum AttachmentPolicyError: Error, Equatable { case empty }
 
 public enum AttachmentPolicy {
-    public static let maximumFileBytes = 10 * 1_024 * 1_024
-    public static let maximumVaultBytes = 25 * 1_024 * 1_024
-
     public static func validate(newDataSize: Int, existingBytes: Int) throws {
         guard newDataSize > 0 else { throw AttachmentPolicyError.empty }
-        guard newDataSize <= maximumFileBytes else { throw AttachmentPolicyError.fileTooLarge }
-        guard existingBytes >= 0, existingBytes + newDataSize <= maximumVaultBytes else { throw AttachmentPolicyError.vaultTooLarge }
+        guard existingBytes >= 0 else { throw AttachmentPolicyError.empty }
     }
 }

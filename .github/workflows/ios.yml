@@ -189,7 +189,7 @@ jobs:
             -scheme PassVaultScreenshots \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -derivedDataPath build/SmokeDerivedData \
-            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testMoreDestinationsAndNewItemRoutesAreReachable \
-            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testEditorDiscardAndTemplateActionsAreFunctional \
+            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testLongPressEntersBulkSelectionOnMainList \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty

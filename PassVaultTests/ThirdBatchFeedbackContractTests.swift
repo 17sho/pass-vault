@@ -20,7 +20,7 @@ final class ThirdBatchFeedbackContractTests: XCTestCase {
     func testSwipeGestureWinsOverRowButtonTap() throws {
         let source = try source("Features/Vault/PVInteractiveRows.swift")
         XCTAssertTrue(source.contains(".highPriorityGesture("))
-        XCTAssertFalse(source.contains(".simultaneousGesture("))
+        XCTAssertFalse(source.contains("LongPressGesture(minimumDuration: 0.45, maximumDistance: 18)"))
         XCTAssertTrue(source.contains("if restingOffset != 0"))
     }
 

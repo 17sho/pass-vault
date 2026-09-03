@@ -30,7 +30,7 @@ struct AttachmentImportComposer: View {
                     }
                     PVField(title: zh ? "分组" : "Group") { VaultGroupSelectionField(selection: $selectedGroup, kind: .attachment) }
                     PVField(title: zh ? "标签" : "Tags") { VaultTagSelectionField(selection: $selectedTags) }
-                    Text(zh ? "单个附件最多 10 MiB；确认后将在本机加密保存。" : "Maximum 10 MiB per attachment; it is encrypted locally after confirmation.")
+                    Text(zh ? "确认后将在本机加密保存；实际可用容量取决于设备剩余存储空间。" : "Encrypted locally after confirmation. Practical capacity depends on available device storage.")
                         .font(.footnote).foregroundStyle(PVTheme.muted)
                 }.padding(16)
             }

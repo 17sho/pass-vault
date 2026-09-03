@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Product-owned horizontal swipe action used instead of platform List swipe actions.
 struct PVSwipeDeleteRow<Content: View>: View {

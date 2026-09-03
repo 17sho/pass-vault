@@ -14,10 +14,11 @@ final class Feedback55To58ContractTests: XCTestCase {
         XCTAssertFalse(source.contains(".pvWebModal(isPresented: $showingTagFilter"))
     }
 
-    func testAttachmentCategorySelectorKeepsLabelReadableAndCapsField() throws {
+    func testAttachmentCategorySelectorUsesReadableFullWidthWebControl() throws {
         let source = try source("Features/Vault/VaultViews.swift")
-        XCTAssertTrue(source.contains(".fixedSize(horizontal: true, vertical: false)"))
-        XCTAssertTrue(source.contains(".frame(maxWidth: 240)"))
+        XCTAssertTrue(source.contains(".frame(maxWidth: .infinity)"))
+        XCTAssertTrue(source.contains("PVChoiceOption(AttachmentCategory?.none"))
+        XCTAssertTrue(source.contains("\"全部附件\""))
         XCTAssertFalse(source.contains(".frame(minWidth: 260, maxWidth: 360)"))
     }
 

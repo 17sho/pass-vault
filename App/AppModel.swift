@@ -370,11 +370,10 @@ final class AppModel: ObservableObject {
             return false
         }
         do {
-            let existing = vault.items.compactMap(\.attachmentData).reduce(0) { $0 + $1.count }
-            try AttachmentPolicy.validate(newDataSize: data.count, existingBytes: existing)
+            try AttachmentPolicy.validate(newDataSize: data.count, existingBytes: 0)
             return save(VaultItem(kind: .attachment, title: name, tags: tags, group: group, attachmentName: name, attachmentData: data))
         } catch {
-            errorMessage = t(.attachmentLimits)
+            errorMessage = t(.unableImportAttachment)
             return false
         }
     }

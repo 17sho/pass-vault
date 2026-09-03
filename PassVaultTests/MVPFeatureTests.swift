@@ -103,33 +103,26 @@ final class MVPFeatureTests: XCTestCase {
         XCTAssertEqual(AttachmentPreviewPolicy.previewKind(name: "page.html", data: Data("<html></html>".utf8)), .text)
     }
 
-    func testAttachmentPolicyUsesConservativePerFileAndTotalLimits() throws {
-        XCTAssertNoThrow(try AttachmentPolicy.validate(newDataSize: AttachmentPolicy.maximumFileBytes, existingBytes: 0))
-        XCTAssertThrowsError(try AttachmentPolicy.validate(newDataSize: AttachmentPolicy.maximumFileBytes + 1, existingBytes: 0))
-        XCTAssertThrowsError(try AttachmentPolicy.validate(newDataSize: 1, existingBytes: AttachmentPolicy.maximumVaultBytes))
+    func testAttachmentPolicyDoesNotImposeFixedFileOrVaultLimits() throws {
+        XCTAssertNoThrow(try AttachmentPolicy.validate(newDataSize: 11 * 1_024 * 1_024, existingBytes: 0))
+        XCTAssertNoThrow(try AttachmentPolicy.validate(newDataSize: 32 * 1_024 * 1_024, existingBytes: 80 * 1_024 * 1_024))
+        XCTAssertThrowsError(try AttachmentPolicy.validate(newDataSize: 0, existingBytes: 0))
     }
 
-    func testBackupDataOverHardLimitIsRejectedWithoutReplacingVault() throws {
-        let destination = EncryptedVaultStore(url: temporaryURL(), kdfIterations: 1_000)
-        _ = try destination.create(password: "existing-password")
-
-        XCTAssertThrowsError(try destination.importBackup(Data(count: BackupPolicy.maximumBackupBytes + 1), password: "password"))
-        XCTAssertNoThrow(try destination.unlock(password: "existing-password"))
-    }
-
-    func testBackupWithOversizedDecryptedAttachmentIsRejectedWithoutReplacingVault() throws {
+    func testBackupAcceptsAttachmentBeyondFormerPerFileLimit() throws {
         let source = EncryptedVaultStore(url: temporaryURL(), kdfIterations: 1_000)
         var sourceSession = try source.create(password: "source-password")
-        sourceSession.vault.items = [VaultItem(kind: .attachment, title: "oversized", attachmentData: Data(count: AttachmentPolicy.maximumFileBytes + 1))]
+        sourceSession.vault.items = [VaultItem(kind: .attachment, title: "large", attachmentData: Data(count: 11 * 1_024 * 1_024))]
         try source.save(sourceSession)
 
         let destination = EncryptedVaultStore(url: temporaryURL(), kdfIterations: 1_000)
         _ = try destination.create(password: "existing-password")
-        XCTAssertThrowsError(try destination.importBackup(source.exportBackup(), password: "source-password"))
-        XCTAssertNoThrow(try destination.unlock(password: "existing-password"))
+        XCTAssertNoThrow(try destination.importBackup(source.exportBackup(), password: "source-password"))
+        let restored = try destination.unlock(password: "source-password")
+        XCTAssertEqual(restored.vault.items.first?.attachmentData?.count, 11 * 1_024 * 1_024)
     }
 
-    func testBackupWithExcessiveDecryptedAttachmentTotalIsRejectedWithoutReplacingVault() throws {
+    func testBackupAcceptsAttachmentTotalBeyondFormerVaultLimit() throws {
         let source = EncryptedVaultStore(url: temporaryURL(), kdfIterations: 1_000)
         var sourceSession = try source.create(password: "source-password")
         sourceSession.vault.items = [9, 9, 8].enumerated().map { index, megabytes in
@@ -139,30 +132,16 @@ final class MVPFeatureTests: XCTestCase {
 
         let destination = EncryptedVaultStore(url: temporaryURL(), kdfIterations: 1_000)
         _ = try destination.create(password: "existing-password")
-        XCTAssertThrowsError(try destination.importBackup(source.exportBackup(), password: "source-password"))
-        XCTAssertNoThrow(try destination.unlock(password: "existing-password"))
+        XCTAssertNoThrow(try destination.importBackup(source.exportBackup(), password: "source-password"))
+        let restored = try destination.unlock(password: "source-password")
+        XCTAssertEqual(restored.vault.items.compactMap(\.attachmentData).reduce(0) { $0 + $1.count }, 26 * 1_024 * 1_024)
     }
 
-    func testFileReadPolicyRejectsOversizedFileBeforeLoadingContents() throws {
+    func testFileReadPolicyReadsBeyondFormerAttachmentLimit() throws {
         let url = temporaryURL()
-        XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: nil))
-        let handle = try FileHandle(forWritingTo: url)
-        try handle.truncate(atOffset: UInt64(AttachmentPolicy.maximumFileBytes + 1))
-        try handle.close()
-
-        XCTAssertThrowsError(try FileReadPolicy.validateRegularFile(at: url, maximumBytes: AttachmentPolicy.maximumFileBytes))
-    }
-
-    func testStoredVaultReadRejectsOversizedFileBeforeDecode() throws {
-        let url = temporaryURL()
-        XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: nil))
-        let handle = try FileHandle(forWritingTo: url)
-        try handle.truncate(atOffset: UInt64(BackupPolicy.maximumBackupBytes + 1))
-        try handle.close()
-
-        XCTAssertThrowsError(try EncryptedVaultStore(url: url, kdfIterations: 1_000).unlock(password: "password")) { error in
-            XCTAssertEqual(error as? BackupPolicyError, .fileTooLarge)
-        }
+        let expected = Data(repeating: 0xA5, count: 11 * 1_024 * 1_024)
+        try expected.write(to: url)
+        XCTAssertEqual(try FileReadPolicy.readData(at: url), expected)
     }
 
     func testAutoLockPolicyLocksAfterBackgroundDeadlineAndReschedulesBeforeIt() {

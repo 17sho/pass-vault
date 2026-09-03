@@ -31,7 +31,9 @@ final class Feedback51To53ContractTests: XCTestCase {
         XCTAssertTrue(source.contains("TOTPLiveCodeView(secret: item.totpSecret)"))
         XCTAssertTrue(source.contains("let remaining = elapsed == 0 ? period : period - elapsed"))
         XCTAssertTrue(source.contains("remaining <= 5 ? PVTheme.danger"))
-        XCTAssertTrue(source.contains("guard item.kind == .totp, rowInteraction == .actions"))
+        XCTAssertTrue(source.contains("guard rowInteraction == .actions, !selectionMode, !privacy.restrictsSensitiveNavigation"))
+        XCTAssertTrue(source.contains("if item.kind == .totp"))
+        XCTAssertTrue(source.contains("onRequestActions(item, rowFrame)"))
     }
 
     func testAnchoredMenuClosesAcrossNavigationScrollAndLifecycleChanges() throws {

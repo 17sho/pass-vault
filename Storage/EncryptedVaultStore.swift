@@ -1,72 +1,57 @@
 import CryptoKit
 import Foundation
 
-public enum BackupPolicyError: Error, Equatable { case fileTooLarge, invalidAttachment }
+public enum BackupPolicyError: Error, Equatable { case invalidFile, invalidAttachment }
 
 public enum BackupPolicy {
-    // Allows the 25 MB attachment budget plus JSON metadata and base64/AES-GCM overhead.
-    public static let maximumBackupBytes = 48 * 1_024 * 1_024
-
     public static func validateDataSize(_ byteCount: Int) throws {
-        guard byteCount >= 0, byteCount <= maximumBackupBytes else { throw BackupPolicyError.fileTooLarge }
+        guard byteCount >= 0 else { throw BackupPolicyError.invalidFile }
     }
 
     public static func validateAttachments(in vault: Vault) throws {
-        var total = 0
         for attachment in vault.items.compactMap(\.attachmentData) {
-            guard !attachment.isEmpty,
-                  attachment.count <= AttachmentPolicy.maximumFileBytes,
-                  total <= AttachmentPolicy.maximumVaultBytes - attachment.count else {
+            guard !attachment.isEmpty else {
                 throw BackupPolicyError.invalidAttachment
             }
-            total += attachment.count
         }
     }
 }
 
 public enum FileReadPolicy {
-    public static func validateRegularFile(at url: URL, maximumBytes: Int) throws {
+    public static func validateRegularFile(at url: URL) throws {
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-        if values.isRegularFile == false { throw BackupPolicyError.fileTooLarge }
-        if let size = values.fileSize, (size < 0 || size > maximumBytes) {
-            throw BackupPolicyError.fileTooLarge
-        }
+        if values.isRegularFile == false || (values.fileSize ?? 0) < 0 { throw BackupPolicyError.invalidFile }
     }
 
-    public static func readData(at url: URL, maximumBytes: Int, options: Data.ReadingOptions = []) throws -> Data {
-        try validateRegularFile(at: url, maximumBytes: maximumBytes)
+    public static func readData(at url: URL, options: Data.ReadingOptions = []) throws -> Data {
+        try validateRegularFile(at: url)
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         var result = Data()
         let chunkSize = 64 * 1_024
         while true {
-            let remaining = maximumBytes - result.count
-            guard remaining >= 0 else { throw BackupPolicyError.fileTooLarge }
-            guard let chunk = try handle.read(upToCount: min(chunkSize, remaining + 1)), !chunk.isEmpty else { break }
+            guard let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty else { break }
             result.append(chunk)
-            guard result.count <= maximumBytes else { throw BackupPolicyError.fileTooLarge }
         }
         return result
     }
 }
 
 enum AttachmentImportError: Error, Equatable {
-    case empty, fileTooLarge, unavailable
+    case empty, unavailable
 
     func localizedMessage(language: AppLanguage) -> String {
         switch (self, language) {
         case (.empty, .simplifiedChinese): "所选文件为空，无法导入。"
-        case (.fileTooLarge, .simplifiedChinese): "附件超过单文件 10 MB 限制。"
         case (.unavailable, .simplifiedChinese): "文件提供商尚未提供该文件，请先在“文件”App中下载后重试。"
         case (.empty, _): "The selected file is empty."
-        case (.fileTooLarge, _): "The attachment exceeds the 10 MB per-file limit."
         case (.unavailable, _): "The file provider has not made this file available. Download it in Files and try again."
         }
     }
 }
 
 public enum AttachmentImportReader {
-    public static func readOwnedData(from url: URL, maximumBytes: Int) throws -> Data {
+    public static func readOwnedData(from url: URL) throws -> Data {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
 
@@ -77,13 +62,7 @@ public enum AttachmentImportReader {
             result = Result {
                 let values = try coordinatedURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
                 guard values.isRegularFile != false else { throw AttachmentImportError.unavailable }
-                if let size = values.fileSize, size > maximumBytes { throw AttachmentImportError.fileTooLarge }
-                let data: Data
-                do {
-                    data = try FileReadPolicy.readData(at: coordinatedURL, maximumBytes: maximumBytes)
-                } catch BackupPolicyError.fileTooLarge {
-                    throw AttachmentImportError.fileTooLarge
-                }
+                let data = try FileReadPolicy.readData(at: coordinatedURL)
                 guard !data.isEmpty else { throw AttachmentImportError.empty }
                 return Data(data)
             }
@@ -313,6 +292,6 @@ public final class EncryptedVaultStore: @unchecked Sendable {
     }
 
     private func readVaultData() throws -> Data {
-        try FileReadPolicy.readData(at: url, maximumBytes: BackupPolicy.maximumBackupBytes)
+        try FileReadPolicy.readData(at: url)
     }
 }

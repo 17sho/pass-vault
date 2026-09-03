@@ -23,23 +23,10 @@ No signing identities, provisioning profiles, backend, analytics, or network ser
 - PBKDF2-HMAC-SHA256 master-password wrapping with random salt and versioned work factor.
 - Atomic file writes with complete file protection.
 - Secrets hidden in the editor by default; privacy shield appears immediately off-active and automatic lock follows after 60 seconds.
-- Clipboard copies clear after 30 seconds when the clipboard still contains the app-owned value.
-- Attachments remain inside the encrypted payload (10 MB each, 25 MB total).
+- Clipboard auto-clear is configurable in Settings: never, 15 seconds, 30 seconds, 1 minute, or 2 minutes; newer clipboard content is never removed.
+- Attachments remain inside the encrypted payload; practical capacity depends on available device storage.
 - Versioned authenticated backup import validates fully before replacing the local vault.
 
 ## Local build limitation
 
 The iOS app and XCTest bundle require macOS/Xcode. Linux cannot execute the Swift/iOS test suite; the GitHub Actions macOS workflow remains the authoritative build/test/archive gate.
-
-
-## Included IPA
-
-This branch includes `PassVault-unsigned-arm64.ipa`, built from the exact source commit represented by this branch.
-
-- Architecture: arm64
-- Bundle ID: `me.23cm.passvault.local`
-- Signing: unsigned; re-sign with your own certificate and provisioning profile before installation
-- Verification: 220/220 XCTest plus Release `iphoneos` Archive
-- Integrity: run `sha256sum -c SHA256SUMS`
-
-The web application remains on the repository's `main` branch. This orphan branch contains only the native iOS project and has independent history.

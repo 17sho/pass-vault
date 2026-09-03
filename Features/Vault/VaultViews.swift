@@ -871,6 +871,8 @@ struct VaultListView: View {
                 if filter == .all {
                     VaultFilterToolbar(
                         query: $query,
+                        searchPrompt: searchPrompt,
+                        tagFilterTitle: languageStore.language == .simplifiedChinese ? "标签筛选" : "Tag filter",
                         selectedTagCount: selectedTags.count,
                         selectedGroupName: selectedGroupName,
                         openTags: { closeInteractions(); showTagFilter() },
@@ -882,6 +884,7 @@ struct VaultListView: View {
                 }
             }
             if baseItems.isEmpty {
+                if showsRecentItems { recentItemsStrip }
                 VaultEmptyState(
                     title: filter == .trash ? t(.trashIsEmpty) : t(.noItems),
                     message: filter == .trash ? t(.deletedRecordsHere) : t(.tapAddRecord),
@@ -891,6 +894,7 @@ struct VaultListView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
+                        if showsRecentItems { recentItemsStrip }
                         ForEach(baseItems) { item in
                             VaultItemRow(
                                 item: item,
@@ -1015,6 +1019,57 @@ struct VaultListView: View {
         onOpenDetail?()
     }
 
+    private var searchPrompt: String {
+        let zh = languageStore.language == .simplifiedChinese
+        switch relevantKind {
+        case .account: return zh ? "搜索名称、账号和内容" : "Search names, accounts, and content"
+        case .website: return zh ? "搜索名称、网址和内容" : "Search names, URLs, and content"
+        case .secureNote: return zh ? "搜索标题和正文" : "Search titles and note text"
+        case .totp: return zh ? "搜索名称、账号和标签" : "Search names, accounts, and tags"
+        case .attachment: return zh ? "搜索文件名和标签" : "Search filenames and tags"
+        case .custom: return zh ? "搜索名称和自定义字段" : "Search names and custom fields"
+        case nil: return zh ? "搜索名称、账号和内容" : "Search names, accounts, and content"
+        }
+    }
+
+    private var recentItems: [VaultItem] {
+        guard let relevantKind else { return [] }
+        return model.vault.items
+            .filter { !$0.isDeleted && $0.kind == relevantKind && $0.lastOpenedAt != nil }
+            .sorted { $0.lastOpenedAt! > $1.lastOpenedAt! }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    private var showsRecentItems: Bool {
+        filter == .all && query.isEmpty && !selectionMode && !recentItems.isEmpty
+    }
+
+    private var recentItemsStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(languageStore.language == .simplifiedChinese ? "最近查看" : "Recently viewed")
+                .font(.caption.weight(.semibold)).foregroundStyle(PVTheme.muted)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(recentItems) { item in
+                        Button(privacyRecentTitle(item)) { open(item) }
+                            .buttonStyle(PVButtonStyle(role: .secondary))
+                            .accessibilityIdentifier("recent-item-\(item.id.uuidString)")
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 4)
+        .accessibilityIdentifier("recent-items")
+    }
+
+    private func privacyRecentTitle(_ item: VaultItem) -> String {
+        VaultPrivacyPresentation(level: preferences.privacyLevel).hidesTitle
+            ? t(.record)
+            : (item.title.isEmpty ? t(.untitled) : item.title)
+    }
+
     private var sheetHeader: some View {
         HStack(spacing: 12) {
             if let back = productBackAction {
@@ -1071,30 +1126,20 @@ struct VaultListView: View {
     }
 
     private var attachmentCategoryToolbar: some View {
-        HStack(spacing: 8) {
-            Text(languageStore.language == .simplifiedChinese ? "附件分类" : "Attachment category")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PVTheme.muted)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(2)
-            Spacer(minLength: 6)
-            PVChoiceField(
-                title: languageStore.language == .simplifiedChinese ? "附件分类" : "Attachment category",
-                icon: "paperclip",
-                selection: $attachmentCategory,
-                options: [
-                    PVChoiceOption(AttachmentCategory?.none, languageStore.language == .simplifiedChinese ? "全部附件" : "All attachments"),
-                    PVChoiceOption(Optional(AttachmentCategory.image), languageStore.language == .simplifiedChinese ? "图片" : "Images"),
-                    PVChoiceOption(Optional(AttachmentCategory.video), languageStore.language == .simplifiedChinese ? "视频" : "Videos"),
-                    PVChoiceOption(Optional(AttachmentCategory.other), languageStore.language == .simplifiedChinese ? "其他" : "Other")
-                ]
-            )
-            .frame(maxWidth: 240)
-            .layoutPriority(1)
-            .accessibilityIdentifier("attachment-category-filter")
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        PVChoiceField(
+            title: languageStore.language == .simplifiedChinese ? "附件分类" : "Attachment category",
+            icon: "paperclip",
+            selection: $attachmentCategory,
+            options: [
+                PVChoiceOption(AttachmentCategory?.none, languageStore.language == .simplifiedChinese ? "全部附件" : "All attachments"),
+                PVChoiceOption(Optional(AttachmentCategory.image), languageStore.language == .simplifiedChinese ? "图片" : "Images"),
+                PVChoiceOption(Optional(AttachmentCategory.video), languageStore.language == .simplifiedChinese ? "视频" : "Videos"),
+                PVChoiceOption(Optional(AttachmentCategory.other), languageStore.language == .simplifiedChinese ? "其他" : "Other")
+            ]
+        )
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("attachment-category-filter")
+        .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 8)
         .background(PVTheme.surfaceSoft)
     }
 
@@ -1165,6 +1210,7 @@ struct VaultListView: View {
                 Button(t(.allItems)) { selectedIDs = Set(baseItems.map(\.id)) }.buttonStyle(PVButtonStyle(role: .secondary))
             }
         }.padding(.horizontal, 8).padding(.vertical, 6).background(PVTheme.surfaceSoft)
+            .accessibilityIdentifier("bulk-selection-toolbar")
     }
 
     @ViewBuilder private var bulkToolbar: some View {
@@ -1448,6 +1494,8 @@ private struct VaultSearchToolbar: View {
 private struct VaultFilterToolbar: View {
     @EnvironmentObject private var languageStore: AppLanguageStore
     @Binding var query: String
+    let searchPrompt: String
+    let tagFilterTitle: String
     let selectedTagCount: Int
     let selectedGroupName: String
     let openTags: () -> Void
@@ -1458,18 +1506,24 @@ private struct VaultFilterToolbar: View {
         HStack(spacing: 7) {
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PVTheme.muted)
-                TextField(t(.searchPrompt), text: $query).textInputAutocapitalization(.never)
+                TextField(searchPrompt, text: $query).textInputAutocapitalization(.never)
                 if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.foregroundStyle(PVTheme.muted) }
             }
             .padding(.horizontal, 10).frame(minWidth: 0, minHeight: PVTheme.minimumControlHeight)
             .background(PVTheme.surface).overlay(RoundedRectangle(cornerRadius: 9).stroke(PVTheme.inputLine)).clipShape(RoundedRectangle(cornerRadius: 9))
             Button(action: openTags) {
-                Label(selectedTagCount == 0 ? t(.tagFilter) : "\(t(.tags)) \(selectedTagCount)", systemImage: selectedTagCount == 0 ? "tag" : "tag.fill")
-                    .labelStyle(.iconOnly)
-            }.buttonStyle(PVIconButtonStyle()).accessibilityIdentifier("open-tag-filter")
+                HStack(spacing: 5) {
+                    Image(systemName: selectedTagCount == 0 ? "tag" : "tag.fill")
+                    Text(selectedTagCount == 0 ? tagFilterTitle : "\(t(.tags)) \(selectedTagCount)")
+                        .lineLimit(1)
+                }
+            }.buttonStyle(PVButtonStyle(role: selectedTagCount == 0 ? .secondary : .primary)).accessibilityIdentifier("open-tag-filter")
             Button(action: openGroups) {
-                Label(selectedGroupName, systemImage: "square.stack.3d.up").labelStyle(.iconOnly)
-            }.buttonStyle(PVIconButtonStyle()).accessibilityIdentifier("open-group-picker")
+                HStack(spacing: 5) {
+                    Image(systemName: "square.stack.3d.up")
+                    Text(selectedGroupName).lineLimit(1)
+                }
+            }.buttonStyle(PVButtonStyle(role: .secondary)).accessibilityIdentifier("open-group-picker")
         }
         .padding(8).background(PVTheme.surfaceSoft)
         .overlay(alignment: .bottom) { Rectangle().fill(PVTheme.line).frame(height: 1) }
@@ -1483,8 +1537,12 @@ private struct RecoveryCenterView: View {
     @Environment(\.pvModalDismiss) private var dismiss
     @Environment(\.pvModalBack) private var back
     @State private var query = ""
+    @State private var selectedIDs = Set<UUID>()
     @State private var pendingPermanentDeleteItem: VaultItem?
     @State private var confirmingEmpty = false
+    @State private var confirmingBulkDelete = false
+    @State private var pendingRetentionDays: Int?
+    @State private var previousRetentionDays = 30
 
     private var items: [VaultItem] {
         let deleted = model.vault.items.filter(\.isDeleted)
@@ -1500,25 +1558,30 @@ private struct RecoveryCenterView: View {
                     Button(action: back) { Image(systemName: "chevron.left").frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .buttonStyle(.plain).accessibilityIdentifier("back-product-modal")
                 }
-                Text(languageStore.language == .simplifiedChinese ? "恢复中心" : "Recovery Center").font(.title2.bold())
+                Text(zh ? "恢复中心" : "Recovery Center").font(.title2.bold())
                 Spacer()
                 if !items.isEmpty {
-                    Button(languageStore.language == .simplifiedChinese ? "清空" : "Empty", role: .destructive) { confirmingEmpty = true }
+                    Button(zh ? "清空" : "Empty", role: .destructive) { confirmingEmpty = true }
                         .buttonStyle(PVButtonStyle(role: .destructive))
                 }
                 Button(action: dismiss) { Image(systemName: "xmark").frame(width: 44, height: 44).contentShape(Rectangle()) }
                     .buttonStyle(.plain).accessibilityIdentifier("close-product-modal")
             }
             .padding(16).background(PVTheme.surface)
+            recoveryRetentionToolbar
+            recoveryBulkToolbar
             VaultSearchToolbar(query: $query)
             if items.isEmpty {
-                VaultEmptyState(title: languageStore.language == .simplifiedChinese ? "恢复中心为空" : "Recovery Center is Empty", message: languageStore.language == .simplifiedChinese ? "删除的资料会显示在这里。" : "Deleted records appear here.", icon: "trash", compact: true)
+                VaultEmptyState(title: zh ? "恢复中心为空" : "Recovery Center is Empty", message: zh ? "删除的资料会显示在这里。" : "Deleted records appear here.", icon: "trash", compact: true)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(items) { item in
                             RecoveryCenterItemRow(
                                 item: item,
+                                retentionDays: preferences.trashRetentionDays,
+                                isSelected: selectedIDs.contains(item.id),
+                                onToggleSelection: { toggleSelection(item.id) },
                                 onRestore: { restoreFromRecoveryCenter(item) },
                                 onPermanentDelete: { pendingPermanentDeleteItem = item }
                             )
@@ -1529,35 +1592,140 @@ private struct RecoveryCenterView: View {
         }
         .background(PVTheme.background)
         .pvWebModal(item: $pendingPermanentDeleteItem, maxWidth: 440, sizing: .fit, dismissOnBackdrop: false) { item in
-            PVConfirmModal(title: languageStore.language == .simplifiedChinese ? "彻底删除“\(item.title)”？" : "Permanently delete “\(item.title)”?", message: languageStore.language == .simplifiedChinese ? "该资料及附件将永久删除，无法撤销。" : "This record and its attachments will be permanently deleted. This cannot be undone.", confirmTitle: languageStore.language == .simplifiedChinese ? "彻底删除" : "Delete Permanently", cancelTitle: languageStore.language == .simplifiedChinese ? "取消" : "Cancel", destructive: true, confirm: {
-                if model.deletePermanently(item) { pendingPermanentDeleteItem = nil }
+            PVConfirmModal(title: zh ? "彻底删除“\(item.title)”？" : "Permanently delete “\(item.title)”?", message: zh ? "该资料及附件将永久删除，无法撤销。" : "This record and its attachments will be permanently deleted. This cannot be undone.", confirmTitle: zh ? "彻底删除" : "Delete Permanently", cancelTitle: zh ? "取消" : "Cancel", destructive: true, confirm: {
+                if model.deletePermanently(item) { selectedIDs.remove(item.id); pendingPermanentDeleteItem = nil }
             }, cancel: { pendingPermanentDeleteItem = nil })
         }
         .pvWebModal(isPresented: $confirmingEmpty, maxWidth: 440, sizing: .fit, dismissOnBackdrop: false) {
-            PVConfirmModal(title: languageStore.language == .simplifiedChinese ? "清空恢复中心？" : "Empty Recovery Center?", message: languageStore.language == .simplifiedChinese ? "所有资料及附件将永久删除，无法撤销。" : "All records and attachments will be permanently deleted. This cannot be undone.", confirmTitle: languageStore.language == .simplifiedChinese ? "永久清空" : "Empty Permanently", cancelTitle: languageStore.language == .simplifiedChinese ? "取消" : "Cancel", destructive: true, confirm: {
-                if model.emptyTrash() { confirmingEmpty = false }
+            PVConfirmModal(title: zh ? "清空恢复中心？" : "Empty Recovery Center?", message: zh ? "所有资料及附件将永久删除，无法撤销。" : "All records and attachments will be permanently deleted. This cannot be undone.", confirmTitle: zh ? "永久清空" : "Empty Permanently", cancelTitle: zh ? "取消" : "Cancel", destructive: true, confirm: {
+                if model.emptyTrash() { selectedIDs.removeAll(); confirmingEmpty = false }
             }, cancel: { confirmingEmpty = false })
+        }
+        .pvWebModal(isPresented: $confirmingBulkDelete, maxWidth: 440, sizing: .fit, dismissOnBackdrop: false) {
+            PVConfirmModal(title: zh ? "彻底删除 \(selectedIDs.count) 项资料？" : "Permanently delete \(selectedIDs.count) items?", message: zh ? "所选资料及其附件将被永久删除。此操作无法撤销。" : "The selected items and attachments will be permanently deleted. This cannot be undone.", confirmTitle: zh ? "彻底删除" : "Delete Permanently", cancelTitle: zh ? "取消" : "Cancel", destructive: true, confirm: {
+                if model.deletePermanently(ids: selectedIDs) { selectedIDs.removeAll(); confirmingBulkDelete = false }
+            }, cancel: { confirmingBulkDelete = false })
+        }
+        .pvWebModal(isPresented: Binding(get: { pendingRetentionDays != nil }, set: { if !$0 { pendingRetentionDays = nil } }), maxWidth: 440, sizing: .fit, dismissOnBackdrop: false) {
+            PVConfirmModal(title: zh ? "确认缩短保留期" : "Confirm shorter retention", message: retentionConfirmationMessage, confirmTitle: zh ? "确认并清理" : "Confirm & Delete", cancelTitle: zh ? "取消" : "Cancel", destructive: true, confirm: applyPendingRetention, cancel: { pendingRetentionDays = nil })
         }
     }
 
+    private var zh: Bool { languageStore.language == .simplifiedChinese }
+
+    private var recoveryRetentionToolbar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(retentionSummary).font(.caption).foregroundStyle(PVTheme.muted)
+                .accessibilityIdentifier("recovery-retention-summary")
+            HStack(spacing: 6) {
+                ForEach([7, 30, 90, 0], id: \.self) { days in
+                    Button(retentionLabel(days)) { requestRetentionChange(days) }
+                        .buttonStyle(PVButtonStyle(role: preferences.trashRetentionDays == days ? .primary : .secondary, fillsWidth: true))
+                        .accessibilityIdentifier("recovery-retention-choice-\(days)")
+                }
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10).background(PVTheme.surfaceSoft)
+        .overlay(alignment: .bottom) { Rectangle().fill(PVTheme.line).frame(height: 1) }
+    }
+
+    private var recoveryBulkToolbar: some View {
+        HStack(spacing: 8) {
+            Button(zh ? "全选" : "Select All") { selectedIDs = selectedIDs.count == items.count ? [] : Set(items.map(\.id)) }
+                .buttonStyle(PVButtonStyle(role: .secondary)).accessibilityIdentifier("recovery-select-all")
+            Spacer(minLength: 0)
+            Button(zh ? "恢复所选" : "Restore Selected") {
+                if model.applyBulk(selectedIDs: selectedIDs, restoreFromTrash: true) { selectedIDs.removeAll() }
+            }.buttonStyle(PVButtonStyle(role: .secondary)).disabled(selectedIDs.isEmpty).accessibilityIdentifier("recovery-restore-selected")
+            Button(zh ? "彻底删除所选" : "Delete Selected", role: .destructive) { confirmingBulkDelete = true }
+                .buttonStyle(PVButtonStyle(role: .destructive)).disabled(selectedIDs.isEmpty).accessibilityIdentifier("recovery-delete-selected")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8).background(PVTheme.surfaceSoft)
+    }
+
+    private var retentionSummary: String {
+        preferences.trashRetentionDays == 0
+            ? (zh ? "资料永久保留，内容只在本机解密" : "Items are kept forever and decrypted only on this device")
+            : (zh ? "资料默认保留 \(preferences.trashRetentionDays) 天，内容只在本机解密" : "Items are kept for \(preferences.trashRetentionDays) days and decrypted only on this device")
+    }
+
+    private func retentionLabel(_ days: Int) -> String {
+        days == 0 ? (zh ? "永久保留" : "Forever") : (zh ? "\(days) 天" : "\(days) days")
+    }
+
+    private var retentionConfirmationMessage: String {
+        let count = pendingRetentionDays.map { model.expiredTrashCount(retentionDays: $0) } ?? 0
+        return zh ? "此设置会立即永久删除 \(count) 条已超过保留期的资料，且无法撤销。" : "This immediately and permanently deletes \(count) item(s) older than the retention period. This cannot be undone."
+    }
+
+    private func requestRetentionChange(_ days: Int) {
+        let old = preferences.trashRetentionDays
+        guard old != days else { return }
+        let shortens = days > 0 && (old == 0 || days < old)
+        if shortens && model.expiredTrashCount(retentionDays: days) > 0 {
+            previousRetentionDays = old
+            pendingRetentionDays = days
+        } else {
+            preferences.trashRetentionDays = days
+            _ = model.purgeExpiredTrash(retentionDays: days)
+            reconcileSelection()
+        }
+    }
+
+    private func applyPendingRetention() {
+        guard let days = pendingRetentionDays else { return }
+        let expected = model.expiredTrashCount(retentionDays: days)
+        preferences.trashRetentionDays = days
+        let removed = model.purgeExpiredTrash(retentionDays: days)
+        guard removed == expected else { preferences.trashRetentionDays = previousRetentionDays; return }
+        reconcileSelection()
+        pendingRetentionDays = nil
+    }
+
+    private func reconcileSelection() {
+        selectedIDs.formIntersection(Set(model.vault.items.filter(\.isDeleted).map(\.id)))
+    }
+
+    private func toggleSelection(_ id: UUID) {
+        if selectedIDs.remove(id) == nil { selectedIDs.insert(id) }
+    }
+
     private func restoreFromRecoveryCenter(_ item: VaultItem) {
-        _ = model.restore(item)
+        if model.restore(item) { selectedIDs.remove(item.id) }
     }
 }
 
 private struct RecoveryCenterItemRow: View {
     @EnvironmentObject private var languageStore: AppLanguageStore
     let item: VaultItem
+    let retentionDays: Int
+    let isSelected: Bool
+    let onToggleSelection: () -> Void
     let onRestore: () -> Void
     let onPermanentDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
+            Button(action: onToggleSelection) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? PVTheme.accent : PVTheme.muted)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isSelected ? "Deselect" : "Select")
             Image(systemName: "arrow.uturn.backward.circle").foregroundStyle(PVTheme.accentPressed)
                 .frame(width: 36, height: 36).background(PVTheme.selected).clipShape(RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title.isEmpty ? (languageStore.language == .simplifiedChinese ? "未命名" : "Untitled") : item.title).font(.body.weight(.semibold)).lineLimit(1)
                 Text(L10n.kind(item.kind, language: languageStore.language)).font(.caption).foregroundStyle(PVTheme.muted)
+                if let deletedAt = item.deletedAt {
+                    let metadata = RecoveryRetentionMetadata(deletedAt: deletedAt, retentionDays: retentionDays)
+                    Text(recoveryRemainingText(metadata))
+                        .font(.caption2)
+                        .foregroundStyle(PVTheme.muted)
+                        .lineLimit(1)
+                        .accessibilityIdentifier("recovery-time-\(item.id.uuidString)")
+                }
             }
             Spacer()
             Button(languageStore.language == .simplifiedChinese ? "恢复" : "Restore", action: onRestore)
@@ -1567,9 +1735,19 @@ private struct RecoveryCenterItemRow: View {
                 .buttonStyle(PVButtonStyle(role: .destructive))
                 .accessibilityIdentifier("permanent-delete-item-\(item.id.uuidString)")
         }
-        .padding(12).frame(minHeight: 66).background(PVTheme.surface)
+        .padding(12).frame(minHeight: 78).background(PVTheme.surface)
         .overlay(RoundedRectangle(cornerRadius: PVTheme.cornerRadius).stroke(PVTheme.line))
         .clipShape(RoundedRectangle(cornerRadius: PVTheme.cornerRadius))
+    }
+
+    private func recoveryRemainingText(_ metadata: RecoveryRetentionMetadata) -> String {
+        guard metadata.expirationDate != nil else {
+            return languageStore.language == .simplifiedChinese ? "永久保留" : "Kept permanently"
+        }
+        let days = metadata.remainingDays ?? 0
+        return languageStore.language == .simplifiedChinese
+            ? "剩余 \(days) 天"
+            : "\(days) day\(days == 1 ? "" : "s") remaining"
     }
 }
 
@@ -1610,11 +1788,29 @@ private struct VaultItemRow: View {
 
     private var rowContent: some View {
         HStack(spacing: 0) {
+            if item.kind == .attachment && !selectionMode {
+                Button(action: onSelect) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(privacy.hidesTitle ? t(.record) : (item.attachmentName ?? item.title))
+                            .font(.body.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                        Text(privacy.hidesSummary ? "••••••" : attachmentMetadata)
+                            .font(.caption.weight(.semibold)).foregroundStyle(PVTheme.muted).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(privacy.level == .off ? (item.attachmentName ?? item.title) : t(.record))
+                .accessibilityValue(privacy.level == .off ? attachmentMetadata : "")
+                .accessibilityIdentifier("vault-item-\(item.id.uuidString)")
+            } else {
                 Button(action: onSelect) {
                     HStack(spacing: 11) {
                         if selectionMode {
                             Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                                 .font(.title3).foregroundStyle(selected ? PVTheme.accent : PVTheme.muted)
+                                .accessibilityIdentifier(selected ? "selected-item-\(item.id.uuidString)" : "unselected-item-\(item.id.uuidString)")
                         }
                         Image(systemName: itemIcon).font(.system(size: 16, weight: .semibold)).foregroundStyle(PVTheme.accentPressed)
                             .frame(width: 36, height: 36).background(PVTheme.selected).clipShape(RoundedRectangle(cornerRadius: 9))
@@ -1634,10 +1830,23 @@ private struct VaultItemRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .overlay {
+                    if rowInteraction == .actions && !selectionMode && !privacy.restrictsSensitiveNavigation {
+                        PVNativeLongPressRecognizer(
+                            minimumDuration: 0.45,
+                            allowableMovement: 24,
+                            onTap: onSelect,
+                            onRecognized: handleLongPress
+                        )
+                        .contentShape(Rectangle())
+                        .accessibilityHidden(true)
+                    }
+                }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(privacy.level == .off ? (item.title.isEmpty ? t(.untitled) : item.title) : t(.record))
                 .accessibilityValue(privacy.level == .off ? subtitle : "")
                 .accessibilityIdentifier("vault-item-\(item.id.uuidString)")
+            }
                 if rowInteraction == .actions && item.kind != .totp && !selectionMode && !privacy.restrictsSensitiveNavigation {
                     GeometryReader { proxy in
                         Button { onRequestActions(item, proxy.frame(in: .named("vault-list-overlay"))) } label: { Image(systemName: "ellipsis").accessibilityLabel(t(.more)) }
@@ -1653,11 +1862,35 @@ private struct VaultItemRow: View {
             Color.clear.onAppear { rowFrame = proxy.frame(in: .named("vault-list-overlay")) }
                 .onChange(of: proxy.frame(in: .named("vault-list-overlay"))) { _, frame in rowFrame = frame }
         })
-        .onLongPressGesture {
-            guard item.kind == .totp, rowInteraction == .actions, !selectionMode, !privacy.restrictsSensitiveNavigation else { return }
+    }
+
+    private func handleLongPress() {
+        guard rowInteraction == .actions, !selectionMode, !privacy.restrictsSensitiveNavigation else { return }
+        if item.kind == .totp {
             onRequestActions(item, rowFrame)
+        } else {
+            onBeginSelection()
         }
     }
+
+    private var attachmentMetadata: String {
+        let category = AttachmentMetadataPolicy.category(name: item.attachmentName ?? item.title)
+        let categoryName: String
+        switch category {
+        case .image: categoryName = languageStore.language == .simplifiedChinese ? "图片" : "Image"
+        case .video: categoryName = languageStore.language == .simplifiedChinese ? "视频" : "Video"
+        case .other: categoryName = languageStore.language == .simplifiedChinese ? "其他" : "Other"
+        }
+        return "\(categoryName) · \(formattedAttachmentSize)"
+    }
+
+    private var formattedAttachmentSize: String {
+        ByteCountFormatter.string(
+            fromByteCount: Int64(item.attachmentData?.count ?? 0),
+            countStyle: .file
+        )
+    }
+
     private var subtitle: String {
         if item.kind == .attachment { return item.attachmentName ?? t(.kindAttachment) }
         return [item.username, item.url, model.vault.groupName(for: item)].first { !$0.isEmpty } ?? L10n.kind(item.kind, language: languageStore.language)

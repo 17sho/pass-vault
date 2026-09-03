@@ -582,6 +582,15 @@ struct SettingsView: View {
                         }
                     }
                     settingsSection(t(.security)) {
+                        PVField(title: MoreMenuLocalCopy.text("自动锁定时间", "Auto-lock", language: languageStore.language)) {
+                            PVChoiceField(title: MoreMenuLocalCopy.text("自动锁定时间", "Auto-lock", language: languageStore.language), icon: "timer", selection: $preferences.autoLockChoice, options: AutoLockChoice.allCases.map { PVChoiceOption($0, autoLockLabel($0)) }, onSelect: { model.recordActivity() })
+                        }
+                        PVField(title: MoreMenuLocalCopy.text("剪贴板自动清除", "Clear clipboard", language: languageStore.language)) {
+                            PVChoiceField(title: MoreMenuLocalCopy.text("剪贴板自动清除", "Clear clipboard", language: languageStore.language), icon: "doc.on.clipboard", selection: $preferences.clipboardClearChoice, options: ClipboardClearChoice.allCases.map { PVChoiceOption($0, clipboardLabel($0)) })
+                                .accessibilityIdentifier("settings-clipboard-choice")
+                        }
+                        Text(MoreMenuLocalCopy.text("复制密码、验证码或其他敏感内容后，将按所选时间自动清除；如果你随后复制了其他内容，则不会误删。", "Passwords, codes, and other sensitive values are cleared after the selected delay. Newer clipboard content is never removed.", language: languageStore.language))
+                            .font(.footnote).foregroundStyle(PVTheme.muted)
                         PVCard { PVToggleRow(title: t(.quickUnlockSetting), icon: "faceid", isOn: Binding(get: { model.quickUnlockEnabled }, set: { model.setQuickUnlock(enabled: $0) })) }
                         Text(t(.quickUnlockExplanation)).font(.footnote).foregroundStyle(PVTheme.muted)
                         Button(t(.changeMasterPassword), systemImage: "key") { showingPasswordChange = true }.buttonStyle(PVButtonStyle(role: .secondary, fillsWidth: true))
@@ -641,6 +650,30 @@ struct SettingsView: View {
         .pvWebModal(isPresented: Binding(get: { pendingBackup != nil }, set: { if !$0 { resetBackupImport() } }), maxWidth: 660, dismissOnBackdrop: false) {
             if let data = pendingBackup { BackupImportConfirmationView(data: data, onFinish: resetBackupImport) }
         }
+    }
+
+    private func autoLockLabel(_ value: AutoLockChoice) -> String {
+        switch value {
+        case .oneMinute: durationLabel(1, zhUnit: "分钟", enUnit: "min")
+        case .fiveMinutes: durationLabel(5, zhUnit: "分钟", enUnit: "min")
+        case .fifteenMinutes: durationLabel(15, zhUnit: "分钟", enUnit: "min")
+        case .thirtyMinutes: durationLabel(30, zhUnit: "分钟", enUnit: "min")
+        case .never: MoreMenuLocalCopy.text("永不", "Never", language: languageStore.language)
+        }
+    }
+
+    private func clipboardLabel(_ value: ClipboardClearChoice) -> String {
+        switch value {
+        case .never: MoreMenuLocalCopy.text("永不", "Never", language: languageStore.language)
+        case .fifteenSeconds: durationLabel(15, zhUnit: "秒", enUnit: "sec")
+        case .thirtySeconds: durationLabel(30, zhUnit: "秒", enUnit: "sec")
+        case .oneMinute: durationLabel(1, zhUnit: "分钟", enUnit: "min")
+        case .twoMinutes: durationLabel(2, zhUnit: "分钟", enUnit: "min")
+        }
+    }
+
+    private func durationLabel(_ value: Int, zhUnit: String, enUnit: String) -> String {
+        MoreMenuLocalCopy.text("\(value) \(zhUnit)", "\(value) \(enUnit)", language: languageStore.language)
     }
 
     private func resetBackupImport() {

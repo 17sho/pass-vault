@@ -35,7 +35,7 @@ final class RealDeviceRegressionContractTests: XCTestCase {
         let storage = try String(contentsOf: root.appendingPathComponent("Storage/EncryptedVaultStore.swift"), encoding: .utf8)
         XCTAssertTrue(storage.contains("NSFileCoordinator"))
         XCTAssertTrue(storage.contains("if values.isRegularFile == false"))
-        XCTAssertTrue(storage.contains("if let size = values.fileSize"))
+        XCTAssertTrue(storage.contains("FileReadPolicy.readData(at: coordinatedURL)"))
     }
 
     func testFilteredCollectionsDoNotShowOrganizationFilters() throws {

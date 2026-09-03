@@ -63,7 +63,8 @@ struct MoreMenuLocalDestinationView: View {
             switch destination {
             case .globalSearch: GlobalVaultSearchView(selectedItem: $selectedItem, onOpenItem: onOpenItem)
             case .tags: TagManagementView()
-            case .settings, .securityCenter: LocalSecurityCenterView()
+            case .settings: SettingsView(initialAction: nil)
+            case .securityCenter: LocalSecurityCenterView(destination: .securityCenter)
             case .privacy: LocalMenuPlaceholderView(title: MoreMenuLocalCopy.title(.privacy, language: languageStore.language))
             case .theme: LocalThemeView()
             case .groupOrder: GroupOrderReferenceView()
@@ -288,10 +289,12 @@ private struct LocalSecurityCenterView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var preferences: LocalVaultPreferences
     @EnvironmentObject private var languageStore: AppLanguageStore
+    let destination: MoreMenuDestination
 
     var body: some View {
-        LocalModalShell(title: MoreMenuLocalCopy.title(.securityCenter, language: languageStore.language)) {
-            VStack(alignment: .leading, spacing: 16) {
+        LocalModalShell(title: MoreMenuLocalCopy.title(destination, language: languageStore.language)) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
                     Text(MoreMenuLocalCopy.text("本机保护", "On-device protection", language: languageStore.language)).font(.headline)
                     choiceCard(MoreMenuLocalCopy.text("自动锁定时间", "Auto-lock", language: languageStore.language)) {
                         PVChoiceField(title: MoreMenuLocalCopy.text("自动锁定时间", "Auto-lock", language: languageStore.language), icon: "timer", selection: $preferences.autoLockChoice, options: AutoLockChoice.allCases.map { PVChoiceOption($0, autoLockLabel($0)) }, onSelect: { model.recordActivity() })
@@ -299,9 +302,14 @@ private struct LocalSecurityCenterView: View {
                     choiceCard(MoreMenuLocalCopy.text("剪贴板自动清除", "Clear clipboard", language: languageStore.language)) {
                         PVChoiceField(title: MoreMenuLocalCopy.text("剪贴板自动清除", "Clear clipboard", language: languageStore.language), icon: "doc.on.clipboard", selection: $preferences.clipboardClearChoice, options: ClipboardClearChoice.allCases.map { PVChoiceOption($0, clipboardLabel($0)) })
                     }
+                    Text(MoreMenuLocalCopy.text("复制密码、验证码或其他敏感内容后，将按所选时间自动清除；若你随后复制了其他内容，则不会误删。", "Passwords, codes, and other sensitive values are cleared after the selected delay. Newer clipboard content is never removed.", language: languageStore.language))
+                        .font(.footnote).foregroundStyle(PVTheme.muted)
                     Toggle(MoreMenuLocalCopy.text("面容 ID / 设备所有者快速解锁", "Face ID / device-owner quick unlock", language: languageStore.language), isOn: Binding(get: { model.quickUnlockEnabled }, set: { model.setQuickUnlock(enabled: $0) })).tint(PVTheme.accent).padding(14).background(PVTheme.surface).clipShape(RoundedRectangle(cornerRadius: 12))
                     Text(MoreMenuLocalCopy.text("登录设备与远程注销需要联网，因此未显示在本地安全中心。", "Signed-in devices and remote sign-out require networking and are not shown in the local security center.", language: languageStore.language)).font(.footnote).foregroundStyle(PVTheme.muted)
-                }.padding(16).background(PVTheme.background)
+                }
+                .padding(16)
+            }
+            .background(PVTheme.background)
         }
     }
 
