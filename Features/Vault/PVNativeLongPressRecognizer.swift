@@ -17,6 +17,7 @@ struct PVNativeLongPressRecognizer: UIViewRepresentable {
         let view = UIView(frame: .zero)
         view.backgroundColor = .clear
         view.isUserInteractionEnabled = true
+        view.accessibilityIdentifier = "vault-row-touch-surface"
 
         let longPress = UILongPressGestureRecognizer(
             target: context.coordinator,

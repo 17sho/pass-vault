@@ -23,8 +23,8 @@ No signing identities, provisioning profiles, backend, analytics, or network ser
 - PBKDF2-HMAC-SHA256 master-password wrapping with random salt and versioned work factor.
 - Atomic file writes with complete file protection.
 - Secrets hidden in the editor by default; privacy shield appears immediately off-active and automatic lock follows after 60 seconds.
-- Clipboard auto-clear is configurable in Settings: never, 15 seconds, 30 seconds, 1 minute, or 2 minutes; newer clipboard content is never removed.
-- Attachments remain inside the encrypted payload; practical capacity depends on available device storage.
+- Clipboard copies clear after 30 seconds when the clipboard still contains the app-owned value.
+- Attachments remain inside the encrypted payload (10 MB each, 25 MB total).
 - Versioned authenticated backup import validates fully before replacing the local vault.
 
 ## Local build limitation

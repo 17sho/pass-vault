@@ -18,7 +18,8 @@ final class EleventhBatchRealDeviceContractTests: XCTestCase {
     func testPhoneDetailKeepsAndAnimatesBothNavigationLayers() throws {
         let source = try source("Features/Vault/VaultViews.swift")
         XCTAssertTrue(source.contains("GeometryReader { pane in"))
-        XCTAssertTrue(source.contains(".offset(x: showingDetail ? -pane.size.width : 0)"))
+        XCTAssertTrue(source.contains(".offset(x: showingDetail ? -pane.size.width + pane.size.width * detailEdgeBackProgress * 0.30 : 0)"))
+        XCTAssertTrue(source.contains(".offset(x: pane.size.width * detailEdgeBackProgress)"))
         XCTAssertTrue(source.contains(".transition(.move(edge: .trailing))"))
     }
 

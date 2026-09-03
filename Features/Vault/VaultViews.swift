@@ -64,6 +64,8 @@ struct VaultHomeView: View {
     @State private var interactionResetRequest = 0
     @State private var attachmentImportCompletion = 0
     @State private var showingCustomRecords = false
+    @State private var detailEdgeBackProgress: CGFloat = 0
+    @State private var detailEdgeBackActive = false
 
     @State private var viewportWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -136,13 +138,13 @@ struct VaultHomeView: View {
                     if showingCustomRecords {
                         customRecordsHomePane(onOpenDetail: { openPhoneDetail() })
                     } else {
-                        VaultListView(category: category, selectedItem: $selectedItem, selectionRequest: bulkSelectionRequest, interactionResetRequest: interactionResetRequest, attachmentImportCompletion: attachmentImportCompletion, onEditItem: { openProductRoute(.editor($0)) }) {
+                        VaultListView(category: category, selectedItem: $selectedItem, selectionRequest: bulkSelectionRequest, interactionResetRequest: interactionResetRequest, attachmentImportCompletion: attachmentImportCompletion, onEditItem: { openProductRoute(.editor($0)) }, onCategorySwipe: switchCategoryBySwipe) {
                             openPhoneDetail()
                         }
                     }
                 }
                 .frame(width: pane.size.width, height: pane.size.height)
-                .offset(x: showingDetail ? -pane.size.width : 0)
+                .offset(x: showingDetail ? -pane.size.width + pane.size.width * detailEdgeBackProgress * 0.30 : 0)
 
                 if showingDetail, let selectedItem {
                 PhoneVaultDetailDestination(
@@ -153,10 +155,19 @@ struct VaultHomeView: View {
                     onBack: closePhoneDetail
                 )
                     .frame(width: pane.size.width, height: pane.size.height)
+                    .offset(x: pane.size.width * detailEdgeBackProgress)
+                    .shadow(color: .black.opacity(detailEdgeBackProgress > 0 ? 0.18 : 0), radius: 10, x: -4)
                     .transition(.move(edge: .trailing))
                 }
             }
-            .animation(productRouteAnimation, value: showingDetail)
+            .background {
+                PVNativeEdgeBackRecognizer(
+                    isEnabled: showingDetail,
+                    onProgress: updateDetailEdgeBack,
+                    onFinish: finishDetailEdgeBack
+                )
+            }
+            .animation(detailEdgeBackActive ? nil : productRouteAnimation, value: showingDetail)
         }
         .clipped()
     }
@@ -172,14 +183,64 @@ struct VaultHomeView: View {
     }
 
 
+    private func switchCategoryBySwipe(_ direction: UISwipeGestureRecognizer.Direction) {
+        guard !showingDetail, productRoute == nil else { return }
+        let categories = WebVaultCategory.allCases
+        guard let index = categories.firstIndex(of: category) else { return }
+        let targetIndex: Int
+        if direction == .left {
+            targetIndex = index + 1
+        } else if direction == .right {
+            targetIndex = index - 1
+        } else {
+            return
+        }
+        guard categories.indices.contains(targetIndex) else { return }
+        interactionResetRequest += 1
+        selectedItem = nil
+        withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.20)) {
+            category = categories[targetIndex]
+        }
+    }
+
     private func openPhoneDetail() {
         routeDirection = .forward
+        detailEdgeBackProgress = 0
+        detailEdgeBackActive = false
         withAnimation(productRouteAnimation) { showingDetail = true }
     }
 
     private func closePhoneDetail() {
         routeDirection = .backward
+        detailEdgeBackProgress = 0
+        detailEdgeBackActive = false
         withAnimation(productRouteAnimation) { showingDetail = false }
+    }
+
+    private func updateDetailEdgeBack(_ progress: CGFloat) {
+        guard showingDetail else { return }
+        detailEdgeBackActive = true
+        detailEdgeBackProgress = progress
+    }
+
+    private func finishDetailEdgeBack(_ shouldReturn: Bool) {
+        guard showingDetail else { return }
+        if shouldReturn {
+            routeDirection = .backward
+            withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.18)) {
+                detailEdgeBackProgress = 1
+                showingDetail = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0 : 0.18)) {
+                detailEdgeBackProgress = 0
+                detailEdgeBackActive = false
+            }
+        } else {
+            withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0, 0, 1, duration: 0.18)) {
+                detailEdgeBackProgress = 0
+            }
+            detailEdgeBackActive = false
+        }
     }
 
     private func customRecordsHomePane(onOpenDetail: @escaping () -> Void) -> some View {
@@ -789,6 +850,7 @@ struct VaultListView: View {
     var showsSheetHeader: Bool
     @Binding var selectedItem: VaultItem?
     var onEditItem: ((VaultItem) -> Void)?
+    var onCategorySwipe: ((UISwipeGestureRecognizer.Direction) -> Void)?
     var onOpenDetail: (() -> Void)?
     @State private var query = ""
     @State private var selectedTags = Set<String>()
@@ -820,14 +882,14 @@ struct VaultListView: View {
     @Environment(\.pvModalBack) private var productBackAction
     private func t(_ key: L10nKey) -> String { L10n.text(key, language: languageStore.language) }
 
-    init(category: WebVaultCategory, selectedItem: Binding<VaultItem?>, selectionRequest: Int = 0, interactionResetRequest: Int = 0, attachmentImportCompletion: Int = 0, onEditItem: ((VaultItem) -> Void)? = nil, onOpenDetail: @escaping () -> Void = {}) {
-        self.category = category; self.kind = nil; self.filter = .all; self.selectionRequest = selectionRequest; self.interactionResetRequest = interactionResetRequest; self.attachmentImportCompletion = attachmentImportCompletion; self.rowInteraction = .actions; self.showsSheetHeader = false; self._selectedItem = selectedItem; self.onEditItem = onEditItem; self.onOpenDetail = onOpenDetail
+    init(category: WebVaultCategory, selectedItem: Binding<VaultItem?>, selectionRequest: Int = 0, interactionResetRequest: Int = 0, attachmentImportCompletion: Int = 0, onEditItem: ((VaultItem) -> Void)? = nil, onCategorySwipe: ((UISwipeGestureRecognizer.Direction) -> Void)? = nil, onOpenDetail: @escaping () -> Void = {}) {
+        self.category = category; self.kind = nil; self.filter = .all; self.selectionRequest = selectionRequest; self.interactionResetRequest = interactionResetRequest; self.attachmentImportCompletion = attachmentImportCompletion; self.rowInteraction = .actions; self.showsSheetHeader = false; self._selectedItem = selectedItem; self.onEditItem = onEditItem; self.onCategorySwipe = onCategorySwipe; self.onOpenDetail = onOpenDetail
     }
     init(kind: VaultItemKind, selectedItem: Binding<VaultItem?>, rowInteraction: RowInteraction = .actions, interactionResetRequest: Int = 0, showsSheetHeader: Bool = true, onEditItem: ((VaultItem) -> Void)? = nil, onOpenDetail: (() -> Void)? = nil) {
-        self.category = nil; self.kind = kind; self.filter = .all; self.selectionRequest = 0; self.interactionResetRequest = interactionResetRequest; self.attachmentImportCompletion = 0; self.rowInteraction = rowInteraction; self.showsSheetHeader = showsSheetHeader; self._selectedItem = selectedItem; self.onEditItem = onEditItem; self.onOpenDetail = onOpenDetail
+        self.category = nil; self.kind = kind; self.filter = .all; self.selectionRequest = 0; self.interactionResetRequest = interactionResetRequest; self.attachmentImportCompletion = 0; self.rowInteraction = rowInteraction; self.showsSheetHeader = showsSheetHeader; self._selectedItem = selectedItem; self.onEditItem = onEditItem; self.onCategorySwipe = nil; self.onOpenDetail = onOpenDetail
     }
     init(filter: Filter, selectedItem: Binding<VaultItem?>, rowInteraction: RowInteraction = .actions, onEditItem: ((VaultItem) -> Void)? = nil, onOpenDetail: (() -> Void)? = nil) {
-        self.category = nil; self.kind = nil; self.filter = filter; self.selectionRequest = 0; self.interactionResetRequest = 0; self.attachmentImportCompletion = 0; self.rowInteraction = rowInteraction; self.showsSheetHeader = true; self._selectedItem = selectedItem; self.onEditItem = onEditItem; self.onOpenDetail = onOpenDetail
+        self.category = nil; self.kind = nil; self.filter = filter; self.selectionRequest = 0; self.interactionResetRequest = 0; self.attachmentImportCompletion = 0; self.rowInteraction = rowInteraction; self.showsSheetHeader = true; self._selectedItem = selectedItem; self.onEditItem = onEditItem; self.onCategorySwipe = nil; self.onOpenDetail = onOpenDetail
     }
 
     private var baseItems: [VaultItem] {
@@ -931,6 +993,12 @@ struct VaultListView: View {
             }
         }
         .background(PVTheme.background)
+        .background {
+            PVNativeCategorySwipeRecognizer(
+                isEnabled: category != nil && filter == .all && !selectionMode && !showingGroupPicker && pendingActionItem == nil && bulkChoice == nil,
+                onSwipe: { onCategorySwipe?($0) }
+            )
+        }
         .coordinateSpace(name: "vault-list-overlay")
         .overlay { anchoredActionMenu }
         .onChange(of: attachmentImportCompletion) { _, _ in
