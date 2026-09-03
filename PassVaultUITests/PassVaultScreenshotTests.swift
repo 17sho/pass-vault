@@ -117,6 +117,38 @@ final class PassVaultScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testHorizontalPanChangesCategoriesAndCollapsesDeleteBeforeReturn() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-ui-testing", "-ui-testing-unlocked", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.terminate()
+        app.launch()
+
+        let accountCategory = app.buttons["category-account"]
+        let websiteCategory = app.buttons["category-website"]
+        XCTAssertTrue(accountCategory.waitForExistence(timeout: 10))
+        XCTAssertTrue(accountCategory.isSelected)
+
+        let item = app.descendants(matching: .any)["vault-item-\(demoAccountID)"]
+        XCTAssertTrue(item.waitForExistence(timeout: 10) && item.isHittable)
+        let shortStart = item.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.5))
+        let shortEnd = item.coordinate(withNormalizedOffset: CGVector(dx: 0.48, dy: 0.5))
+        shortStart.press(forDuration: 0.05, thenDragTo: shortEnd)
+        let delete = app.buttons["swipe-delete-\(demoAccountID)"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5) && delete.isHittable)
+
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.82))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.82))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(websiteCategory.waitForExistence(timeout: 5) && websiteCategory.isSelected)
+
+        let reverseStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.82))
+        let reverseEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.82))
+        reverseStart.press(forDuration: 0.05, thenDragTo: reverseEnd)
+        XCTAssertTrue(accountCategory.waitForExistence(timeout: 5) && accountCategory.isSelected)
+        XCTAssertTrue(delete.waitForNonExistence(timeout: 2), "Returning to a category must remove the closed delete action from the interaction tree immediately")
+    }
+
+    @MainActor
     func testMoreDestinationsAndNewItemRoutesAreReachable() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-ui-testing", "-ui-testing-unlocked", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]

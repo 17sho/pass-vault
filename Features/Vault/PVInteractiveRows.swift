@@ -28,29 +28,31 @@ struct PVSwipeDeleteRow<Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            Button(role: .destructive) {
-                withAnimation(.easeOut(duration: 0.16)) {
-                    restingOffset = 0
-                    liveOffset = 0
+            if restingOffset != 0 || liveOffset != 0 {
+                Button(role: .destructive) {
+                    withAnimation(.easeOut(duration: 0.16)) {
+                        restingOffset = 0
+                        liveOffset = 0
+                    }
+                    expandedKey = nil
+                    onDelete()
+                } label: {
+                    Label(deleteTitle, systemImage: "trash")
+                        .labelStyle(.titleAndIcon)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: actionWidth)
+                        .frame(maxHeight: .infinity)
+                        .frame(minHeight: 66)
+                        .background(PVTheme.danger)
+                        .contentShape(Rectangle())
                 }
-                expandedKey = nil
-                onDelete()
-            } label: {
-                Label(deleteTitle, systemImage: "trash")
-                    .labelStyle(.titleAndIcon)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: actionWidth)
-                    .frame(maxHeight: .infinity)
-                    .frame(minHeight: 66)
-                    .background(PVTheme.danger)
-                    .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityIdentifier(accessibilityID)
+                .opacity(actionRevealProgress)
+                .allowsHitTesting(restingOffset != 0)
+                .zIndex(1)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(accessibilityID)
-            .opacity(actionRevealProgress)
-            .allowsHitTesting(restingOffset != 0)
-            .zIndex(1)
 
             content
                 .offset(x: liveOffset)
@@ -95,12 +97,14 @@ struct PVSwipeDeleteRow<Content: View>: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: PVTheme.cornerRadius))
         .onChange(of: resetRequest) { _, _ in
-            withAnimation(.easeOut(duration: 0.16)) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
                 restingOffset = 0
                 liveOffset = 0
+                horizontalDrag = false
+                expandedKey = nil
             }
-            horizontalDrag = false
-            expandedKey = nil
         }
         .onChange(of: expandedKey) { _, next in
             guard next != expansionKey, restingOffset != 0 else { return }

@@ -981,6 +981,7 @@ struct VaultListView: View {
                                 onRequestDelete: { item in requestDelete(item) },
                                 onSelect: { selectionMode ? toggleSelection(item.id) : open(item) }
                             )
+                            .id("\(item.id.uuidString)-\(interactionResetRequest)")
                         }
                     }
                     .padding(12)

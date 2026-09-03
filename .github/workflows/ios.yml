@@ -190,6 +190,7 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             -derivedDataPath build/SmokeDerivedData \
             -only-testing:PassVaultUITests/PassVaultScreenshotTests/testLongPressEntersBulkSelectionOnMainList \
+            -only-testing:PassVaultUITests/PassVaultScreenshotTests/testHorizontalPanChangesCategoriesAndCollapsesDeleteBeforeReturn \
             -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty

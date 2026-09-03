@@ -27,8 +27,11 @@ final class Feedback75EdgeBackGestureTests: XCTestCase {
     func testPhoneListSupportsNonControlHorizontalCategorySwipes() throws {
         let recognizer = try source("Features/Vault/PVNativeCategorySwipeRecognizer.swift")
         let vault = try source("Features/Vault/VaultViews.swift")
-        XCTAssertTrue(recognizer.contains("UISwipeGestureRecognizer"))
-        XCTAssertTrue(recognizer.contains("let directions: [UISwipeGestureRecognizer.Direction] = [.left, .right]"))
+        XCTAssertTrue(recognizer.contains("UIPanGestureRecognizer"))
+        XCTAssertTrue(recognizer.contains("window.addGestureRecognizer(recognizer)"))
+        XCTAssertTrue(recognizer.contains("container.convert(container.bounds, to: hostWindow)"))
+        XCTAssertTrue(recognizer.contains("activeFrame.contains(point)"))
+        XCTAssertTrue(recognizer.contains("abs(translation.x) >= distanceThreshold"))
         XCTAssertTrue(recognizer.contains("current is UIControl || current is UITextField || current is UITextView"))
         XCTAssertFalse(recognizer.contains("current.accessibilityIdentifier == \"vault-row-touch-surface\""))
         XCTAssertTrue(vault.contains("onCategorySwipe: switchCategoryBySwipe"))
