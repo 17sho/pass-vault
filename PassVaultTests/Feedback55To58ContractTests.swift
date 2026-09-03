@@ -27,7 +27,9 @@ final class Feedback55To58ContractTests: XCTestCase {
         let rootView = try source("Features/RootView.swift")
         XCTAssertTrue(app.contains("PrivacyShieldOverlay(model: model, language: languageStore.language)"))
         XCTAssertTrue(app.contains(".zIndex(100_000)"))
-        XCTAssertTrue(app.contains("withAnimation(.easeOut(duration: reduceMotion ? 0.10 : 0.24))"))
+        XCTAssertTrue(app.contains("await Task.yield()"))
+        XCTAssertTrue(app.contains("withAnimation(reduceMotion ? nil : .linear(duration: 0.16))"))
+        XCTAssertFalse(app.contains(".scaleEffect(visible"))
         XCTAssertTrue(app.range(of: "PVChoiceOverlayContainer")!.lowerBound < app.range(of: "PrivacyShieldOverlay(model:")!.lowerBound)
         XCTAssertFalse(rootView.contains("if SensitiveContentPolicy.shouldShield"))
     }

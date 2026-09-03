@@ -75,6 +75,7 @@ private struct PrivacyShieldOverlay: View {
     let language: AppLanguage
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visible = false
+    @State private var dismissalTask: Task<Void, Never>?
 
     private var shouldShield: Bool {
         SensitiveContentPolicy.shouldShield(state: model.state, privacyShielded: model.privacyShielded)
@@ -184,13 +185,27 @@ private struct PrivacyShieldOverlay: View {
         }
         .accessibilityIdentifier("privacy-shield")
         .opacity(visible ? 1 : 0)
-        .scaleEffect(visible || reduceMotion ? 1 : 0.992)
         .allowsHitTesting(visible)
         .accessibilityHidden(!visible)
         .onAppear { visible = shouldShield }
+        .onDisappear { dismissalTask?.cancel() }
         .onChange(of: shouldShield) { _, shield in
-            if shield { visible = true }
-            else { withAnimation(.easeOut(duration: reduceMotion ? 0.10 : 0.24)) { visible = false } }
+            dismissalTask?.cancel()
+            if shield {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { visible = true }
+            } else {
+                dismissalTask = Task { @MainActor in
+                    // Keep the opaque shield for one rendered frame while the vault
+                    // finishes its foreground layout, then perform one cheap fade.
+                    await Task.yield()
+                    guard !Task.isCancelled, !shouldShield else { return }
+                    withAnimation(reduceMotion ? nil : .linear(duration: 0.16)) {
+                        visible = false
+                    }
+                }
+            }
         }
     }
 }
