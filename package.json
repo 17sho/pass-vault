@@ -28,10 +28,10 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260813.1",
-    "miniflare": "4.20260722.1",
+    "miniflare": "5.20260910.0-alpha",
     "playwright": "1.62.1",
     "typescript": "latest",
-    "wrangler": "4.123.0"
+    "wrangler": "4.131.0"
   },
   "overrides": {
     "undici": "7.29.0"
